@@ -14,7 +14,9 @@ static GLOBAL: MiMalloc = MiMalloc;
 fn main() {
     init_logger();
 
-    let mut args = args();
+    ui::start();
+
+    /*let mut args = args();
     args.next(); // Consume first argument, which is a command itself.
     let command = args.next();
     if let Err(e) = execute_command(command, args.collect()) {
@@ -30,7 +32,7 @@ fn main() {
             eprintln!("Stack trace:\n{}", e.backtrace());
         }
         process::exit(1);
-    }
+    }*/
 }
 
 fn execute_command(command: Option<String>, args: Vec<String>) -> EmptyRes {

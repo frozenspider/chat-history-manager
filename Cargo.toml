@@ -46,6 +46,11 @@ tonic-reflection = "0.10.2"
 futures = "0.3.29"
 tokio = { version = "1.35.0", features = ["macros", "rt-multi-thread"] }
 
+# UI
+cxx = "1.0.115"
+cxx-qt = "0.5.3"
+cxx-qt-lib = "0.5.3"
+
 # Logging
 log = "0.4.20"
 env_logger = "0.10.1"
@@ -63,3 +68,5 @@ pretty_assertions = "1.4.0"
 
 [build-dependencies]
 tonic-build = "0.10.2"
+cxx-build = "1.0.105"
+cxx-qt-build = "0.5.3"
