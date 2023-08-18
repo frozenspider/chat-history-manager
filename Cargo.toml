@@ -46,6 +46,10 @@ tonic-reflection = "0.10.2"
 futures = "0.3.29"
 tokio = { version = "1.35.0", features = ["macros", "rt-multi-thread"] }
 
+# UI
+dioxus = "0.4.3"
+dioxus-desktop = "0.4.3"
+
 # Logging
 log = "0.4.20"
 env_logger = "0.10.1"
