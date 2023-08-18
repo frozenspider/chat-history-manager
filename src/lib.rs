@@ -15,6 +15,7 @@ mod merge;
 mod server;
 mod dao;
 mod utils;
+pub mod ui; // "pub" to be called from main
 
 pub mod prelude {
     pub use std::collections::{HashMap, HashSet};
