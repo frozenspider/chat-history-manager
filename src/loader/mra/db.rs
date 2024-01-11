@@ -63,11 +63,17 @@ fn load_account(
         .filter(|p| p.extension().and_then(|s| s.to_str()).is_some_and(|s| s == "db"))
     {
         let conv_username = path_file_name(&db_file)?.smart_slice(..-3).to_owned();
+
+        let index_file_name = format!("{conv_username}.index");
+        let index_file = db_file.parent().unwrap().join(&index_file_name);
+        require!(index_file.exists(), "{index_file_name} does not exist!");
+
         if conv_username == "unreads" { continue; }
 
         let db_bytes = fs::read(db_file)?;
+        let index_bytes = fs::read(index_file)?;
 
-        let mut msgs = load_conversation_messages(&conv_username, &db_bytes)?;
+        let mut msgs = load_conversation_messages(&conv_username, &db_bytes, &index_bytes)?;
         // Messages might be out of order
         msgs.sort_by_key(|m| m.header.filetime);
 
@@ -91,7 +97,30 @@ fn load_account(
 }
 
 /// Filters out empty (placeholder?) messages.
-fn load_conversation_messages<'a>(conv_username: &str, db_bytes: &'a [u8]) -> Result<Vec<DbMessage>> {
+fn load_conversation_messages<'a>(conv_username: &str, db_bytes: &'a [u8], index_bytes: &[u8]) -> Result<Vec<DbMessage>> {
+    let (index_magic, index_bytes) = next_u32(index_bytes);
+    require!(index_magic == 0x01, "{conv_username}, index magic");
+    // Next two u32's are index file length and DB file length
+    let (_, mut index_bytes) = next_n_bytes::<8>(index_bytes);
+
+    let mut indexed_offsets = HashSet::new();
+    let mut offset = 12;
+    while !index_bytes.is_empty() {
+        let record_bytes = {
+            let (record, rest) = next_sized_chunk(index_bytes)?;
+            require!(record.len() == 0x2D, "{conv_username}, weird record length: {:#010x}", record.len());
+            let (len_again, rest) = next_u32_size(rest);
+            require!(len_again == record.len(), "{conv_username}, index trailing length");
+            index_bytes = rest;
+            record
+        };
+        // This is inherently unsafe. The only thing we can do is to check a magic number right after.
+        let (header, rest) = DbMessageHeader::next_header(record_bytes, offset)?;
+        require!(rest.is_empty(), "Unexpected bytes after header at index offset {offset:#010x}: {header:?}");
+        indexed_offsets.insert(header.addr as usize);
+        offset += record_bytes.len() + 8
+    }
+
     let mut result = vec![];
     let mut db_bytes = db_bytes;
     let mut offset = 0;
