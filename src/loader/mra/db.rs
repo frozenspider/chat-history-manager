@@ -15,6 +15,10 @@ const FLAG_INCOMING: u8 = 0b100;
 
 pub(super) type ConversationsMap = HashMap<String, (Vec<Message>, HashSet<UserId>)>;
 
+thread_local! {
+    static MAX_CRAP_FILETIME:  std::cell::RefCell<u64> = Default::default();
+    static MIN_NONCRAP_FILETIME:  std::cell::RefCell<u64> = std::cell::RefCell::new(u64::MAX);
+}
 /// Note that this will NOT add chats/messages to dataset map.
 /// Instead, it will return them to be analyzed and added later.
 pub(super) fn load_accounts_dir(
@@ -42,6 +46,15 @@ pub(super) fn load_accounts_dir(
             log::warn!("{} is not a directory, ignored", name);
         }
     }
+
+    MAX_CRAP_FILETIME.with(|max_ft| {
+        println!("=== MAX_CRAP_FILETIME   ={}", max_ft.borrow());
+    });
+
+    MIN_NONCRAP_FILETIME.with(|min_ft| {
+        println!("=== MIN_NONCRAP_FILETIME={}", min_ft.borrow());
+    });
+
     Ok(result)
 }
 
@@ -171,6 +184,13 @@ fn load_conversation_messages<'a>(conv_username: &str, db_bytes: &'a [u8]) -> Re
         offset += offset_shift + 8;
         db_bytes = rest_bytes;
     }
+    for m in result.iter() {
+        if m.sections.is_empty() {
+            println!("=== PLACE (SRC):  {m:?}");
+        } else {
+            println!("=== FWD (SRC):    {m:?}");
+        }
+    }
     Ok(result)
 }
 
@@ -195,20 +215,35 @@ fn remove_bad_messages(pretty_conv_name: &str, mra_msgs: Vec<DbMessage>) -> Resu
     // Established to fall between 1399725764 and 1399727019, picked as a middle point between the two
     const MAX_PHANTOM_TIMESTAMP: i32 = 1399726392;
 
-    let referenced: HashSet<(_, _)> = mra_msgs.iter()
-        .filter(|m| m.sections.is_empty() && m.header.some_timestamp_or_0 > 0 && m.header._unknown > 0)
-        .map(|m| (m.header.some_timestamp_or_0, m.header._unknown))
-        .collect();
-
     let mut bad_indices = HashSet::new();
-    for (idx, mra_msg) in mra_msgs.iter().enumerate() {
-        if !mra_msg.sections.is_empty() &&
-            mra_msg.header._unknown != 0 &&
-            mra_msg.header.some_timestamp_or_0 > 0 &&
-            mra_msg.header.some_timestamp_or_0 <= MAX_PHANTOM_TIMESTAMP &&
-            referenced.contains(&(mra_msg.header.some_timestamp_or_0, mra_msg.header._unknown))
-        {
-            bad_indices.insert(idx);
+
+    const HOUR_DIFF: u64 = 1;
+    const SEC_DIFF: u64 = HOUR_DIFF * 3600;
+    const SEC_DIFF_DELTA: u64 = 20;
+    const MIN_SEC_DIFF: u64 = SEC_DIFF - SEC_DIFF_DELTA;
+    const MAX_SEC_DIFF: u64 = SEC_DIFF + SEC_DIFF_DELTA;
+    const MIN_FT_DIFF: u64 = MIN_SEC_DIFF * 10_000_000;
+    const MAX_FT_DIFF: u64 = MAX_SEC_DIFF * 10_000_000;
+
+    fn get_plaintext(m: &DbMessage) -> String {
+        let bs = m.sections.iter().find(|s| s.0 == MessageSectionType::Plaintext).map(|s| &s.1).expect("No plaintext!");
+        let s = String::from_utf8_lossy(bs);
+        s.replace("\r", "")
+    }
+
+    for (idx_prev, mra_msg_prev) in mra_msgs.iter().enumerate().filter(|(_, m)| !m.sections.is_empty() && m.header.some_timestamp_or_0 != 0 && m.header._unknown != 0) {
+        let pt_prev = get_plaintext(mra_msg_prev);
+
+        for mra_msg in mra_msgs[(idx_prev + 1)..].iter().filter(|m| !m.sections.is_empty() && m.header.filetime >= mra_msg_prev.header.filetime) {
+            let pt = get_plaintext(mra_msg);
+
+            let ft_diff = mra_msg.header.filetime - mra_msg_prev.header.filetime;
+            if pt == pt_prev && ft_diff >= MIN_FT_DIFF && ft_diff <= MAX_FT_DIFF {
+                bad_indices.insert(idx_prev);
+                println!("=== BAD:       {mra_msg_prev:?}");
+                println!("=== GOOD:      {mra_msg:?}");
+                break;
+            }
         }
     }
 
@@ -216,15 +251,47 @@ fn remove_bad_messages(pretty_conv_name: &str, mra_msgs: Vec<DbMessage>) -> Resu
         log::debug!(r#"{pretty_conv_name}: Found {} "phantom" messages"#, bad_indices.len());
     }
 
-    bad_indices.extend(mra_msgs.iter().enumerate().filter(|(_, m)| m.sections.is_empty()).map(|(idx, _)| idx));
+    for idx in bad_indices.iter() {
+        MAX_CRAP_FILETIME.with(|max_ft| {
+            let mut max_ft = max_ft.borrow_mut();
+            *max_ft = u64::max(mra_msgs[*idx].header.filetime, *max_ft);
+        });
+    }
+
+    for (_, mra_msg) in mra_msgs.iter().enumerate()
+        .filter(|(idx, m)| !bad_indices.contains(idx) &&
+            !m.sections.is_empty() &&
+            m.header.some_timestamp_or_0 != 0 &&
+            m.header._unknown != 0)
+    {
+        MIN_NONCRAP_FILETIME.with(|min_ft| {
+            let mut min_ft = min_ft.borrow_mut();
+            *min_ft = u64::min(mra_msg.header.filetime, *min_ft);
+        });
+    }
+
+    bad_indices.clear();
 
     // Remove duplicates
+    fn get_content(m: &DbMessage) -> (Option<&Vec<u8>>, Option<&Vec<u8>>) {
+        let c = m.sections.iter().find(|s| s.0 == MessageSectionType::Content).map(|s| &s.1);
+        let p = m.sections.iter().find(|s| s.0 == MessageSectionType::Plaintext).map(|s| &s.1);
+        (c, p)
+    }
+
+    let mut dup_indices = HashSet::new();
     let mut msg_hashes = HashSet::new();
-    for (idx, mra_msg) in mra_msgs.iter().enumerate() {
+    for (idx, mra_msg) in mra_msgs.iter().enumerate().filter(|(_, m)| !m.sections.is_empty()) {
         if !msg_hashes.insert((mra_msg.header.filetime, &mra_msg.sections)) {
-            bad_indices.insert(idx);
+            dup_indices.insert(idx);
         }
     }
+    if !dup_indices.is_empty() {
+        log::debug!(r#"{pretty_conv_name}: Found {} duplicate messages"#, dup_indices.len());
+    }
+    bad_indices.extend(dup_indices);
+
+    bad_indices.extend(mra_msgs.iter().enumerate().filter(|(_, m)| m.sections.is_empty()).map(|(idx, _)| idx));
 
     Ok(mra_msgs.into_iter()
         .enumerate()
@@ -708,14 +775,17 @@ fn convert_message(
 
     let user = users.get(&from_username)
         .with_context(|| format!("no user found with username '{from_username}', looks like a bug!"))?;
-    Ok(Some(Message::new(
+    let m = Message::new(
         internal_id,
         source_id_option,
         timestamp,
         user.id(),
         text,
         typed,
-    )))
+    );
+    // println!("=== NEW:       {m:?}");
+    // println!("=== NEW (SRC): {mra_msg:?}");
+    Ok(Some(m))
 }
 
 pub(super) fn merge_conversations(
