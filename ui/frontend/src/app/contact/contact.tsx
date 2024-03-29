@@ -2,11 +2,23 @@
 
 import React from "react";
 
-import { Chat, Message } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { AssertDefined, AssertUnreachable, GetChatPrettyName, GetOrNull, NameColorStyleFromNumber } from "@/app/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  GetChatPrettyName,
+  GetOrNull,
+  GetUserPrettyName,
+  NameColorStyleFromNumber
+} from "@/app/utils";
 
-export default function Contact(args: { cwd: ChatWithDetailsPB }): React.JSX.Element {
+import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+
+export default function Contact(args: {
+  cwd: ChatWithDetailsPB,
+  users: Map<number, User>,
+  myselfId: number
+}): React.JSX.Element {
   // FIXME: On hover, the dropdown menu should be displayed
   // <div
   //   className="absolute right-0 top-0 hidden group-hover:block bg-white shadow-lg rounded-md mt-2 mr-2 z-10">
@@ -17,14 +29,16 @@ export default function Contact(args: { cwd: ChatWithDetailsPB }): React.JSX.Ele
   let chat = AssertDefined(args.cwd.chat);
   let color = NameColorStyleFromNumber(chat.id)
 
-  // TODO: Avatar
   return (
-    <li className="p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
+    <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
       <div className="flex items-center space-x-3">
         <Avatar chat={chat}/>
         <div>
           <span className={"font-semibold " + color}>{GetChatPrettyName(chat)}</span>
-          <SimpleMessage msg={GetOrNull(args.cwd.last_msg_option)}/>
+          <SimpleMessage chat={chat}
+                         msg={GetOrNull(args.cwd.last_msg_option)}
+                         users={args.users}
+                         myselfId={args.myselfId}/>
         </div>
       </div>
     </li>
@@ -37,25 +51,38 @@ function Avatar(args: { chat: Chat }) {
     <img
       alt="User Avatar"
       className="rounded-full"
-      height="40"
+      height="50"
       src="/placeholder.svg"
       style={{
-        aspectRatio: "40/40",
+        aspectRatio: "50/50",
         objectFit: "cover",
       }}
-      width="40"
+      width="50"
     />
   )
-
 }
 
-function SimpleMessage(args: { msg: Message | null }) {
+function SimpleMessage(args: {
+  chat: Chat,
+  msg: Message | null,
+  users: Map<number, User>,
+  myselfId: number
+}) {
+  let namePrefix = <></>;
   let text: string = "No messages yet"
   if (args.msg) {
     text = GetMessageSimpleText(args.msg)
+    if (args.msg.fromId == args.myselfId) {
+      namePrefix = <span>You: </span>
+    } else if (args.chat.tpe == ChatType.PRIVATE_GROUP) {
+      let user = GetOrNull(args.users.get(args.msg.fromId));
+      if (user) {
+        namePrefix = <span>{GetUserPrettyName(user) + ": "}</span>
+      }
+    }
   }
   return (
-    <p className="text-sm text-gray-500">{text}</p>
+    <p className="text-sm text-gray-500 line-clamp-2">{namePrefix}{text}</p>
   )
 }
 
@@ -71,7 +98,7 @@ function GetMessageSimpleText(msg: Message): string {
 
     switch (regularSvo.$case) {
       case "sticker":
-        return regularSvo.sticker.emoji_option ?? "(sticker)"
+        return regularSvo.sticker.emoji_option ? regularSvo.sticker.emoji_option + " (sticker)" : "(sticker)"
       case "photo":
         return "(photo)"
       case "voice_msg":
