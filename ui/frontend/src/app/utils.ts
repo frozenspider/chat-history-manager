@@ -18,6 +18,10 @@ export function ReportError(message: String) {
   }
 }
 
+export function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
+  return p.catch((reason) => ReportError(reason.toString()))
+}
+
 /**
  * We're abstracting the invoke function to work around the case when Tauri is not available.
  * We don't return the Tauri promise.
@@ -44,7 +48,6 @@ export function AssertDefined<T>(v: T | undefined): T {
 export function AssertUnreachable(x: never): never {
   throw new Error("Didn't expect to get here");
 }
-
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */
 export function TimestampToString(ts: number, includeSeconds: boolean): string {
