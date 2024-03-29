@@ -126,10 +126,14 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
         .build()
         .unwrap();
 
+    // We need to wrap services in tonic_web::enable to enable Cross-Origin Resource Sharing (CORS),
+    // i.e. setting Access-Control-Allow-* response headers.
+    // See https://github.com/hyperium/tonic/pull/1326
     Server::builder()
-        .add_service(HistoryLoaderServiceServer::new(chm_server.clone()))
-        .add_service(HistoryDaoServiceServer::new(chm_server.clone()))
-        .add_service(MergeServiceServer::new(chm_server))
+        .accept_http1(true)
+        .add_service(tonic_web::enable(HistoryLoaderServiceServer::new(chm_server.clone())))
+        .add_service(tonic_web::enable(HistoryDaoServiceServer::new(chm_server.clone())))
+        .add_service(tonic_web::enable(MergeServiceServer::new(chm_server)))
         .add_service(reflection_service)
         .serve(addr)
         .await?;

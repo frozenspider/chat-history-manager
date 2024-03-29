@@ -50,7 +50,6 @@ service HistoryDaoService {
   rpc StoragePath(StoragePathRequest) returns (StoragePathResponse) {}
   rpc Datasets(DatasetsRequest) returns (DatasetsResponse) {}
   rpc DatasetRoot(DatasetRootRequest) returns (DatasetRootResponse) {}
-  rpc Myself(MyselfRequest) returns (MyselfResponse) {}
   rpc Users(UsersRequest) returns (UsersResponse) {}
   rpc Chats(ChatsRequest) returns (ChatsResponse) {}
   rpc ScrollMessages(ScrollMessagesRequest) returns (MessagesResponse) {}
@@ -134,19 +133,12 @@ message DatasetRootResponse {
   required string path = 1;
 }
 
-message MyselfRequest {
-  required string key = 1;
-  required PbUuid ds_uuid = 2;
-}
-message MyselfResponse {
-  required User myself = 1;
-}
-
 message UsersRequest {
   required string key = 1;
   required PbUuid ds_uuid = 2;
 }
 message UsersResponse {
+  // Contains myself as the first element. Order must be stable between calls.
   repeated User users = 1;
 }
 

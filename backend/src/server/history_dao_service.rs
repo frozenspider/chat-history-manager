@@ -80,11 +80,6 @@ impl HistoryDaoService for Arc<Mutex<ChatHistoryManagerServer>> {
         })
     }
 
-    async fn myself(&self, req: Request<MyselfRequest>) -> TonicResult<MyselfResponse> {
-        with_dao_by_key!(self, req, dao, {
-            Ok(MyselfResponse { myself: dao.myself(&req.ds_uuid)? })
-        })
-    }
 
     async fn users(&self, req: Request<UsersRequest>) -> TonicResult<UsersResponse> {
         with_dao_by_key!(self, req, dao, {
