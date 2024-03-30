@@ -13,12 +13,12 @@ export default function MessageTyped(args: {
   msg: Message,
   cwd: ChatWithDetailsPB,
   borderColorClass: string
-  fileKey: string,
-  replyDepth: number
+  replyDepth: number,
+  fileKey: string
 }): React.JSX.Element | null {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.fileKey, args.borderColorClass, args.replyDepth);
+      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.borderColorClass, args.replyDepth, args.fileKey);
     case "service":
       return MessageTypedService(args.msg.typed.service, args.fileKey);
     default:
@@ -68,9 +68,9 @@ function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.El
 function MessageTypedRegular(
   msg: MessageRegular,
   cwd: ChatWithDetailsPB,
-  fileKey: string,
   borderColorClass: string,
-  replyDepth: number
+  replyDepth: number,
+  fileKey: string
 ): React.JSX.Element | null {
   let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
   let fwdFrom = <></>

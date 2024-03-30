@@ -7,26 +7,29 @@ import MessagesLoadSpinner from "@/app/message/load_spinner";
 import { MessageComponent } from "@/app/message/message";
 import { Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { DatasetState } from "@/app/utils/state";
 
 export default function MessagesList(args: {
-  dsUuid: string,
-  fileKey: string
-  cwd: ChatWithDetailsPB,
+  cwd: ChatWithDetailsPB | null,
   messages: Message[],
-  users: Map<bigint, User>
+  context: DatasetState | null
 }): React.JSX.Element {
+  // TS is not smart enough to understand that cwd is not null otherwise
+  let [cwd, cxt] = [args.cwd, args.context]
+  if (!cwd || !cxt)
+    return <></>
 
   return (
     <>
       <div className="p-4 space-y-4">
         {
           args.messages.map((msg) =>
-            <MessageComponent key={args.dsUuid + "_" + AssertDefined(args.cwd.chat).id + "_" + msg.internalId}
-                              msg={msg}
-                              cwd={args.cwd}
-                              users={args.users}
-                              fileKey={args.fileKey}
-                              replyDepth={0}/>
+            <MessageComponent
+              key={AssertDefined(cxt.ds.uuid) + "_" + AssertDefined(cwd.chat).id + "_" + msg.internalId}
+              msg={msg}
+              cwd={cwd}
+              replyDepth={0}
+              context={cxt}/>
           )
         }
 
