@@ -28,8 +28,7 @@ export default function Home() {
   let [dsRoot, setDsRoot] = React.useState(".")
   let [users, setUsers] = React.useState<Map<bigint, User>>(TestUsersMap())
   let [myselfId, setMyselfId] = React.useState<bigint>(BigInt(-1))
-  let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(() => TestCwds())
-  let [chatId, setChatId] = React.useState(123456)
+  let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(TestCwds())
   let [messages, setMessages] = React.useState<Message[]>(() => TestMessages())
 
   const channel = createChannel('http://localhost:50051');
@@ -102,8 +101,9 @@ export default function Home() {
         <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
           <MessagesList dsUuid={dsUuid}
                         dsRoot={dsRoot}
-                        chatId={chatId}
-                        messages={messages}/>
+                        cwd={cwds[0]}
+                        messages={messages}
+                        users={users}/>
         </ScrollArea>
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -102,7 +102,7 @@ const CycleColorStyles: string[] = [
   "text-amber-800", // "#BDB76B" // DarkKhaki
 ]
 
-export function NameColorStyleFromNumber(i: number | bigint): string {
+export function NameColorClassFromNumber(i: number | bigint): string {
   // [
   //   "#6495ED", // CornflowerBlue
   //   "#B22222", // FireBrick
@@ -121,10 +121,17 @@ export function NameColorStyleFromNumber(i: number | bigint): string {
   return CycleColorStyles[Number(BigInt(i) % BigInt(CycleColorStyles.length))]
 }
 
+export function NameColorClassFromMembers(userId: bigint, memberIds: bigint[]): string {
+  let idx = memberIds.indexOf(userId)
+  return idx == -1 ? "" : NameColorClassFromNumber(idx)
+}
+
 const Unnamed = "[unnamed]"
 
-export function GetUserPrettyName(user: User): string {
-  if (user.firstNameOption && user.lastNameOption) {
+export function GetUserPrettyName(user: User | null): string {
+  if (!user) {
+    return Unnamed
+  } else if (user.firstNameOption && user.lastNameOption) {
     return user.firstNameOption + " " + user.lastNameOption
   } else if (user.firstNameOption) {
     return user.firstNameOption

@@ -8,7 +8,7 @@ import {
   GetChatPrettyName,
   GetNonDefaultOrNull,
   GetUserPrettyName,
-  NameColorStyleFromNumber
+  NameColorClassFromNumber
 } from "@/app/utils";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
@@ -27,7 +27,7 @@ export default function Contact(args: {
   //   </ul>
   // </div>
   let chat = AssertDefined(args.cwd.chat);
-  let color = NameColorStyleFromNumber(chat.id)
+  let color = NameColorClassFromNumber(chat.id)
 
   return (
     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">

@@ -1,5 +1,7 @@
 import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import React from "react";
+import { GetUserPrettyName } from "@/app/utils";
 
 export const TestDataset: Dataset = {
   uuid: { value: "00000000-0000-0000-0000-000000000000" },
@@ -126,12 +128,13 @@ export function TestCwds(): ChatWithDetailsPB[] {
 }
 
 export function TestMessages(): Message[] {
+  let users = TestUsers()
   return [
     Message.fromJSON({
       internalId: 1,
       sourceIdOption: 1,
       timestamp: 1698901234,
-      fromId: 2,
+      fromId: 1,
       text: [
         { searchableString: "Hey there! How can I help you?", plain: { text: "Hey there! How can I help you?" } }
       ],
@@ -142,7 +145,7 @@ export function TestMessages(): Message[] {
       internalId: 2,
       sourceIdOption: 2,
       timestamp: 1698901235,
-      fromId: 3,
+      fromId: 2,
       text: [
         { searchableString: "", plain: { text: "Demo of different content types: " } },
         { searchableString: "", spoiler: { text: "Spoiler" } },
@@ -154,7 +157,7 @@ export function TestMessages(): Message[] {
       regular: {
         editTimestampOption: 1708901234,
         isDeleted: true,
-        forwardFromNameOption: "My name!",
+        forwardFromNameOption: "Jane Smith",
         replyToMessageIdOption: 4313483375,
         contentOption: {
           photo: {
@@ -165,6 +168,51 @@ export function TestMessages(): Message[] {
           }
         }
       }
-    })
+    }),
+    Message.fromJSON({
+      internalId: 3,
+      sourceIdOption: 3,
+      timestamp: 1698902000,
+      fromId: 3,
+      text: [
+        { searchableString: "", plain: { text: "I'm having trouble with my account" } }
+      ],
+      searchableString: "",
+      regular: {}
+    }),
+    Message.fromJSON({
+      internalId: 4,
+      sourceIdOption: 4,
+      timestamp: 1698902060,
+      fromId: 4,
+      text: [
+        { searchableString: "", plain: { text: "Here's a photo of the error message I'm getting." } }
+      ],
+      searchableString: "",
+      regular: {
+        replyToMessageIdOption: 3,
+        contentOption: {
+          photo: {
+            pathOption: "my/file/path",
+            width: 200,
+            height: 200,
+            isOneTime: false
+          }
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 5,
+      sourceIdOption: 5,
+      timestamp: 1698902120,
+      fromId: 5,
+      text: [],
+      searchableString: "",
+      service: {
+        groupInviteMembers: {
+          members: [GetUserPrettyName(users[5])]
+        }
+      }
+    }),
   ]
 }

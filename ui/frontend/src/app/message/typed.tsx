@@ -2,17 +2,25 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils";
-import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  GetNonDefaultOrNull,
+  GetUserPrettyName,
+  NameColorClassFromMembers
+} from "@/app/utils";
+import { Chat, Message, MessageRegular, MessageService, User } from "@/protobuf/core/protobuf/entities";
 import MessageContent from "@/app/message/content/content";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
 export default function MessageTyped(args: {
   msg: Message,
+  cwd: ChatWithDetailsPB,
   dsRoot: string
 }): React.JSX.Element | null {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.dsRoot);
+      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.dsRoot);
     case "service":
       return MessageTypedService(args.msg.typed.service, args.dsRoot);
     default:
@@ -22,7 +30,7 @@ export default function MessageTyped(args: {
 
 function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Element | null {
   // FIXME: Replace these placeholders with actual content
-  let sealed = AssertDefined(msg.sealedValueOptional)
+  let sealed = AssertDefined(msg.sealedValueOptional, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
       return <p>Phone call</p>
@@ -60,9 +68,14 @@ function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Ele
 }
 
 
-function MessageTypedRegular(msg: MessageRegular, dsRoot: string): React.JSX.Element | null {
-  let fwdFromString = GetNonDefaultOrNull(msg.forwardFromNameOption)
-  let fwdFrom = fwdFromString == null ? null : <p>Forwarded from {fwdFromString}</p>
+function MessageTypedRegular(msg: MessageRegular, cwd: ChatWithDetailsPB, dsRoot: string): React.JSX.Element | null {
+  let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
+  let fwdFrom = <></>
+  if (fwdFromName) {
+    let userId = cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id
+    let colorClass = userId ? NameColorClassFromMembers(userId, AssertDefined(cwd.chat).memberIds) : ""
+    fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
+  }
   return (
     <>
       <div>{fwdFrom}</div>
