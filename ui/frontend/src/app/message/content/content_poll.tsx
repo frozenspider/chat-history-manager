@@ -10,10 +10,10 @@ export default function MessageContentPoll(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  // let path = GetNonDefaultOrNull(content.pathOption);
 
-  // TODO: Implement this!
   return (
-    <p>{"(TODO: Poll)"}</p>
+    <blockquote>
+      <i>Poll:</i> {content.question}
+    </blockquote>
   )
 }

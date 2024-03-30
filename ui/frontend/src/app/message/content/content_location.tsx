@@ -10,10 +10,13 @@ export default function MessageContentLocation(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  // let path = GetNonDefaultOrNull(content.pathOption);
 
-  // TODO: Implement this!
   return (
-    <p>{"(TODO: Location)"}</p>
+    <blockquote>
+      {GetNonDefaultOrNull(content.titleOption) && <p><b>content.titleOption</b></p>}
+      {GetNonDefaultOrNull(content.addressOption) && <p>content.addressOption</p>}
+      <p><i>Location:</i> <b>{content.latStr}, {content.lonStr}</b></p>
+      {GetNonDefaultOrNull(content.durationSecOption) && <p>(live for {content.durationSecOption} s)</p>}
+    </blockquote>
   )
 }

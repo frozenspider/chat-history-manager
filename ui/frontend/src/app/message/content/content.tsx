@@ -42,7 +42,7 @@ export default function MessageContent(args: {
     case "poll":
       return <MessageContentPoll content={sealed.poll} dsRoot={args.state.dsState.dsRoot}/>
     case "sharedContact":
-      return <MessageContentSharedContact content={sealed.sharedContact} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentSharedContact content={sealed.sharedContact} state={args.state}/>
     default:
       AssertUnreachable(sealed)
   }

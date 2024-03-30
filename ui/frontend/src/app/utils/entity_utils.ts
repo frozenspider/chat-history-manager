@@ -4,7 +4,8 @@ import StaticPlaceholderImage from '../../../public/placeholder.svg'
 
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
-import { Chat, User } from "@/protobuf/core/protobuf/entities";
+import { Chat, ContentSharedContact, User } from "@/protobuf/core/protobuf/entities";
+import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
 export const PlaceholderImage: StaticImport = StaticPlaceholderImage
 
@@ -40,23 +41,17 @@ const CycleColorStyles: TailwindColor[] = [
   { text: "text-amber-800", border: "border-amber-800" },      // "#BDB76B" // DarkKhaki
 ]
 
+/** Negative numbers return default style */
 export function NameColorClassFromNumber(i: number | bigint): TailwindColor {
-  // [
-  //   "#6495ED", // CornflowerBlue
-  //   "#B22222", // FireBrick
-  //   "#008000", // Green
-  //   "#DAA520", // GoldenRod
-  //   "#BA55D3", // MediumOrchid
-  //   "#FF69B4", // HotPink
-  //   "#808000", // Olive
-  //   "#008080", // Teal
-  //   "#9ACD32", // YellowGreen
-  //   "#FF8C00", // DarkOrange
-  //   "#00D0D0", // Cyan-ish
-  //   "#BDB76B" // DarkKhaki
-  // ]
+  if (i < 0) {
+    return DefaultColorStyle
+  }
 
   return CycleColorStyles[Number(BigInt(i) % BigInt(CycleColorStyles.length))]
+}
+
+export function FindMemberIdxByPrettyName(prettyName: string | null, members: User[]): number {
+  return members.findIndex(u => GetUserPrettyName(u) == prettyName)
 }
 
 export function NameColorClassFromMembers(userId: bigint | null, memberIds: bigint[]): TailwindColor {
@@ -66,9 +61,9 @@ export function NameColorClassFromMembers(userId: bigint | null, memberIds: bigi
   return idx == -1 ? DefaultColorStyle : NameColorClassFromNumber(idx)
 }
 
-const Unnamed = "[unnamed]"
+export const Unnamed = "[unnamed]"
 
-export function GetUserPrettyName(user: User | null): string {
+export function GetUserPrettyName(user: User | ContentSharedContact | null): string {
   if (!user) {
     return Unnamed
   } else if (user.firstNameOption && user.lastNameOption) {
@@ -79,8 +74,8 @@ export function GetUserPrettyName(user: User | null): string {
     return user.lastNameOption
   } else if (user.phoneNumberOption) {
     return user.phoneNumberOption
-  } else if (user.usernameOption) {
-    return user.usernameOption
+  } else if ((user as User).usernameOption) {
+    return (user as User).usernameOption!
   } else {
     return Unnamed
   }

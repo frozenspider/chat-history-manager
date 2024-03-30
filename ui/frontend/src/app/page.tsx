@@ -68,7 +68,7 @@ export default function Home() {
   async function LoadExistingData() {
     // Reset open files
     setOpenFiles([])
-    setCurrentChatState(null)
+    // setCurrentChatState(null)
 
     let loadedFilesResponse = await services.loadClient.getLoadedFiles({});
     if (loadedFilesResponse.files.length == 0) {

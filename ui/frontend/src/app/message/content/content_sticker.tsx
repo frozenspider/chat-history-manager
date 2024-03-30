@@ -19,8 +19,8 @@ export default function MessageContentSticker(args: {
       <p>Animated sticker</p>
       <TauriImage relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
                   elementName="Sticker"
-                  width={content.width}
-                  height={content.width}
+                  width={content.width / 2}
+                  height={content.width / 2}
                   mimeType={null /* unknown */}
                   dsRoot={args.dsRoot}/>
     </>
@@ -28,8 +28,8 @@ export default function MessageContentSticker(args: {
     return (
       <TauriImage relativePath={path}
                   elementName="Sticker"
-                  width={content.width}
-                  height={content.height}
+                  width={content.width / 2}
+                  height={content.height / 2}
                   mimeType={null /* unknown */}
                   dsRoot={args.dsRoot}/>
     )

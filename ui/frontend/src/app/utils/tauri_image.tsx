@@ -27,7 +27,7 @@ export default function TauriImage(args: {
     // TODO: Allow clicking to show full-size image
     let width = args.width
     let height = args.height
-    while (width > 1024 || height > 512) {
+    while (width > 1024 || height > 768) {
       width /= 2
       height /= 2
     }
@@ -76,8 +76,16 @@ function LoadRealImage(
       mimeType = "image/jpeg"
   }
 
-  InvokeTauri<string>("read_file_base64", { relativePath: relativePath, dsRoot: dsRoot }, (data) => {
-    setter("data:" + mimeType + ";base64," + data)
-  })
+  InvokeTauri<string>(
+    "read_file_base64",
+    { relativePath: relativePath, dsRoot: dsRoot },
+    data => {
+      setter("data:" + mimeType + ";base64," + data)
+    },
+    error => {
+      // No need to do anything beyond logging, placeholder will be kept
+      console.log("Failed to load real image: " + error)
+    }
+  )
 }
 

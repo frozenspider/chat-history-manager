@@ -41,9 +41,18 @@ export function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
  * We're abstracting the invoke function to work around the case when Tauri is not available.
  * We don't return the Tauri promise.
  */
-export function InvokeTauri<T, R = void>(cmd: string, args?: InvokeArgs, callback?: ((arg: T) => R)) {
+export function InvokeTauri<T, R = void>(
+  cmd: string,
+  args?: InvokeArgs,
+  onSuccess?: ((arg: T) => R),
+  onError?: ((error: any) => void),
+) {
   if (IsTauriAvailable()) {
-    WrapPromise(invoke<T>(cmd, args).then(callback))
+    if (!onError) {
+      WrapPromise(invoke<T>(cmd, args).then(onSuccess))
+    } else {
+      invoke<T>(cmd, args).then(onSuccess).catch(onError)
+    }
   } else {
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)

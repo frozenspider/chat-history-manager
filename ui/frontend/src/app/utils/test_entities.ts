@@ -213,5 +213,22 @@ export function TestMessages(): Message[] {
         }
       }
     }),
+    Message.fromJSON({
+      internalId: 6,
+      sourceIdOption: 6,
+      timestamp: 1698902120,
+      fromId: 6,
+      text: [],
+      searchableString: "",
+      regular: {
+        contentOption: {
+          sharedContact: {
+            firstNameOption: users[1].firstNameOption,
+            lastNameOption: users[1].lastNameOption,
+            phoneNumberOption: users[1].phoneNumberOption,
+          }
+        }
+      }
+    }),
   ]
 }

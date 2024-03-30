@@ -20,6 +20,7 @@ import {
   ServicesContext,
   ServicesContextType
 } from "@/app/utils/state";
+import ColoredName from "@/app/message/colored_name";
 
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
@@ -48,7 +49,7 @@ export default function ChatComponent(args: {
            }>
         <Avatar chat={chat}/>
         <div>
-          <span className={"font-semibold " + colorClass}>{GetChatPrettyName(chat)}</span>
+          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass} />
           <SimpleMessage chat={chat}
                          msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
                          users={args.dsState.users}

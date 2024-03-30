@@ -3,7 +3,7 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { GetUserPrettyName, NameColorClassFromMembers, RepliesMaxDepth } from "@/app/utils/entity_utils";
+import { FindMemberIdxByPrettyName, NameColorClassFromNumber, RepliesMaxDepth } from "@/app/utils/entity_utils";
 import { CurrentChatState, ServicesContext } from "@/app/utils/state";
 
 import MessageContent from "@/app/message/content/content";
@@ -11,6 +11,7 @@ import MessagesLoadSpinner from "@/app/message/load_spinner";
 
 import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 import { MessageComponent } from "@/app/message/message";
+import ColoredName from "@/app/message/colored_name";
 
 export default function MessageTyped(args: {
   msg: Message,
@@ -96,9 +97,9 @@ function MessageTypedRegular(args: {
   let fwdFromName = GetNonDefaultOrNull(args.msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let userId = GetNonDefaultOrNull(args.state.cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
-    let colorClass = NameColorClassFromMembers(userId, args.state.cwd.chat.memberIds).text
-    fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
+    let userIndex = FindMemberIdxByPrettyName(fwdFromName, args.state.cwd.members)
+    let colorClass = NameColorClassFromNumber(userIndex).text
+    fwdFrom = <p>Forwarded from <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
   }
 
   let replyToId = GetNonDefaultOrNull(args.msg.replyToMessageIdOption)

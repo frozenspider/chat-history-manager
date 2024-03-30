@@ -31,7 +31,7 @@ function OpenPopup() {
   console.log(msg.fromId)
   console.log(msg)
   InvokeTauri<Message>('get_message', {})
-  InvokeTauri<void>('open_popup', {name: 'Next.js'})
+  InvokeTauri<void>('open_popup', { name: 'Next.js' })
 }
 
 export default function TestPopup() {
