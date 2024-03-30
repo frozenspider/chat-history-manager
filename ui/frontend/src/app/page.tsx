@@ -4,7 +4,8 @@ import React from "react";
 
 import ContactList from "@/app/contact/contact_list";
 import MessagesList from "@/app/message/message_list";
-import { WrapPromise } from "@/app/utils";
+import { AssertDefined, WrapPromise } from "@/app/utils";
+import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/test_entities";
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -20,55 +21,16 @@ import {
   HistoryLoaderServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
 
-// export default function Home() {
-//   return (
-//     <main className="flex min-h-screen flex-col items-center justify-between p-24">
-//       <TestPopup />
-//     </main>
-//   )
-// }
-
 let firstLoadComplete = false;
 
 export default function Home() {
-  let [dsUuid, setDsUuid] = React.useState("00000-00000-0000")
+  let [dsUuid, setDsUuid] = React.useState(AssertDefined(TestDataset.uuid).value)
   let [dsRoot, setDsRoot] = React.useState(".")
-  let [users, setUsers] = React.useState<Map<bigint, User>>(new Map())
+  let [users, setUsers] = React.useState<Map<bigint, User>>(TestUsersMap())
   let [myselfId, setMyselfId] = React.useState<bigint>(BigInt(-1))
-  let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(() => {
-    return Array.from(Array(100).keys()).map((i: number) => MakeCwd(i))
-  })
+  let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(() => TestCwds())
   let [chatId, setChatId] = React.useState(123456)
-  let [messages, setMessages] = React.useState<Message[]>(() => {
-    let msg: Message = Message.fromJSON({
-      internalId: 123,
-      sourceIdOption: 345,
-      timestamp: 1698901234,
-      fromId: 111,
-      text: [
-        { searchableString: "", spoiler: { "text": "Spoiler" } },
-        { searchableString: "", prefmtBlock: { "text": "Prefmt code block" } },
-        { searchableString: "", prefmtInline: { "text": "Inline code block" } },
-        { searchableString: "", link: { "href": "https://www.google.com/", "text_option": "My link" } }
-      ],
-      searchableString: "Search me!",
-      regular: {
-        editTimestampOption: 1708901234,
-        isDeleted: true,
-        forwardFromNameOption: "My name!",
-        replyToMessageIdOption: 4313483375,
-        contentOption: {
-          photo: {
-            pathOption: "my/file/path",
-            width: 400,
-            height: 100,
-            isOneTime: false
-          }
-        }
-      }
-    })
-    return [msg]
-  })
+  let [messages, setMessages] = React.useState<Message[]>(() => TestMessages())
 
   const channel = createChannel('http://localhost:50051');
 
@@ -118,12 +80,12 @@ export default function Home() {
     console.log("Done!")
   }
 
-  React.useEffect(() => {
-    if (!firstLoadComplete) {
-      firstLoadComplete = true
-      WrapPromise(LoadExistingData())
-    }
-  }, [LoadExistingData])
+  // React.useEffect(() => {
+  //   if (!firstLoadComplete) {
+  //     firstLoadComplete = true
+  //     WrapPromise(LoadExistingData())
+  //   }
+  // }, [LoadExistingData])
 
   // FIXME: Avoid line breaks on contact list
   return (
@@ -146,18 +108,4 @@ export default function Home() {
       </ResizablePanel>
     </ResizablePanelGroup>
   )
-}
-
-function MakeCwd(id: number): ChatWithDetailsPB {
-  return {
-    chat: Chat.fromJSON({
-      id: id,
-      name_option: "John Doe"
-    }),
-    lastMsgOption: Message.fromJSON({
-      searchable_string: "Hey there! How can I help you?",
-      regular: {}
-    }),
-    members: []
-  }
 }

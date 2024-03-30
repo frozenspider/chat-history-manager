@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetOrNull } from "@/app/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils";
 import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 import MessageContent from "@/app/message/content/content";
 
@@ -61,12 +61,12 @@ function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Ele
 
 
 function MessageTypedRegular(msg: MessageRegular, dsRoot: string): React.JSX.Element | null {
-  let fwdFromString = GetOrNull(msg.forwardFromNameOption)
+  let fwdFromString = GetNonDefaultOrNull(msg.forwardFromNameOption)
   let fwdFrom = fwdFromString == null ? null : <p>Forwarded from {fwdFromString}</p>
   return (
     <>
       <div>{fwdFrom}</div>
-      <MessageContent content={GetOrNull(msg.contentOption)} dsRoot={dsRoot}/>
+      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} dsRoot={dsRoot}/>
     </>
   )
 }

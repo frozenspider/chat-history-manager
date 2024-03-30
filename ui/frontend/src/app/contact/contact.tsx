@@ -6,7 +6,7 @@ import {
   AssertDefined,
   AssertUnreachable,
   GetChatPrettyName,
-  GetOrNull,
+  GetNonDefaultOrNull,
   GetUserPrettyName,
   NameColorStyleFromNumber
 } from "@/app/utils";
@@ -36,7 +36,7 @@ export default function Contact(args: {
         <div>
           <span className={"font-semibold " + color}>{GetChatPrettyName(chat)}</span>
           <SimpleMessage chat={chat}
-                         msg={GetOrNull(args.cwd.lastMsgOption)}
+                         msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
                          users={args.users}
                          myselfId={args.myselfId}/>
         </div>
@@ -75,7 +75,7 @@ function SimpleMessage(args: {
     if (args.msg.fromId == args.myselfId) {
       namePrefix = <span>You: </span>
     } else if (args.chat.tpe == ChatType.PRIVATE_GROUP) {
-      let user = GetOrNull(args.users.get(args.msg.fromId));
+      let user = GetNonDefaultOrNull(args.users.get(args.msg.fromId));
       if (user) {
         namePrefix = <span>{GetUserPrettyName(user) + ": "}</span>
       }

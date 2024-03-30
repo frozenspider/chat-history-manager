@@ -12,7 +12,7 @@ export const PlaceholderImage: string = "placeholder.svg"
 
 export function ReportError(message: String) {
   if (IsTauriAvailable()) {
-    InvokeTauri<void>('report_error_string', {error: message})
+    InvokeTauri<void>('report_error_string', { error: message })
   } else {
     window.alert("Error: " + message)
   }
@@ -45,8 +45,8 @@ export function Assert(cond: boolean, message: string): asserts cond {
 }
 
 
-export function AssertDefined<T>(v: T | undefined): T {
-  Assert(v !== undefined, "Value is undefined")
+export function AssertDefined<T>(v: T | undefined, valueName?: string): T {
+  Assert(v !== undefined, (valueName ?? "Value") + " is undefined")
   return v
 }
 
@@ -71,9 +71,18 @@ function ZeroPadLeft(s: String | number, desiredWidth: number): String {
   return s.toString().padStart(desiredWidth, '0')
 }
 
-// Returns the value, or null if it's null/undefined.
-export function GetOrNull<T>(v: T | null | undefined): T | null {
-  return v === undefined || v === null ? null : v
+const BigIntZero: bigint = BigInt(0)
+
+/**
+ * Returns the value, or null if it's null/undefined/default primitive value
+ * (since protobuf doesn't let us distinguish between default primitive value and unset value).
+ */
+export function GetNonDefaultOrNull<T>(v: T | null | undefined): T | null {
+  if (v === undefined || v === null) return null
+  if (typeof v === "string" && v === "") return null
+  if (typeof v === "number" && v === 0) return null
+  if (typeof v === "bigint" && v == BigIntZero) return null
+  return v
 }
 
 const CycleColorStyles: string[] = [
