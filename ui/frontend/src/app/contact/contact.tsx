@@ -27,14 +27,14 @@ export default function Contact(args: {
   //   </ul>
   // </div>
   let chat = AssertDefined(args.cwd.chat);
-  let color = NameColorClassFromNumber(chat.id)
+  let colorClass = NameColorClassFromNumber(chat.id).text
 
   return (
     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
       <div className="flex items-center space-x-3">
         <Avatar chat={chat}/>
         <div>
-          <span className={"font-semibold " + color}>{GetChatPrettyName(chat)}</span>
+          <span className={"font-semibold " + colorClass}>{GetChatPrettyName(chat)}</span>
           <SimpleMessage chat={chat}
                          msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
                          users={args.users}

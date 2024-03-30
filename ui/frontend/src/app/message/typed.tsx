@@ -9,18 +9,21 @@ import {
   GetUserPrettyName,
   NameColorClassFromMembers
 } from "@/app/utils";
-import { Chat, Message, MessageRegular, MessageService, User } from "@/protobuf/core/protobuf/entities";
+import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 import MessageContent from "@/app/message/content/content";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import MessagesLoadSpinner from "@/app/message/load_spinner";
 
 export default function MessageTyped(args: {
   msg: Message,
   cwd: ChatWithDetailsPB,
-  dsRoot: string
+  borderColorClass: string
+  dsRoot: string,
+  replyDepth: number
 }): React.JSX.Element | null {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.dsRoot);
+      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.dsRoot, args.borderColorClass, args.replyDepth);
     case "service":
       return MessageTypedService(args.msg.typed.service, args.dsRoot);
     default:
@@ -67,18 +70,40 @@ function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Ele
   }
 }
 
-
-function MessageTypedRegular(msg: MessageRegular, cwd: ChatWithDetailsPB, dsRoot: string): React.JSX.Element | null {
+function MessageTypedRegular(
+  msg: MessageRegular,
+  cwd: ChatWithDetailsPB,
+  dsRoot: string,
+  borderColorClass: string,
+  replyDepth: number
+): React.JSX.Element | null {
   let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let userId = cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id
-    let colorClass = userId ? NameColorClassFromMembers(userId, AssertDefined(cwd.chat).memberIds) : ""
+    let userId = GetNonDefaultOrNull(cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
+    let colorClass = NameColorClassFromMembers(userId, AssertDefined(cwd.chat).memberIds).text
     fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
+  }
+
+  let replyToId = GetNonDefaultOrNull(msg.replyToMessageIdOption)
+  let replyTo = <></>
+  if (replyToId) {
+    let bqClass = "border-l-4 pl-2 " + borderColorClass
+    if (replyDepth >= 2) {
+      replyTo =
+        <blockquote className={bqClass}>...</blockquote>
+    } else {
+      // TODO: Dynamic/async message loading with replyDepth + 1, then add cursor-pointer class and navigate on click
+      replyTo =
+        <blockquote className={bqClass}>
+          <MessagesLoadSpinner center={false}/>
+        </blockquote>
+    }
   }
   return (
     <>
-      <div>{fwdFrom}</div>
+      {fwdFrom}
+      {replyTo}
       <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} dsRoot={dsRoot}/>
     </>
   )

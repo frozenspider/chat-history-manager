@@ -85,24 +85,36 @@ export function GetNonDefaultOrNull<T>(v: T | null | undefined): T | null {
   return v
 }
 
-const CycleColorStyles: string[] = [
+/**
+ * Tailwind REQUIRES us to embed color class names in code,
+ * see https://tailwindcss.com/docs/content-configuration#class-detection-in-depth
+ */
+export interface TailwindColor {
+  text: string,
+  border: string
+}
+
+const DefaultColorStyle: TailwindColor =
+  { text: "text-inherit", border: "border-inherit" }
+
+const CycleColorStyles: TailwindColor[] = [
   // User
-  "text-blue-500", // "#6495ED", // CornflowerBlue
+  { text: "text-blue-500", border: "border-blue-500" },     // "#6495ED", // CornflowerBlue
   // First interlocutor
-  "text-red-600", // "#B22222", // FireBrick
-  "text-green-600", // "#008000", // Green
-  "text-yellow-700", // "#DAA520", // GoldenRod
-  "text-fuchsia-700", // "#BA55D3", // MediumOrchid
-  "text-pink-400", // "#FF69B4", // HotPink
-  "text-amber-500", // "#808000", // Olive
-  "text-teal-600", // "#008080", // Teal
-  "text-indigo-500", // "#9ACD32", // YellowGreen
-  "text-orange-700", // "#FF8C00", // DarkOrange
-  "text-cyan-400", // "#00D0D0", // Cyan-ish
-  "text-amber-800", // "#BDB76B" // DarkKhaki
+  { text: "text-red-600", border: "border-red-600" },        // "#B22222", // FireBrick
+  { text: "text-green-600", border: "border-green-600" },    // "#008000", // Green
+  { text: "text-yellow-700", border: "border-yellow-700" },     // "#DAA520", // GoldenRod
+  { text: "text-fuchsia-700", border: "border-fuchsia-700" },    // "#BA55D3", // MediumOrchid
+  { text: "text-pink-400", border: "border-pink-400" },     // "#FF69B4", // HotPink
+  { text: "text-amber-500", border: "border-amber-500" },     // "#808000", // Olive
+  { text: "text-teal-600", border: "border-teal-600" },       // "#008080", // Teal
+  { text: "text-indigo-500", border: "border-indigo-500" },     // "#9ACD32", // YellowGreen
+  { text: "text-orange-700", border: "border-orange-700" },     // "#FF8C00", // DarkOrange
+  { text: "text-cyan-400", border: "border-cyan-400" },     // "#00D0D0", // Cyan-ish
+  { text: "text-amber-800", border: "border-amber-800" },      // "#BDB76B" // DarkKhaki
 ]
 
-export function NameColorClassFromNumber(i: number | bigint): string {
+export function NameColorClassFromNumber(i: number | bigint): TailwindColor {
   // [
   //   "#6495ED", // CornflowerBlue
   //   "#B22222", // FireBrick
@@ -121,9 +133,11 @@ export function NameColorClassFromNumber(i: number | bigint): string {
   return CycleColorStyles[Number(BigInt(i) % BigInt(CycleColorStyles.length))]
 }
 
-export function NameColorClassFromMembers(userId: bigint, memberIds: bigint[]): string {
+export function NameColorClassFromMembers(userId: bigint | null, memberIds: bigint[]): TailwindColor {
+  if (userId === null)
+    return DefaultColorStyle
   let idx = memberIds.indexOf(userId)
-  return idx == -1 ? "" : NameColorClassFromNumber(idx)
+  return idx == -1 ? DefaultColorStyle : NameColorClassFromNumber(idx)
 }
 
 const Unnamed = "[unnamed]"

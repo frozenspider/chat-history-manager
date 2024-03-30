@@ -25,7 +25,8 @@ export default function MessagesList(args: {
                               msg={msg}
                               cwd={args.cwd}
                               users={args.users}
-                              dsRoot={args.dsRoot}/>
+                              dsRoot={args.dsRoot}
+                              replyDepth={0}/>
           )
         }
 
@@ -38,7 +39,7 @@ export default function MessagesList(args: {
           </p>
         </div>
       </div>
-      <MessagesLoadSpinner/>
+      <MessagesLoadSpinner center={true}/>
     </>
   )
 }
