@@ -17,7 +17,8 @@ export function MessageComponent(args: {
   replyDepth: number,
   context: DatasetState
 }) {
-  let chat = AssertDefined(args.cwd.chat)
+  AssertDefined(args.cwd.chat)
+  let chat = args.cwd.chat
   // Author could be outside the chat
   let author = GetNonDefaultOrNull(args.context.users.get(args.msg.fromId))
   let colorClass = NameColorClassFromMembers(args.msg.fromId, chat.memberIds)

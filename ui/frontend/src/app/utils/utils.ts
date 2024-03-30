@@ -8,12 +8,15 @@ export function Assert(cond: boolean, message: string): asserts cond {
   }
 }
 
-export function AssertDefined<T>(v: T | undefined, valueName?: string): T {
+export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts v is T {
   Assert(v !== undefined, (valueName ?? "Value") + " is undefined")
-  return v
 }
 
 export function AssertUnreachable(x: never): never {
+  Unreachable()
+}
+
+export function Unreachable(): never {
   throw new Error("Didn't expect to get here");
 }
 
@@ -63,7 +66,7 @@ export function TimestampToString(ts: bigint, includeSeconds: boolean): string {
     + (includeSeconds ? ":" + ZeroPadLeft(tsDate.getSeconds(), 2) : "")
 }
 
-function ZeroPadLeft(s: String | number, desiredWidth: number): String {
+function ZeroPadLeft(s: string | number, desiredWidth: number): string {
   return s.toString().padStart(desiredWidth, '0')
 }
 

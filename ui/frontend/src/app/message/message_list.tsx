@@ -19,17 +19,20 @@ export default function MessagesList(args: {
   if (!cwd || !cxt)
     return <></>
 
+  let chat = cwd.chat
+  AssertDefined(cxt.ds.uuid)
+  AssertDefined(chat)
+
   return (
     <>
       <div className="p-4 space-y-4">
         {
           args.messages.map((msg) =>
-            <MessageComponent
-              key={AssertDefined(cxt.ds.uuid) + "_" + AssertDefined(cwd.chat).id + "_" + msg.internalId}
-              msg={msg}
-              cwd={cwd}
-              replyDepth={0}
-              context={cxt}/>
+            <MessageComponent key={cxt.ds.uuid + "_" + chat.id + "_" + msg.internalId}
+                              msg={msg}
+                              cwd={cwd}
+                              replyDepth={0}
+                              context={cxt}/>
           )
         }
 

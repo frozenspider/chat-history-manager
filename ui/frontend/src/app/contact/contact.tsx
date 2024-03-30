@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
 import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
@@ -20,7 +20,8 @@ export default function Contact(args: {
   //     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">View Contact Details</li>
   //   </ul>
   // </div>
-  let chat = AssertDefined(args.cwd.chat);
+  AssertDefined(args.cwd.chat);
+  let chat = args.cwd.chat
   let colorClass = NameColorClassFromNumber(chat.id).text
 
   return (
@@ -81,79 +82,86 @@ function SimpleMessage(args: {
 }
 
 function GetMessageSimpleText(msg: Message): string {
-  if (msg.typed?.$case === 'regular') {
-    let regular = msg.typed.regular
-    if (regular.isDeleted)
-      return "(message deleted)"
+  AssertDefined(msg.typed)
+  switch (msg.typed.$case) {
+    case 'regular': {
+      let regular = msg.typed.regular
+      if (regular.isDeleted)
+        return "(message deleted)"
 
-    let regularSvo = regular.contentOption?.sealedValueOptional;
-    if (!regularSvo?.$case)
-      return msg.searchableString
+      let sealed = regular.contentOption?.sealedValueOptional!;
+      if (!sealed || !sealed?.$case)
+        return msg.searchableString
 
-    switch (regularSvo.$case) {
-      case "sticker":
-        return regularSvo.sticker.emojiOption ? regularSvo.sticker.emojiOption + " (sticker)" : "(sticker)"
-      case "photo":
-        return "(photo)"
-      case "voiceMsg":
-        return "(voice message)"
-      case "audio":
-        return "(audio)"
-      case "videoMsg":
-        return "(video message)"
-      case "video":
-        return "(video)"
-      case "file":
-        return "(file)"
-      case "location":
-        return "(location)"
-      case "poll":
-        return "(poll)"
-      case "sharedContact":
-        return "(shared contact)"
-      default:
-        AssertUnreachable(regularSvo)
+      switch (sealed.$case) {
+        case "sticker":
+          return sealed.sticker.emojiOption ? sealed.sticker.emojiOption + " (sticker)" : "(sticker)"
+        case "photo":
+          return "(photo)"
+        case "voiceMsg":
+          return "(voice message)"
+        case "audio":
+          return "(audio)"
+        case "videoMsg":
+          return "(video message)"
+        case "video":
+          return "(video)"
+        case "file":
+          return "(file)"
+        case "location":
+          return "(location)"
+        case "poll":
+          return "(poll)"
+        case "sharedContact":
+          return "(shared contact)"
+        default:
+          AssertUnreachable(sealed)
+      }
+      return Unreachable() // Cannot be asserted
     }
-  } else if (msg.typed?.$case === 'service') {
-    let serviceSvo = msg.typed.service.sealedValueOptional
-    switch (serviceSvo?.$case) {
-      case 'phoneCall':
-        return "(call)"
-      case 'suggestProfilePhoto':
-        return "(suggested photo)"
-      case 'pinMessage':
-        return "(message pinned)"
-      case 'clearHistory':
-        return "(history cleared)"
-      case 'blockUser':
-        return "(user " + (serviceSvo.blockUser.isBlocked ? "" : "un") + "blocked)"
-      case 'statusTextChanged':
-        return "(status) " + msg.searchableString
-      case 'notice':
-        return "(notice) " + msg.searchableString
-      case 'groupCreate':
-        return "(group created)"
-      case 'groupEditTitle':
-        return "(title changed)"
-      case 'groupEditPhoto':
-        return "(photo changed)"
-      case 'groupDeletePhoto':
-        return "(photo deleted)"
-      case 'groupInviteMembers':
-        return "(invited members)"
-      case 'groupRemoveMembers':
-        return "(removed members)"
-      case 'groupMigrateFrom':
-        return "(migrated from group)"
-      case 'groupMigrateTo':
-        return "(migrated to group)"
-      case undefined:
-        throw new Error("Undefined service message type: " + JSON.stringify(serviceSvo))
-      default:
-        AssertUnreachable(serviceSvo)
+    case 'service': {
+      let sealed = msg.typed.service.sealedValueOptional
+      AssertDefined(sealed)
+      switch (sealed.$case) {
+        case 'phoneCall':
+          return "(call)"
+        case 'suggestProfilePhoto':
+          return "(suggested photo)"
+        case 'pinMessage':
+          return "(message pinned)"
+        case 'clearHistory':
+          return "(history cleared)"
+        case 'blockUser':
+          return "(user " + (sealed.blockUser.isBlocked ? "" : "un") + "blocked)"
+        case 'statusTextChanged':
+          return "(status) " + msg.searchableString
+        case 'notice':
+          return "(notice) " + msg.searchableString
+        case 'groupCreate':
+          return "(group created)"
+        case 'groupEditTitle':
+          return "(title changed)"
+        case 'groupEditPhoto':
+          return "(photo changed)"
+        case 'groupDeletePhoto':
+          return "(photo deleted)"
+        case 'groupInviteMembers':
+          return "(invited members)"
+        case 'groupRemoveMembers':
+          return "(removed members)"
+        case 'groupMigrateFrom':
+          return "(migrated from group)"
+        case 'groupMigrateTo':
+          return "(migrated to group)"
+        case undefined:
+          throw Error("Undefined service message type: " + JSON.stringify(sealed))
+        default:
+          AssertUnreachable(sealed)
+      }
+      return Unreachable() // Cannot be asserted
     }
-  } else {
-    throw new Error("Unexpected message type: " + JSON.stringify(msg))
+    default:
+      AssertUnreachable(msg.typed)
   }
 }
 

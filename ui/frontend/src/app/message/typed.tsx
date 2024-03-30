@@ -15,7 +15,7 @@ export default function MessageTyped(args: {
   borderColorClass: string
   replyDepth: number,
   fileKey: string
-}): React.JSX.Element | null {
+}): React.JSX.Element {
   switch (args.msg.typed?.$case) {
     case "regular":
       return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.borderColorClass, args.replyDepth, args.fileKey);
@@ -26,9 +26,10 @@ export default function MessageTyped(args: {
   }
 }
 
-function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.Element | null {
+function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.Element {
   // FIXME: Replace these placeholders with actual content
-  let sealed = AssertDefined(msg.sealedValueOptional, "MessageService sealed value")
+  let sealed = msg.sealedValueOptional
+  AssertDefined(sealed, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
       return <p>Phone call</p>
@@ -71,12 +72,13 @@ function MessageTypedRegular(
   borderColorClass: string,
   replyDepth: number,
   fileKey: string
-): React.JSX.Element | null {
+): React.JSX.Element {
+  AssertDefined(cwd.chat)
   let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
     let userId = GetNonDefaultOrNull(cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
-    let colorClass = NameColorClassFromMembers(userId, AssertDefined(cwd.chat).memberIds).text
+    let colorClass = NameColorClassFromMembers(userId, cwd.chat.memberIds).text
     fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
   }
 
