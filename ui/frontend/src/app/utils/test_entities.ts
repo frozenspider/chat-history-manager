@@ -216,7 +216,7 @@ export function TestMessages(): Message[] {
     Message.fromJSON({
       internalId: 6,
       sourceIdOption: 6,
-      timestamp: 1698902120,
+      timestamp: 1698902121,
       fromId: 6,
       text: [],
       searchableString: "",
@@ -227,6 +227,21 @@ export function TestMessages(): Message[] {
             lastNameOption: users[1].lastNameOption,
             phoneNumberOption: users[1].phoneNumberOption,
           }
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 7,
+      sourceIdOption: 7,
+      timestamp: 1698902122,
+      fromId: 7,
+      text: [],
+      searchableString: "",
+      service: {
+        phoneCall: {
+          durationSecOption: 12345,
+          discardReasonOption: "hangup",
+          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2]), GetUserPrettyName(users[3])]
         }
       }
     }),

@@ -3,9 +3,7 @@
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
 
 export function Assert(cond: boolean, message: string): asserts cond {
-  if (!cond) {
-    throw new Error(message)
-  }
+  if (!cond) throw new Error(message)
 }
 
 export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts v is T {
@@ -71,6 +69,19 @@ export function TimestampToString(ts: bigint, includeSeconds: boolean): string {
     " " + ZeroPadLeft(tsDate.getHours(), 2)
     + ":" + ZeroPadLeft(tsDate.getMinutes(), 2)
     + (includeSeconds ? ":" + ZeroPadLeft(tsDate.getSeconds(), 2) : "")
+}
+
+export function SecondsToHhMmSsString(seconds: number): string {
+  let hours = Math.floor(seconds / 3600)
+  let minutes = Math.floor((seconds % 3600) / 60)
+  let remainingSeconds = seconds % 60
+
+  function dropWhile<T>(arr: T[], pred: (t: T) => boolean) {
+    while (arr.length > 0 && !pred(arr[0])) arr = arr.slice(1)
+    return arr
+  }
+
+  return dropWhile([hours, minutes, remainingSeconds], x => x > 0).join(":")
 }
 
 function ZeroPadLeft(s: string | number, desiredWidth: number): string {

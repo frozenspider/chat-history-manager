@@ -2,14 +2,20 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SecondsToHhMmSsString } from "@/app/utils/utils";
 import { FindMemberIdxByPrettyName, NameColorClassFromNumber, RepliesMaxDepth } from "@/app/utils/entity_utils";
 import { CurrentChatState, ServicesContext } from "@/app/utils/state";
 
 import MessageContent from "@/app/message/content/content";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
 
-import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
+import {
+  Message,
+  MessageRegular,
+  MessageService,
+  MessageServicePhoneCall,
+  User
+} from "@/protobuf/core/protobuf/entities";
 import { MessageComponent } from "@/app/message/message";
 import ColoredName from "@/app/message/colored_name";
 
@@ -46,7 +52,7 @@ function MessageTypedService(args: {
   AssertDefined(sealed, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
-      return <p>Phone call</p>
+      return <ServicePhoneCall call={sealed.phoneCall} members={args.state.cwd.members}/>
     case "suggestProfilePhoto":
       return <p>Suggest profile photo</p>
     case "pinMessage":
@@ -78,6 +84,38 @@ function MessageTypedService(args: {
     default:
       AssertUnreachable(sealed)
   }
+}
+
+function ServicePhoneCall(args: {
+  call: MessageServicePhoneCall,
+  members: User[]
+}): React.JSX.Element {
+  let duration = GetNonDefaultOrNull(args.call.durationSecOption)
+  let discardReason = GetNonDefaultOrNull(args.call.discardReasonOption)
+
+  let durationNode = <></>
+  if (duration) {
+    if (duration < 60) {
+      durationNode = <>({duration} sec)</>
+    } else {
+      durationNode = <>({SecondsToHhMmSsString(duration)})</>
+    }
+  }
+
+  let membersNode = args.call.members.length > 0 ? (
+    <ul className="list-disc pl-4">
+      {args.call.members.map(n => {
+        let idx = FindMemberIdxByPrettyName(n, args.members)
+        let colorClass = NameColorClassFromNumber(idx).text
+        return <li key={n}><ColoredName name={n} colorClass={colorClass}/></li>
+      })}
+    </ul>
+  ) : <></>
+
+  return <>
+    <p>Call {durationNode}{discardReason && discardReason != "hangup" ? `(${discardReason})` : null}</p>
+    {membersNode}
+  </>
 }
 
 function MessageTypedRegular(args: {
