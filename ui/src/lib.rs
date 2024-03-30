@@ -1,14 +1,14 @@
 // Disables the command prompt window that would normally pop up on Windows if run as a bundled app
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use lazy_static::lazy_static;
+use std::fs;
+use std::path::Path;
 use std::str::FromStr;
+
+use lazy_static::lazy_static;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri::menu::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-use chat_history_manager_core::message_regular;
-use chat_history_manager_core::protobuf::history::*;
-use chat_history_manager_core::utils::entity_utils::RichText;
 
 #[tauri::command]
 fn open_popup(handle: AppHandle) {
@@ -24,32 +24,13 @@ fn open_popup(handle: AppHandle) {
 }
 
 #[tauri::command]
-fn get_message() -> tauri::Result<String> {
-    let msg = Message {
-        internal_id: 123,
-        source_id_option: Some(345),
-        timestamp: 1234565432,
-        from_id: 111,
-        text: vec![RichText::make_plain("Hello there!".to_owned())],
-        searchable_string: "Search me!".to_string(),
-        typed: Some(message_regular! {
-            edit_timestamp_option: Some(1234567890),
-            is_deleted: false,
-            forward_from_name_option: Some("My name!".to_owned()),
-            reply_to_message_id_option: Some(4313483375),
-            content_option: Some(Content {
-                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
-                    path_option: Some("my/file/path".to_owned()),
-                    file_name_option: Some("my_file_name.txt".to_owned()),
-                    mime_type_option: Some("my:mime".to_owned()),
-                    thumbnail_path_option: Some("my/thumbnail/path".to_owned()),
-                }))
-            }),
-        }),
-    };
-    let msg = serde_json::to_string(&msg)?;
-    log::debug!("{}", msg);
-    Ok(msg)
+fn read_file_base64(relative_path: String, ds_root: String) -> tauri::Result<String> {
+    let path = Path::new(&ds_root).join(&relative_path);
+    log::info!("Reading file at {}", path.display());
+    use base64::prelude::*;
+    let bytes = fs::read(path)?;
+    let encoded = BASE64_STANDARD.encode(bytes);
+    Ok(encoded)
 }
 
 #[tauri::command]
@@ -105,7 +86,7 @@ pub fn start() {
         .menu(|handle| {
             make_menu(handle)
         })
-        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, get_message])
+        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

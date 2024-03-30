@@ -97,6 +97,7 @@ export interface DatasetState {
   // To identify our dataset to the backend, we need (fileKey, dsUuid) pair.
   fileKey: FileKey
   ds: Dataset,
+  dsRoot: string,
   users: Map<bigint, User>,
   myselfId: bigint,
   cwds: ChatWithDetailsPB[]

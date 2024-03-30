@@ -26,7 +26,7 @@ export default function MessageContent(args: {
   if (sealed === null) return null
   switch (sealed?.$case) {
     case "photo":
-      return <MessageContentPhoto content={sealed.photo} state={args.state}/>
+      return <MessageContentPhoto content={sealed.photo} dsRoot={args.state.dsState.dsRoot}/>
     default:
       throw new Error("Unknown content type " + JSON.stringify(sealed));
   }

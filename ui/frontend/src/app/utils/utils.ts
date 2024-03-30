@@ -43,9 +43,7 @@ export function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
  */
 export function InvokeTauri<T, R = void>(cmd: string, args?: InvokeArgs, callback?: ((arg: T) => R)) {
   if (IsTauriAvailable()) {
-    invoke<T>(cmd, args)
-      .then(callback)
-      .catch(console.error)
+    WrapPromise(invoke<T>(cmd, args).then(callback))
   } else {
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)

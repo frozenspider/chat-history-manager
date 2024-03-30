@@ -1,8 +1,12 @@
 'use client'
 
+import StaticPlaceholderImage from '../../../public/placeholder.svg'
+
+import { StaticImport } from "next/dist/shared/lib/get-img-props";
+
 import { Chat, User } from "@/protobuf/core/protobuf/entities";
 
-export const PlaceholderImage: string = "placeholder.svg"
+export const PlaceholderImage: StaticImport = StaticPlaceholderImage
 
 export const MessagesBatchSize: bigint = BigInt(100)
 

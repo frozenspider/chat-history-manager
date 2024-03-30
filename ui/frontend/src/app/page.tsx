@@ -38,6 +38,7 @@ export default function Home() {
         {
           fileKey: "<no-file>",
           ds: TestDataset,
+          dsRoot: ".",
           users: TestUsersMap(),
           myselfId: BigInt(1),
           cwds: TestCwds()
@@ -84,9 +85,12 @@ export default function Home() {
 
       let datasetsResponse = await services.daoClient.datasets({ key: file.key })
       for (let ds of datasetsResponse.datasets) {
+        let dsRootResponse =
+          await services.daoClient.datasetRoot({ key: file.key, dsUuid: ds.uuid })
         let datasetState: DatasetState = {
           fileKey: file.key,
           ds: ds,
+          dsRoot: dsRootResponse.path,
           users: new Map<bigint, User>,
           myselfId: BigInt(-1),
           cwds: []

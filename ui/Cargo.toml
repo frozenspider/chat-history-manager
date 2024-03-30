@@ -9,6 +9,7 @@ chat-history-manager-core = { workspace = true }
 
 lazy_static = { workspace = true }
 anyhow = { workspace = true }
+base64 = "0.22.0"
 
 # Serde
 serde = { workspace = true }
