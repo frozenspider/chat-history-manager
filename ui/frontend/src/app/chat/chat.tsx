@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable, WrapPromise } from "@/app/utils/utils";
 import {
   GetChatPrettyName,
   GetUserPrettyName,
@@ -65,28 +65,24 @@ async function LoadChat(
   setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
   setChatViewState: (viewState: ChatViewState) => void
 ) {
-  console.log("Checking chat messages cache")
-  let viewState =
-    await GetCachedChatViewStateAsync(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id, async () => {
-      console.log("Cache miss! Fetching messages from the server and updating")
+  return WrapPromise(GetCachedChatViewStateAsync(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id, async () => {
+    console.log("Cache miss! Fetching messages from the server and updating")
 
-      // TODO: Error handling
-      let lastMessagesResponse = await services.daoClient.lastMessages({
-        key: dsState.fileKey,
-        chat: cwd.chat!,
-        limit: MessagesBatchSize
-      })
-      console.log("Setting cached messages", lastMessagesResponse.messages)
-
-      return {
-        messages: lastMessagesResponse.messages,
-        endReached: true,
-        beginReached: false
-      }
+    let response = await services.daoClient.lastMessages({
+      key: dsState.fileKey,
+      chat: cwd.chat!,
+      limit: MessagesBatchSize
     })
-  console.log("Updating view state", viewState)
-  setChatState([dsState, cwd])
-  setChatViewState(viewState)
+
+    return {
+      messages: response.messages,
+      endReached: true,
+      beginReached: false
+    }
+  }).then((viewState) => {
+    setChatState([dsState, cwd])
+    setChatViewState(viewState)
+  }))
 }
 
 function Avatar(args: { chat: Chat }) {
