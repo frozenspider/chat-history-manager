@@ -8,7 +8,7 @@ import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
-export default function Contact(args: {
+export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
   users: Map<bigint, User>,
   myselfId: bigint

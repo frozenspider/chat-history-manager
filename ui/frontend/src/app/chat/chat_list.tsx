@@ -2,11 +2,11 @@
 
 import React from "react";
 
-import Contact from "@/app/contact/contact";
+import ChatComponent from "@/app/chat/chat";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import { LoadedFileState } from "@/app/utils/state";
 
-export default function ContactList(args: {
+export default function ChatList(args: {
   openFiles: LoadedFileState[]
 }): React.JSX.Element {
   if (args.openFiles.length == 0)
@@ -24,7 +24,7 @@ export default function ContactList(args: {
             return mainChatId === null
           })
           .map((cwd) =>
-            <Contact key={cwd.chat?.id.toString()} cwd={cwd} users={ds.users} myselfId={ds.myselfId}/>
+            <ChatComponent key={cwd.chat?.id.toString()} cwd={cwd} users={ds.users} myselfId={ds.myselfId}/>
           )
       }
     </ul>

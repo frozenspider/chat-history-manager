@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import ContactList from "@/app/contact/contact_list";
+import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
@@ -121,7 +121,7 @@ export default function Home() {
       <ResizablePanel defaultSize={33} minSize={10}>
         <div className="border-r h-full relative">
           <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
-            <ContactList openFiles={openFiles}/>
+            <ChatList openFiles={openFiles}/>
           </ScrollArea>
         </div>
       </ResizablePanel>
