@@ -3,13 +3,14 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { GetUserPrettyName, NameColorClassFromMembers } from "@/app/utils/entity_utils";
-import { CurrentChatState } from "@/app/utils/state";
+import { GetUserPrettyName, NameColorClassFromMembers, RepliesMaxDepth } from "@/app/utils/entity_utils";
+import { CurrentChatState, ServicesContext } from "@/app/utils/state";
 
 import MessageContent from "@/app/message/content/content";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
 
 import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
+import { MessageComponent } from "@/app/message/message";
 
 export default function MessageTyped(args: {
   msg: Message,
@@ -19,20 +20,28 @@ export default function MessageTyped(args: {
 }): React.JSX.Element {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.borderColorClass, args.replyDepth, args.state);
+      return (
+        <MessageTypedRegular msg={args.msg.typed.regular}
+                             borderColorClass={args.borderColorClass}
+                             state={args.state}
+                             replyDepth={args.replyDepth}/>
+      )
     case "service":
-      return MessageTypedService(args.msg.typed.service, args.state);
+      return (
+        <MessageTypedService msg={args.msg.typed.service}
+                             state={args.state}/>
+      )
     default:
       throw new Error("Unknown message type " + JSON.stringify(args.msg.typed));
   }
 }
 
-function MessageTypedService(
+function MessageTypedService(args: {
   msg: MessageService,
   state: CurrentChatState
-): React.JSX.Element {
+}): React.JSX.Element {
   // FIXME: Replace these placeholders with actual content
-  let sealed = msg.sealedValueOptional
+  let sealed = args.msg.sealedValueOptional
   AssertDefined(sealed, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
@@ -70,41 +79,78 @@ function MessageTypedService(
   }
 }
 
-function MessageTypedRegular(
+function MessageTypedRegular(args: {
   msg: MessageRegular,
   borderColorClass: string,
-  replyDepth: number,
   state: CurrentChatState
-): React.JSX.Element {
-  AssertDefined(state.cwd.chat)
-  let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
+  replyDepth: number,
+}): React.JSX.Element {
+  // null - initial state, not yet loaded
+  // string - error message if loading failed, e.g. it wasn't found
+  let [replyToMessage, setReplyToMessage] =
+    React.useState<Message | string | null>(null)
+
+  let services = React.useContext(ServicesContext)!
+
+  AssertDefined(args.state.cwd.chat)
+  let fwdFromName = GetNonDefaultOrNull(args.msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let userId = GetNonDefaultOrNull(state.cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
-    let colorClass = NameColorClassFromMembers(userId, state.cwd.chat.memberIds).text
+    let userId = GetNonDefaultOrNull(args.state.cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
+    let colorClass = NameColorClassFromMembers(userId, args.state.cwd.chat.memberIds).text
     fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
   }
 
-  let replyToId = GetNonDefaultOrNull(msg.replyToMessageIdOption)
+  let replyToId = GetNonDefaultOrNull(args.msg.replyToMessageIdOption)
   let replyTo = <></>
   if (replyToId) {
-    let bqClass = "border-l-4 pl-2 " + borderColorClass
-    if (replyDepth >= 2) {
+    let bqClass = "border-l-4 pl-2 " + args.borderColorClass
+    if (args.replyDepth > RepliesMaxDepth) {
       replyTo =
         <blockquote className={bqClass}>...</blockquote>
     } else {
-      // TODO: Dynamic/async message loading with replyDepth + 1, then add cursor-pointer class and navigate on click
       replyTo =
         <blockquote className={bqClass}>
-          <MessagesLoadSpinner center={false}/>
+          <ReplyToMessage replyToMsg={replyToMessage} state={args.state} replyDepth={args.replyDepth}/>
         </blockquote>
+
+      // Asynchronously load a message
+      services.daoClient.messageOption({
+        key: args.state.dsState.fileKey,
+        chat: args.state.cwd.chat,
+        sourceId: replyToId
+      }).then(response => {
+        let msg: Message | string | null = GetNonDefaultOrNull(response.message)
+        if (!msg) msg = "Message not found"
+        setReplyToMessage(msg)
+      }).catch(reason => {
+        setReplyToMessage("Failed to load message: " + reason)
+      })
     }
   }
   return (
     <>
       {fwdFrom}
       {replyTo}
-      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} state={state}/>
+      <MessageContent content={GetNonDefaultOrNull(args.msg.contentOption)} state={args.state}/>
     </>
   )
+}
+
+function ReplyToMessage(args: {
+  replyToMsg: Message | string | null,
+  state: CurrentChatState,
+  replyDepth: number
+}): React.JSX.Element {
+  if (!args.replyToMsg) {
+    // Still loading
+    return <MessagesLoadSpinner center={false}/>
+  }
+
+  if (typeof args.replyToMsg === "string") {
+    // Server didn't find a message
+    return <>({args.replyToMsg})</>
+  }
+
+  return <MessageComponent msg={args.replyToMsg} state={args.state} replyDepth={args.replyDepth + 1}/>
 }

@@ -9,6 +9,7 @@ import { Chat, User } from "@/protobuf/core/protobuf/entities";
 export const PlaceholderImage: StaticImport = StaticPlaceholderImage
 
 export const MessagesBatchSize: bigint = BigInt(100)
+export const RepliesMaxDepth: bigint = BigInt(2)
 
 /**
  * Tailwind REQUIRES us to embed color class names in code,
