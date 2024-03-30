@@ -5,20 +5,18 @@ import React from "react";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
-import { DatasetState, LoadedFileState } from "@/app/utils/state";
+import { ChatViewState, DatasetState, LoadedFileState, ServicesContext, ServicesContextType } from "@/app/utils/state";
 import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/test_entities";
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
-import { Message, User } from "@/protobuf/core/protobuf/entities";
+import { User } from "@/protobuf/core/protobuf/entities";
 
 import { createChannel, createClient } from 'nice-grpc-web';
 import {
   ChatWithDetailsPB,
-  HistoryDaoServiceClient,
   HistoryDaoServiceDefinition,
-  HistoryLoaderServiceClient,
   HistoryLoaderServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
 
@@ -39,29 +37,32 @@ export default function Home() {
         },
       ],
     }])
-  let [currentDs, setCurrentDs] =
-    React.useState<DatasetState | null>(GetNonDefaultOrNull(openFiles[0]?.datasets[0]))
+  let [currentChatState, setCurrentChatState] =
+    React.useState<[DatasetState, ChatWithDetailsPB] | null>(() => {
+      let dsState = GetNonDefaultOrNull(openFiles[0]?.datasets[0])
+      let cwd = dsState?.cwds[0]
+      return !dsState || !cwd ? null : [dsState, cwd]
+    })
 
-  let [messages, setMessages] = React.useState<Message[]>(() => TestMessages())
+  let [chatViewState, setChatViewState] = React.useState<ChatViewState>({
+    messages: TestMessages(),
+    beginReached: true,
+    endReached: true
+  })
 
   const channel = createChannel('http://localhost:50051');
 
-  const loadClient: HistoryLoaderServiceClient = createClient(
-    HistoryLoaderServiceDefinition,
-    channel,
-  );
-
-  const daoClient: HistoryDaoServiceClient = createClient(
-    HistoryDaoServiceDefinition,
-    channel
-  )
+  const services: ServicesContextType = {
+    loadClient: createClient(HistoryLoaderServiceDefinition, channel),
+    daoClient: createClient(HistoryDaoServiceDefinition, channel)
+  }
 
   async function LoadExistingData() {
     // Reset open files
     setOpenFiles([])
-    setCurrentDs(null)
+    setCurrentChatState(null)
 
-    let loadedFilesResponse = await loadClient.getLoadedFiles({});
+    let loadedFilesResponse = await services.loadClient.getLoadedFiles({});
     if (loadedFilesResponse.files.length == 0) {
       console.log("No files open")
       return
@@ -74,7 +75,7 @@ export default function Home() {
         datasets: [],
       }
 
-      let datasetsResponse = await daoClient.datasets({ key: file.key })
+      let datasetsResponse = await services.daoClient.datasets({ key: file.key })
       for (let ds of datasetsResponse.datasets) {
         let datasetState: DatasetState = {
           fileKey: file.key,
@@ -84,7 +85,7 @@ export default function Home() {
           cwds: []
         }
 
-        let usersResponse = await daoClient.users({ key: file.key, dsUuid: ds.uuid })
+        let usersResponse = await services.daoClient.users({ key: file.key, dsUuid: ds.uuid })
         Assert(usersResponse.users.length > 0, "Dataset " + ds.uuid?.value + "contains no users!")
         datasetState.myselfId = usersResponse.users[0].id
 
@@ -93,7 +94,7 @@ export default function Home() {
           datasetState.users.set(user.id, user)
         })
 
-        let chatsResponse = await daoClient.chats({ key: file.key, dsUuid: ds.uuid })
+        let chatsResponse = await services.daoClient.chats({ key: file.key, dsUuid: ds.uuid })
         datasetState.cwds = chatsResponse.cwds
 
         fileState.datasets.push(datasetState)
@@ -104,35 +105,34 @@ export default function Home() {
     console.log("Done!")
   }
 
-  // React.useEffect(() => {
-  //   if (!firstLoadComplete) {
-  //     firstLoadComplete = true
-  //     WrapPromise(LoadExistingData())
-  //   }
-  // }, [LoadExistingData])
-
-  function SelectChat(cwd: ChatWithDetailsPB) {
-    //
-  }
+  React.useEffect(() => {
+    if (!firstLoadComplete) {
+      firstLoadComplete = true
+      WrapPromise(LoadExistingData())
+    }
+  }, [LoadExistingData])
 
   // FIXME: Avoid line breaks on contact list
   return (
-    <ResizablePanelGroup className="mx-auto p-6 md:p-10 flex" direction="horizontal">
-      <ResizablePanel defaultSize={33} minSize={10}>
-        <div className="border-r h-full relative">
+    <ServicesContext.Provider value={services}>
+      <ResizablePanelGroup className="mx-auto p-6 md:p-10 flex" direction="horizontal">
+        <ResizablePanel defaultSize={33} minSize={10}>
+          <div className="border-r h-full relative">
+            <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
+              <ChatList openFiles={openFiles}
+                        setChatState={setCurrentChatState}
+                        setChatViewState={setChatViewState}/>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
+        <ResizableHandle className="w-1 bg-stone-400"/>
+        <ResizablePanel defaultSize={67}>
           <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
-            <ChatList openFiles={openFiles}/>
+            <MessagesList state={currentChatState}
+                          viewState={chatViewState}/>
           </ScrollArea>
-        </div>
-      </ResizablePanel>
-      <ResizableHandle className="w-1 bg-stone-400"/>
-      <ResizablePanel defaultSize={67}>
-        <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
-          <MessagesList cwd={GetNonDefaultOrNull(currentDs?.cwds[0])}
-                        messages={messages}
-                        context={currentDs}/>
-        </ScrollArea>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </ServicesContext.Provider>
   )
 }

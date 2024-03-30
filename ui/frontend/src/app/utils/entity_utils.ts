@@ -1,6 +1,10 @@
+'use client'
+
 import { Chat, User } from "@/protobuf/core/protobuf/entities";
 
 export const PlaceholderImage: string = "placeholder.svg"
+
+export const MessagesBatchSize: bigint = BigInt(100)
 
 /**
  * Tailwind REQUIRES us to embed color class names in code,

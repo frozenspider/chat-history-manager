@@ -14,13 +14,13 @@ import { DatasetState } from "@/app/utils/state";
 export function MessageComponent(args: {
   msg: Message,
   cwd: ChatWithDetailsPB,
-  replyDepth: number,
-  context: DatasetState
+  dsState: DatasetState,
+  replyDepth: number
 }) {
   AssertDefined(args.cwd.chat)
   let chat = args.cwd.chat
   // Author could be outside the chat
-  let author = GetNonDefaultOrNull(args.context.users.get(args.msg.fromId))
+  let author = GetNonDefaultOrNull(args.dsState.users.get(args.msg.fromId))
   let colorClass = NameColorClassFromMembers(args.msg.fromId, chat.memberIds)
 
   return (
@@ -33,7 +33,7 @@ export function MessageComponent(args: {
                     cwd={args.cwd}
                     borderColorClass={colorClass.border}
                     replyDepth={args.replyDepth}
-                    fileKey={args.context.fileKey}/>
+                    fileKey={args.dsState.fileKey}/>
       <MessageRichText msgInternalId={args.msg.internalId}
                        rtes={args.msg.text}/>
     </div>

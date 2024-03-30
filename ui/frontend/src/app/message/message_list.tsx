@@ -5,34 +5,32 @@ import React from "react";
 import { AssertDefined } from "@/app/utils/utils";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
 import { MessageComponent } from "@/app/message/message";
-import { Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { DatasetState } from "@/app/utils/state";
+import { ChatViewState, DatasetState } from "@/app/utils/state";
 
 export default function MessagesList(args: {
-  cwd: ChatWithDetailsPB | null,
-  messages: Message[],
-  context: DatasetState | null
+  state: [DatasetState, ChatWithDetailsPB] | null,
+  viewState: ChatViewState | null,
 }): React.JSX.Element {
   // TS is not smart enough to understand that cwd is not null otherwise
-  let [cwd, cxt] = [args.cwd, args.context]
-  if (!cwd || !cxt)
+  let [state, viewState] = [args.state, args.viewState]
+  if (!state || !viewState)
     return <></>
 
-  let chat = cwd.chat
-  AssertDefined(cxt.ds.uuid)
-  AssertDefined(chat)
+  let [dsState, cwd] = state
+  AssertDefined(dsState.ds.uuid)
+  AssertDefined(cwd.chat)
 
   return (
     <>
       <div className="p-4 space-y-4">
         {
-          args.messages.map((msg) =>
-            <MessageComponent key={cxt.ds.uuid + "_" + chat.id + "_" + msg.internalId}
+          viewState.messages.map((msg) =>
+            <MessageComponent key={dsState.ds.uuid + "_" + cwd.chat!.id + "_" + msg.internalId}
                               msg={msg}
                               cwd={cwd}
-                              replyDepth={0}
-                              context={cxt}/>
+                              dsState={dsState}
+                              replyDepth={0}/>
           )
         }
 

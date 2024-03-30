@@ -3,15 +3,28 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
-import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import {
+  GetChatPrettyName,
+  GetUserPrettyName,
+  MessagesBatchSize,
+  NameColorClassFromNumber
+} from "@/app/utils/entity_utils";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import {
+  ChatViewState,
+  DatasetState,
+  GetCachedChatViewStateAsync,
+  ServicesContext,
+  ServicesContextType
+} from "@/app/utils/state";
 
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
-  users: Map<bigint, User>,
-  myselfId: bigint
+  dsState: DatasetState,
+  setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
+  setChatViewState: (viewState: ChatViewState) => void
 }): React.JSX.Element {
   // FIXME: On hover, the dropdown menu should be displayed
   // <div
@@ -23,21 +36,57 @@ export default function ChatComponent(args: {
   AssertDefined(args.cwd.chat);
   let chat = args.cwd.chat
   let colorClass = NameColorClassFromNumber(chat.id).text
+  let services = React.useContext(ServicesContext)!
 
   return (
     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-3"
+           onClick={() =>
+             // Note: We're calling async function without awaiting it
+             LoadChat(args.cwd, services, args.dsState, args.setChatState, args.setChatViewState)
+           }>
         <Avatar chat={chat}/>
         <div>
           <span className={"font-semibold " + colorClass}>{GetChatPrettyName(chat)}</span>
           <SimpleMessage chat={chat}
                          msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
-                         users={args.users}
-                         myselfId={args.myselfId}/>
+                         users={args.dsState.users}
+                         myselfId={args.dsState.myselfId}/>
         </div>
       </div>
     </li>
   )
+}
+
+async function LoadChat(
+  cwd: ChatWithDetailsPB,
+  services: ServicesContextType,
+  dsState: DatasetState,
+  setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
+  setChatViewState: (viewState: ChatViewState) => void
+) {
+  console.log("Checking chat messages cache")
+  let viewState =
+    await GetCachedChatViewStateAsync(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id, async () => {
+      console.log("Cache miss! Fetching messages from the server and updating")
+
+      // TODO: Error handling
+      let lastMessagesResponse = await services.daoClient.lastMessages({
+        key: dsState.fileKey,
+        chat: cwd.chat!,
+        limit: MessagesBatchSize
+      })
+      console.log("Setting cached messages", lastMessagesResponse.messages)
+
+      return {
+        messages: lastMessagesResponse.messages,
+        endReached: true,
+        beginReached: false
+      }
+    })
+  console.log("Updating view state", viewState)
+  setChatState([dsState, cwd])
+  setChatViewState(viewState)
 }
 
 function Avatar(args: { chat: Chat }) {
