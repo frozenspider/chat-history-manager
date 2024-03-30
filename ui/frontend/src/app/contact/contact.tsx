@@ -2,14 +2,8 @@
 
 import React from "react";
 
-import {
-  AssertDefined,
-  AssertUnreachable,
-  GetChatPrettyName,
-  GetNonDefaultOrNull,
-  GetUserPrettyName,
-  NameColorClassFromNumber
-} from "@/app/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";

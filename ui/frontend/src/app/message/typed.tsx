@@ -2,13 +2,8 @@
 
 import React from "react";
 
-import {
-  AssertDefined,
-  AssertUnreachable,
-  GetNonDefaultOrNull,
-  GetUserPrettyName,
-  NameColorClassFromMembers
-} from "@/app/utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { GetUserPrettyName, NameColorClassFromMembers } from "@/app/utils/entity_utils";
 import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 import MessageContent from "@/app/message/content/content";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
@@ -18,20 +13,20 @@ export default function MessageTyped(args: {
   msg: Message,
   cwd: ChatWithDetailsPB,
   borderColorClass: string
-  dsRoot: string,
+  fileKey: string,
   replyDepth: number
 }): React.JSX.Element | null {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.dsRoot, args.borderColorClass, args.replyDepth);
+      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.fileKey, args.borderColorClass, args.replyDepth);
     case "service":
-      return MessageTypedService(args.msg.typed.service, args.dsRoot);
+      return MessageTypedService(args.msg.typed.service, args.fileKey);
     default:
       throw new Error("Unknown message type " + JSON.stringify(args.msg.typed));
   }
 }
 
-function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Element | null {
+function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.Element | null {
   // FIXME: Replace these placeholders with actual content
   let sealed = AssertDefined(msg.sealedValueOptional, "MessageService sealed value")
   switch (sealed.$case) {
@@ -73,7 +68,7 @@ function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Ele
 function MessageTypedRegular(
   msg: MessageRegular,
   cwd: ChatWithDetailsPB,
-  dsRoot: string,
+  fileKey: string,
   borderColorClass: string,
   replyDepth: number
 ): React.JSX.Element | null {
@@ -104,7 +99,7 @@ function MessageTypedRegular(
     <>
       {fwdFrom}
       {replyTo}
-      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} dsRoot={dsRoot}/>
+      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} fileKey={fileKey}/>
     </>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { ReportError } from "@/app/utils";
+import { ReportError } from "@/app/utils/utils";
 
 export default function Error(arg: {
   error: Error & { digest?: string }

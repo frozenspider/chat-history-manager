@@ -3,7 +3,7 @@
 import React from "react";
 
 import { RichTextElement } from "@/protobuf/core/protobuf/entities";
-import { AssertDefined, AssertUnreachable } from "@/app/utils";
+import { AssertDefined, AssertUnreachable } from "@/app/utils/utils";
 
 export default function MessageRichText(args: {
   msgInternalId: bigint,

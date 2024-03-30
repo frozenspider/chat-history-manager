@@ -4,14 +4,14 @@ import React from "react";
 
 import Image from "next/image";
 import { ContentPhoto } from "@/protobuf/core/protobuf/entities";
-import { PlaceholderImage } from "@/app/utils";
+import { PlaceholderImage } from "@/app/utils/entity_utils";
 
 export default function MessageContentPhoto(args: {
   content: ContentPhoto,
-  dsRoot: string
+  fileKey: string
 }): React.JSX.Element {
   let content = args.content
-  let path = content.pathOption ? args.dsRoot + "/" + content.pathOption : null;
+  let path = content.pathOption ? args.fileKey + "/" + content.pathOption : null;
   if (path == null) {
     return <React.Fragment>[Photo not downloaded]</React.Fragment>
   } else {

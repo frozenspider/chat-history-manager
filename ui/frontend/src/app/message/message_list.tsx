@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { AssertDefined } from "@/app/utils";
+import { AssertDefined } from "@/app/utils/utils";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
 import { MessageComponent } from "@/app/message/message";
 import { Message, User } from "@/protobuf/core/protobuf/entities";
@@ -10,7 +10,7 @@ import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
 export default function MessagesList(args: {
   dsUuid: string,
-  dsRoot: string
+  fileKey: string
   cwd: ChatWithDetailsPB,
   messages: Message[],
   users: Map<bigint, User>
@@ -25,7 +25,7 @@ export default function MessagesList(args: {
                               msg={msg}
                               cwd={args.cwd}
                               users={args.users}
-                              dsRoot={args.dsRoot}
+                              fileKey={args.fileKey}
                               replyDepth={0}/>
           )
         }

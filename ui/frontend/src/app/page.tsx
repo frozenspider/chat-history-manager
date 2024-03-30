@@ -4,13 +4,13 @@ import React from "react";
 
 import ContactList from "@/app/contact/contact_list";
 import MessagesList from "@/app/message/message_list";
-import { AssertDefined, WrapPromise } from "@/app/utils";
-import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/test_entities";
+import { AssertDefined, WrapPromise } from "@/app/utils/utils";
+import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/test_entities";
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
-import { Chat, Message, User } from "@/protobuf/core/protobuf/entities";
+import { Message, User } from "@/protobuf/core/protobuf/entities";
 
 import { createChannel, createClient } from 'nice-grpc-web';
 import {
@@ -18,14 +18,18 @@ import {
   HistoryDaoServiceClient,
   HistoryDaoServiceDefinition,
   HistoryLoaderServiceClient,
-  HistoryLoaderServiceDefinition
+  HistoryLoaderServiceDefinition,
+  LoadedFile
 } from "@/protobuf/backend/protobuf/services";
 
 let firstLoadComplete = false;
 
 export default function Home() {
+  let [openFiles, setOpenFiles] = React.useState<LoadedFile[]>([])
+
+  // To identify our dataset to the backend, we need (fileKey, dsUuid) pair.
+  let [fileKey, setFileKey] = React.useState("<no-file>")
   let [dsUuid, setDsUuid] = React.useState(AssertDefined(TestDataset.uuid).value)
-  let [dsRoot, setDsRoot] = React.useState(".")
   let [users, setUsers] = React.useState<Map<bigint, User>>(TestUsersMap())
   let [myselfId, setMyselfId] = React.useState<bigint>(BigInt(-1))
   let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(TestCwds())
@@ -49,7 +53,9 @@ export default function Home() {
       console.log("No files open")
       return
     }
+    setOpenFiles(loadedFilesResponse.files)
     let file = loadedFilesResponse.files[0]
+    setFileKey(file.key)
 
     let datasetsResponse = await daoClient.datasets({ key: file.key })
     if (datasetsResponse.datasets.length == 0) {
@@ -86,6 +92,10 @@ export default function Home() {
   //   }
   // }, [LoadExistingData])
 
+  function SelectChat(cwd: ChatWithDetailsPB) {
+    //
+  }
+
   // FIXME: Avoid line breaks on contact list
   return (
     <ResizablePanelGroup className="mx-auto p-6 md:p-10 flex" direction="horizontal">
@@ -100,7 +110,7 @@ export default function Home() {
       <ResizablePanel defaultSize={67}>
         <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
           <MessagesList dsUuid={dsUuid}
-                        dsRoot={dsRoot}
+                        fileKey={fileKey}
                         cwd={cwds[0]}
                         messages={messages}
                         users={users}/>

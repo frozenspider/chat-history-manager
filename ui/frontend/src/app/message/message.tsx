@@ -7,13 +7,14 @@ import MessageTyped from "@/app/message/typed";
 import MessageRichText from "@/app/message/rich_text";
 import { Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { AssertDefined, GetNonDefaultOrNull, NameColorClassFromMembers } from "@/app/utils";
+import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { NameColorClassFromMembers } from "@/app/utils/entity_utils";
 
 export function MessageComponent(args: {
   msg: Message,
   cwd: ChatWithDetailsPB,
   users: Map<bigint, User>,
-  dsRoot: string,
+  fileKey: string,
   replyDepth: number
 }) {
   let chat = AssertDefined(args.cwd.chat)
@@ -30,7 +31,7 @@ export function MessageComponent(args: {
       <MessageTyped msg={args.msg}
                     cwd={args.cwd}
                     borderColorClass={colorClass.border}
-                    dsRoot={args.dsRoot}
+                    fileKey={args.fileKey}
                     replyDepth={args.replyDepth}/>
       <MessageRichText msgInternalId={args.msg.internalId}
                        rtes={args.msg.text}/>

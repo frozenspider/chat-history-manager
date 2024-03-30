@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { TimestampToString } from "@/app/utils";
+import { TimestampToString } from "@/app/utils/utils";
 
 export default function MessageTimestamp(args: {
   timestamp: bigint,

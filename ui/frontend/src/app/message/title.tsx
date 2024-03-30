@@ -4,7 +4,7 @@ import React from "react";
 
 import { Message, User } from "@/protobuf/core/protobuf/entities";
 import MessageTimestamp from "@/app/message/timestamp";
-import { GetNonDefaultOrNull, GetUserPrettyName, NameColorClassFromMembers } from "@/app/utils";
+import { GetUserPrettyName } from "@/app/utils/entity_utils";
 
 export default function MessageTitle(args: {
   msg: Message,

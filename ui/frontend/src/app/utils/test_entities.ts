@@ -1,7 +1,6 @@
 import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import React from "react";
-import { GetUserPrettyName } from "@/app/utils";
+import { GetUserPrettyName } from "@/app/utils/entity_utils";
 
 export const TestDataset: Dataset = {
   uuid: { value: "00000000-0000-0000-0000-000000000000" },

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react';
-import { InvokeTauri } from "@/app/utils";
+import { InvokeTauri } from "@/app/utils/utils";
 import { Message } from "@/protobuf/core/protobuf/entities";
 
 function OpenPopup() {

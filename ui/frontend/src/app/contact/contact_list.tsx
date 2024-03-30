@@ -3,7 +3,7 @@
 import React from "react";
 
 import Contact from "@/app/contact/contact";
-import { GetNonDefaultOrNull } from "@/app/utils";
+import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { User } from "@/protobuf/core/protobuf/entities";
