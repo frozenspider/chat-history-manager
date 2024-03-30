@@ -5,10 +5,11 @@ import React from "react";
 import { Content } from "@/protobuf/core/protobuf/entities";
 import MessageContentPhoto from "@/app/message/content/content_photo";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
+import { CurrentChatState } from "@/app/utils/state";
 
 export default function MessageContent(args: {
   content: Content | null,
-  fileKey: string
+  state: CurrentChatState
 }): React.JSX.Element | null {
   // FIXME: Other types
   //    | { $case: "sticker"; sticker: ContentSticker }
@@ -25,7 +26,7 @@ export default function MessageContent(args: {
   if (sealed === null) return null
   switch (sealed?.$case) {
     case "photo":
-      return <MessageContentPhoto content={sealed.photo} fileKey={args.fileKey}/>
+      return <MessageContentPhoto content={sealed.photo} state={args.state}/>
     default:
       throw new Error("Unknown content type " + JSON.stringify(sealed));
   }

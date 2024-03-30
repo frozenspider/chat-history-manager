@@ -4,12 +4,11 @@ import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
-import { ChatViewState, DatasetState, LoadedFileState } from "@/app/utils/state";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { ChatViewState, CurrentChatState, LoadedFileState } from "@/app/utils/state";
 
 export default function ChatList(args: {
   openFiles: LoadedFileState[],
-  setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
+  setChatState: (state: CurrentChatState) => void,
   setChatViewState: (viewState: ChatViewState) => void
 }): React.JSX.Element {
   if (args.openFiles.length == 0)

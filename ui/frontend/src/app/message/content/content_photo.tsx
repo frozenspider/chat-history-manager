@@ -3,17 +3,21 @@
 import React from "react";
 
 import Image from "next/image";
-import { ContentPhoto } from "@/protobuf/core/protobuf/entities";
+
 import { PlaceholderImage } from "@/app/utils/entity_utils";
+import { CurrentChatState } from "@/app/utils/state";
+
+import { ContentPhoto } from "@/protobuf/core/protobuf/entities";
+import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
 export default function MessageContentPhoto(args: {
   content: ContentPhoto,
-  fileKey: string
+  state: CurrentChatState
 }): React.JSX.Element {
   let content = args.content
-  let path = content.pathOption ? args.fileKey + "/" + content.pathOption : null;
+  let path = GetNonDefaultOrNull(content.pathOption);
   if (path == null) {
-    return <React.Fragment>[Photo not downloaded]</React.Fragment>
+    return <>[Photo not downloaded]</>
   } else {
     // FIXME: Async loading of real image
     if (content.width > 0 && content.height > 0) {

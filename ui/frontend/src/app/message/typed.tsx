@@ -4,29 +4,33 @@ import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { GetUserPrettyName, NameColorClassFromMembers } from "@/app/utils/entity_utils";
-import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
+import { CurrentChatState } from "@/app/utils/state";
+
 import MessageContent from "@/app/message/content/content";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
+
+import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 
 export default function MessageTyped(args: {
   msg: Message,
-  cwd: ChatWithDetailsPB,
   borderColorClass: string
   replyDepth: number,
-  fileKey: string
+  state: CurrentChatState
 }): React.JSX.Element {
   switch (args.msg.typed?.$case) {
     case "regular":
-      return MessageTypedRegular(args.msg.typed.regular, args.cwd, args.borderColorClass, args.replyDepth, args.fileKey);
+      return MessageTypedRegular(args.msg.typed.regular, args.borderColorClass, args.replyDepth, args.state);
     case "service":
-      return MessageTypedService(args.msg.typed.service, args.fileKey);
+      return MessageTypedService(args.msg.typed.service, args.state);
     default:
       throw new Error("Unknown message type " + JSON.stringify(args.msg.typed));
   }
 }
 
-function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.Element {
+function MessageTypedService(
+  msg: MessageService,
+  state: CurrentChatState
+): React.JSX.Element {
   // FIXME: Replace these placeholders with actual content
   let sealed = msg.sealedValueOptional
   AssertDefined(sealed, "MessageService sealed value")
@@ -68,17 +72,16 @@ function MessageTypedService(msg: MessageService, fileKey: string): React.JSX.El
 
 function MessageTypedRegular(
   msg: MessageRegular,
-  cwd: ChatWithDetailsPB,
   borderColorClass: string,
   replyDepth: number,
-  fileKey: string
+  state: CurrentChatState
 ): React.JSX.Element {
-  AssertDefined(cwd.chat)
+  AssertDefined(state.cwd.chat)
   let fwdFromName = GetNonDefaultOrNull(msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let userId = GetNonDefaultOrNull(cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
-    let colorClass = NameColorClassFromMembers(userId, cwd.chat.memberIds).text
+    let userId = GetNonDefaultOrNull(state.cwd.members.find((u) => GetUserPrettyName(u) == fwdFromName)?.id)
+    let colorClass = NameColorClassFromMembers(userId, state.cwd.chat.memberIds).text
     fwdFrom = <p>Forwarded from <span className={"font-semibold " + colorClass}>{fwdFromName}</span></p>
   }
 
@@ -101,7 +104,7 @@ function MessageTypedRegular(
     <>
       {fwdFrom}
       {replyTo}
-      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} fileKey={fileKey}/>
+      <MessageContent content={GetNonDefaultOrNull(msg.contentOption)} state={state}/>
     </>
   )
 }

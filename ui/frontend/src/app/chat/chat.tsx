@@ -14,6 +14,7 @@ import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import {
   ChatViewState,
+  CurrentChatState,
   DatasetState,
   GetCachedChatViewStateAsync,
   ServicesContext,
@@ -23,7 +24,7 @@ import {
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
   dsState: DatasetState,
-  setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
+  setChatState: (state: CurrentChatState) => void,
   setChatViewState: (viewState: ChatViewState) => void
 }): React.JSX.Element {
   // FIXME: On hover, the dropdown menu should be displayed
@@ -62,7 +63,7 @@ async function LoadChat(
   cwd: ChatWithDetailsPB,
   services: ServicesContextType,
   dsState: DatasetState,
-  setChatState: (state: [DatasetState, ChatWithDetailsPB]) => void,
+  setChatState: (state: CurrentChatState) => void,
   setChatViewState: (viewState: ChatViewState) => void
 ) {
   return WrapPromise(GetCachedChatViewStateAsync(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id, async () => {
@@ -80,7 +81,7 @@ async function LoadChat(
       beginReached: false
     }
   }).then((viewState) => {
-    setChatState([dsState, cwd])
+    setChatState({ cwd: cwd, dsState: dsState })
     setChatViewState(viewState)
   }))
 }

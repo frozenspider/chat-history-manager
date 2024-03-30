@@ -101,3 +101,8 @@ export interface DatasetState {
   myselfId: bigint,
   cwds: ChatWithDetailsPB[]
 }
+
+export interface CurrentChatState {
+  cwd: ChatWithDetailsPB,
+  dsState: DatasetState
+}

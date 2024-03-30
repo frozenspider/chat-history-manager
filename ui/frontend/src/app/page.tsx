@@ -5,7 +5,14 @@ import React from "react";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
-import { ChatViewState, DatasetState, LoadedFileState, ServicesContext, ServicesContextType } from "@/app/utils/state";
+import {
+  CurrentChatState,
+  ChatViewState,
+  DatasetState,
+  LoadedFileState,
+  ServicesContext,
+  ServicesContextType
+} from "@/app/utils/state";
 import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/test_entities";
 
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -38,10 +45,10 @@ export default function Home() {
       ],
     }])
   let [currentChatState, setCurrentChatState] =
-    React.useState<[DatasetState, ChatWithDetailsPB] | null>(() => {
+    React.useState<CurrentChatState | null>(() => {
       let dsState = GetNonDefaultOrNull(openFiles[0]?.datasets[0])
       let cwd = dsState?.cwds[0]
-      return !dsState || !cwd ? null : [dsState, cwd]
+      return !dsState || !cwd ? null : { cwd: cwd, dsState: dsState }
     })
 
   let [chatViewState, setChatViewState] = React.useState<ChatViewState>({

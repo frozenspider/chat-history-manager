@@ -5,11 +5,10 @@ import React from "react";
 import { AssertDefined } from "@/app/utils/utils";
 import MessagesLoadSpinner from "@/app/message/load_spinner";
 import { MessageComponent } from "@/app/message/message";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { ChatViewState, DatasetState } from "@/app/utils/state";
+import { CurrentChatState, ChatViewState, DatasetState } from "@/app/utils/state";
 
 export default function MessagesList(args: {
-  state: [DatasetState, ChatWithDetailsPB] | null,
+  state: CurrentChatState | null,
   viewState: ChatViewState | null,
 }): React.JSX.Element {
   // TS is not smart enough to understand that cwd is not null otherwise
@@ -17,19 +16,17 @@ export default function MessagesList(args: {
   if (!state || !viewState)
     return <></>
 
-  let [dsState, cwd] = state
-  AssertDefined(dsState.ds.uuid)
-  AssertDefined(cwd.chat)
+  AssertDefined(state.cwd.chat)
+  AssertDefined(state.dsState.ds.uuid)
 
   return (
     <>
       <div className="p-4 space-y-4">
         {
           viewState.messages.map((msg) =>
-            <MessageComponent key={dsState.ds.uuid + "_" + cwd.chat!.id + "_" + msg.internalId}
+            <MessageComponent key={state.dsState.ds.uuid + "_" + state.cwd.chat!.id + "_" + msg.internalId}
                               msg={msg}
-                              cwd={cwd}
-                              dsState={dsState}
+                              state={state}
                               replyDepth={0}/>
           )
         }
