@@ -11,9 +11,10 @@ import { User } from "@/protobuf/core/protobuf/entities";
 
 export default function ContactList(args: {
   cwds: ChatWithDetailsPB[],
-  users: Map<number, User>,
-  myselfId: number
+  users: Map<bigint, User>,
+  myselfId: bigint
 }): React.JSX.Element {
+  const Zero: bigint = BigInt(0)
   return (
     <ul className="divide-y divide-gray-200 dark:divide-gray-700">
       {
@@ -22,10 +23,10 @@ export default function ContactList(args: {
             if (!cwd.chat) return false
             let mainChatId = GetOrNull(cwd.chat.main_chat_id)
             // TODO: Why is it zero?
-            return mainChatId === null || mainChatId === 0
+            return mainChatId === null || mainChatId == Zero
           })
           .map((cwd) =>
-            <Contact key={cwd.chat?.id} cwd={cwd} users={args.users} myselfId={args.myselfId}/>
+            <Contact key={cwd.chat?.id.toString()} cwd={cwd} users={args.users} myselfId={args.myselfId}/>
           )
       }
     </ul>

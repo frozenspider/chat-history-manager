@@ -16,8 +16,8 @@ import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
 export default function Contact(args: {
   cwd: ChatWithDetailsPB,
-  users: Map<number, User>,
-  myselfId: number
+  users: Map<bigint, User>,
+  myselfId: bigint
 }): React.JSX.Element {
   // FIXME: On hover, the dropdown menu should be displayed
   // <div
@@ -65,8 +65,8 @@ function Avatar(args: { chat: Chat }) {
 function SimpleMessage(args: {
   chat: Chat,
   msg: Message | null,
-  users: Map<number, User>,
-  myselfId: number
+  users: Map<bigint, User>,
+  myselfId: bigint
 }) {
   let namePrefix = <></>;
   let text: string = "No messages yet"

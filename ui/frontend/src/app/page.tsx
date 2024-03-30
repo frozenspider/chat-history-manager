@@ -33,8 +33,8 @@ let firstLoadComplete = false;
 export default function Home() {
   let [dsUuid, setDsUuid] = React.useState("00000-00000-0000")
   let [dsRoot, setDsRoot] = React.useState(".")
-  let [users, setUsers] = React.useState<Map<number, User>>(new Map())
-  let [myselfId, setMyselfId] = React.useState<number>(-1)
+  let [users, setUsers] = React.useState<Map<bigint, User>>(new Map())
+  let [myselfId, setMyselfId] = React.useState<bigint>(BigInt(-1))
   let [cwds, setCwds] = React.useState<ChatWithDetailsPB[]>(() => {
     return Array.from(Array(100).keys()).map((i: number) => MakeCwd(i))
   })
@@ -106,7 +106,7 @@ export default function Home() {
     setMyselfId(usersResponse.users[0].id)
 
     // Construct a map of users by id
-    let users = new Map<number, User>()
+    let users = new Map<bigint, User>()
     usersResponse.users.forEach((user) => {
       users.set(user.id, user)
     })

@@ -5,14 +5,14 @@ import React from "react";
 import { RichTextElement } from "@/protobuf/core/protobuf/entities";
 
 export default function MessageRichText(args: {
-  msgInternalId: number,
+  msgInternalId: bigint,
   rtes: RichTextElement[]
 }): React.JSX.Element {
   return (
     <div>{
       args.rtes.map((rte, idx) => {
         let rteJsx = MessageRichTextElement(rte)
-        return <React.Fragment key={args.msgInternalId + "_" + idx}>
+        return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
           {rteJsx}{rteJsx ? " " : null}
         </React.Fragment>;
       })

@@ -5,8 +5,8 @@ import React from "react";
 import { TimestampToString } from "@/app/utils";
 
 export default function MessageTimestamp(args: {
-  timestamp: number,
-  editOrDeleteTimestamp: number | undefined,
+  timestamp: bigint,
+  editOrDeleteTimestamp: bigint | undefined,
   isDeleted: boolean,
   includeSeconds: boolean
 }): React.JSX.Element {

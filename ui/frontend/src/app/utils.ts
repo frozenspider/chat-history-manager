@@ -38,10 +38,15 @@ export function InvokeTauri<T, R = void>(cmd: string, args?: InvokeArgs, callbac
   }
 }
 
-export function AssertDefined<T>(v: T | undefined): T {
-  if (v === undefined) {
-    throw new Error("Value {v} is undefined")
+export function Assert(cond: boolean, message: string): asserts cond {
+  if (!cond) {
+    throw new Error(message)
   }
+}
+
+
+export function AssertDefined<T>(v: T | undefined): T {
+  Assert(v !== undefined, "Value is undefined")
   return v
 }
 
@@ -50,8 +55,9 @@ export function AssertUnreachable(x: never): never {
 }
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */
-export function TimestampToString(ts: number, includeSeconds: boolean): string {
-  let tsDate = new Date(ts * 1000)
+export function TimestampToString(ts: bigint, includeSeconds: boolean): string {
+  Assert(ts <= Number.MAX_SAFE_INTEGER, "Timestamp is too large")
+  let tsDate = new Date(Number(ts) * 1000)
   // Convers a numeric timestamp to yyyy-MM-dd HH:mm:ss string
   return ZeroPadLeft(tsDate.getFullYear(), 4)
     + "-" + ZeroPadLeft(tsDate.getMonth() + 1, 2)
@@ -87,7 +93,7 @@ const CycleColorStyles: string[] = [
   "text-amber-800", // "#BDB76B" // DarkKhaki
 ]
 
-export function NameColorStyleFromNumber(i: number): string {
+export function NameColorStyleFromNumber(i: number | bigint): string {
   // [
   //   "#6495ED", // CornflowerBlue
   //   "#B22222", // FireBrick
@@ -103,7 +109,7 @@ export function NameColorStyleFromNumber(i: number): string {
   //   "#BDB76B" // DarkKhaki
   // ]
 
-  return CycleColorStyles[i % CycleColorStyles.length]
+  return CycleColorStyles[Number(BigInt(i) % BigInt(CycleColorStyles.length))]
 }
 
 const Unnamed = "[unnamed]"
