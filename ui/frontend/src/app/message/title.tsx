@@ -11,7 +11,7 @@ export default function MessageTitle(args: {
   includeSeconds: boolean
 }): React.JSX.Element {
   let regular = args.msg.typed?.$case === 'regular' ? args.msg.typed.regular : null
-  let deleted = regular?.is_deleted ?? false
+  let deleted = regular?.isDeleted ?? false
 
   // TODO: Look at chat members order
   let color = NameColorStyleFromNumber(args.msg.fromId)
@@ -21,7 +21,7 @@ export default function MessageTitle(args: {
       John Doe
       &nbsp;
       <MessageTimestamp timestamp={args.msg.timestamp}
-                        editOrDeleteTimestamp={regular?.edit_timestamp_option}
+                        editOrDeleteTimestamp={regular?.editTimestampOption}
                         isDeleted={deleted}
                         includeSeconds={false}/>
     </span>

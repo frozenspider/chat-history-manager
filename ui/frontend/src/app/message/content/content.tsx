@@ -20,12 +20,12 @@ export default function MessageContent(args: {
   //     | { $case: "location"; location: ContentLocation }
   //     | { $case: "poll"; poll: ContentPoll }
   //     | { $case: "shared_contact"; shared_contact: ContentSharedContact }
-  switch (args.content?.sealed_value_optional?.$case) {
+  switch (args.content?.sealedValueOptional?.$case) {
     case null:
       return null;
     case "photo":
-      return <MessageContentPhoto content={args.content.sealed_value_optional.photo} dsRoot={args.dsRoot}/>
+      return <MessageContentPhoto content={args.content?.sealedValueOptional.photo} dsRoot={args.dsRoot}/>
     default:
-      throw new Error("Unknown content type " + JSON.stringify(args.content));
+      throw new Error("Unknown content type " + JSON.stringify(args.content) + " of type " + typeof args.content);
   }
 }

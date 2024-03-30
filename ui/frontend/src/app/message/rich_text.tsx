@@ -40,11 +40,11 @@ function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null 
         return <span className="text-red-500">FIXME: Link!</span>
         //return <a target="_blank" href={rte.val.link.href}>{rte.val.link.text_option ?? rte.val.link.href}</a>
       }
-    case "prefmt_inline":
-      return <span className="font-mono">{rte.val.prefmt_inline.text}</span>
-    case "prefmt_block":
+    case "prefmtInline":
+      return <span className="font-mono">{rte.val.prefmtInline.text}</span>
+    case "prefmtBlock":
       // TODO: Use syntax highlighter
-      return <pre className="font-mono">{rte.val.prefmt_block.text}</pre>
+      return <pre className="font-mono">{rte.val.prefmtBlock.text}</pre>
     case "blockquote":
       return <blockquote
         className="border-l-4 pl-2 border-blue-500 cursor-pointer">{rte.val.blockquote.text}</blockquote>

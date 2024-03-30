@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { GetOrNull } from "@/app/utils";
+import { AssertDefined, AssertUnreachable, GetOrNull } from "@/app/utils";
 import { Message, MessageRegular, MessageService } from "@/protobuf/core/protobuf/entities";
 import MessageContent from "@/app/message/content/content";
 
@@ -22,50 +22,51 @@ export default function MessageTyped(args: {
 
 function MessageTypedService(msg: MessageService, dsRoot: string): React.JSX.Element | null {
   // FIXME: Replace these placeholders with actual content
-  switch (msg.sealed_value_optional?.$case) {
-    case "phone_call":
+  let sealed = AssertDefined(msg.sealedValueOptional)
+  switch (sealed.$case) {
+    case "phoneCall":
       return <p>Phone call</p>
-    case "suggest_profile_photo":
+    case "suggestProfilePhoto":
       return <p>Suggest profile photo</p>
-    case "pin_message":
+    case "pinMessage":
       return <p>Pin message</p>
-    case "clear_history":
+    case "clearHistory":
       return <p>Clear history</p>
-    case "block_user":
+    case "blockUser":
       return <p>Block user</p>
-    case "status_text_changed":
+    case "statusTextChanged":
       return <p>Status text changed</p>
     case "notice":
       return <p>Notice</p>
-    case "group_create":
+    case "groupCreate":
       return <p>Group create</p>
-    case "group_edit_title":
+    case "groupEditTitle":
       return <p>Group edit title</p>
-    case "group_edit_photo":
+    case "groupEditPhoto":
       return <p>Group edit photo</p>
-    case "group_delete_photo":
+    case "groupDeletePhoto":
       return <p>Group delete photo</p>
-    case "group_invite_members":
+    case "groupInviteMembers":
       return <p>Group invite members</p>
-    case "group_remove_members":
+    case "groupRemoveMembers":
       return <p>Group remove members</p>
-    case "group_migrate_from":
+    case "groupMigrateFrom":
       return <p>Group migrate from</p>
-    case "group_migrate_to":
+    case "groupMigrateTo":
       return <p>Group migrate to</p>
     default:
-      throw new Error("Unknown service message type " + JSON.stringify(msg.sealed_value_optional));
+      AssertUnreachable(sealed)
   }
 }
 
 
 function MessageTypedRegular(msg: MessageRegular, dsRoot: string): React.JSX.Element | null {
-  let fwdFromString = GetOrNull(msg.forward_from_name_option)
+  let fwdFromString = GetOrNull(msg.forwardFromNameOption)
   let fwdFrom = fwdFromString == null ? null : <p>Forwarded from {fwdFromString}</p>
   return (
     <>
       <div>{fwdFrom}</div>
-      <MessageContent content={GetOrNull(msg.content_option)} dsRoot={dsRoot}/>
+      <MessageContent content={GetOrNull(msg.contentOption)} dsRoot={dsRoot}/>
     </>
   )
 }

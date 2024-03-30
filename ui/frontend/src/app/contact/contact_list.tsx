@@ -21,7 +21,7 @@ export default function ContactList(args: {
         args.cwds
           .filter((cwd) => {
             if (!cwd.chat) return false
-            let mainChatId = GetOrNull(cwd.chat.main_chat_id)
+            let mainChatId = GetOrNull(cwd.chat.mainChatId)
             // TODO: Why is it zero?
             return mainChatId === null || mainChatId == Zero
           })

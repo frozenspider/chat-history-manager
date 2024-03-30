@@ -25,7 +25,7 @@ export default function MessagesList(args: {
 
         {args.messages.map((msg) =>
 
-          <MessageComponent key={args.dsUuid + "_" + args.chatId + "_" + msg.internal_id}
+          <MessageComponent key={args.dsUuid + "_" + args.chatId + "_" + msg.internalId}
                             msg={msg}
                             dsRoot={args.dsRoot}/>)}
 

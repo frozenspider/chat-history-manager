@@ -115,24 +115,24 @@ export function NameColorStyleFromNumber(i: number | bigint): string {
 const Unnamed = "[unnamed]"
 
 export function GetUserPrettyName(user: User): string {
-  if (user.first_name_option && user.last_name_option) {
-    return user.first_name_option + " " + user.last_name_option
-  } else if (user.first_name_option) {
-    return user.first_name_option
-  } else if (user.last_name_option) {
-    return user.last_name_option
-  } else if (user.phone_number_option) {
-    return user.phone_number_option
-  } else if (user.username_option) {
-    return user.username_option
+  if (user.firstNameOption && user.lastNameOption) {
+    return user.firstNameOption + " " + user.lastNameOption
+  } else if (user.firstNameOption) {
+    return user.firstNameOption
+  } else if (user.lastNameOption) {
+    return user.lastNameOption
+  } else if (user.phoneNumberOption) {
+    return user.phoneNumberOption
+  } else if (user.usernameOption) {
+    return user.usernameOption
   } else {
     return Unnamed
   }
 }
 
 export function GetChatPrettyName(chat: Chat): string {
-  if (chat.name_option) {
-    return chat.name_option
+  if (chat.nameOption) {
+    return chat.nameOption
   } else {
     return Unnamed
   }

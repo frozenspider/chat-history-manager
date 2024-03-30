@@ -11,7 +11,7 @@ export default function MessageContentPhoto(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  let path = content.path_option ? args.dsRoot + "/" + content.path_option : null;
+  let path = content.pathOption ? args.dsRoot + "/" + content.pathOption : null;
   if (path == null) {
     return <React.Fragment>[Photo not downloaded]</React.Fragment>
   } else {

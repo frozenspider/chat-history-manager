@@ -15,7 +15,7 @@ export function MessageComponent(args: {
     <div className="flex flex-col">
       <MessageTitle msg={args.msg} includeSeconds={false}/>
       <MessageTyped msg={args.msg} dsRoot={args.dsRoot}/>
-      <MessageRichText msgInternalId={args.msg.internal_id} rtes={args.msg.text}/>
+      <MessageRichText msgInternalId={args.msg.internalId} rtes={args.msg.text}/>
     </div>
   )
 }

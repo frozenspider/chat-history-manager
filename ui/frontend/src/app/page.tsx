@@ -40,29 +40,29 @@ export default function Home() {
   })
   let [chatId, setChatId] = React.useState(123456)
   let [messages, setMessages] = React.useState<Message[]>(() => {
-    let msg = Message.fromJSON({
-      "internal_id": 123,
-      "source_id_option": 345,
-      "timestamp": 1698901234,
-      "from_id": 111,
-      "text": [
-        { "searchable_string": "", "spoiler": { "text": "Spoiler" } },
-        { "searchable_string": "", "prefmt_block": { "text": "Prefmt code block" } },
-        { "searchable_string": "", "prefmt_inline": { "text": "Inline code block" } },
-        { "searchable_string": "", "link": { "href": "https://www.google.com/", "text_option": "My link" } }
+    let msg: Message = Message.fromJSON({
+      internalId: 123,
+      sourceIdOption: 345,
+      timestamp: 1698901234,
+      fromId: 111,
+      text: [
+        { searchableString: "", spoiler: { "text": "Spoiler" } },
+        { searchableString: "", prefmtBlock: { "text": "Prefmt code block" } },
+        { searchableString: "", prefmtInline: { "text": "Inline code block" } },
+        { searchableString: "", link: { "href": "https://www.google.com/", "text_option": "My link" } }
       ],
-      "searchable_string": "Search me!",
-      "regular": {
-        "edit_timestamp_option": 1708901234,
-        "is_deleted": true,
-        "forward_from_name_option": "My name!",
-        "reply_to_message_id_option": 4313483375,
-        "content_option": {
-          "photo": {
-            "path_option": "my/file/path",
-            "width": 400,
-            "height": 100,
-            "is_one_time": false
+      searchableString: "Search me!",
+      regular: {
+        editTimestampOption: 1708901234,
+        isDeleted: true,
+        forwardFromNameOption: "My name!",
+        replyToMessageIdOption: 4313483375,
+        contentOption: {
+          photo: {
+            pathOption: "my/file/path",
+            width: 400,
+            height: 100,
+            isOneTime: false
           }
         }
       }
@@ -97,7 +97,7 @@ export default function Home() {
     }
     let ds = datasetsResponse.datasets[0]
 
-    let usersResponse = await daoClient.users({ key: file.key, ds_uuid: ds.uuid })
+    let usersResponse = await daoClient.users({ key: file.key, dsUuid: ds.uuid })
     if (usersResponse.users.length == 0) {
       console.log("No users in dataset")
       return
@@ -112,7 +112,7 @@ export default function Home() {
     })
     setUsers(users)
 
-    let chatsResponse = await daoClient.chats({ key: file.key, ds_uuid: ds.uuid })
+    let chatsResponse = await daoClient.chats({ key: file.key, dsUuid: ds.uuid })
     console.log("Got response: ", chatsResponse.cwds)
     setCwds(chatsResponse.cwds)
     console.log("Done!")
@@ -154,7 +154,7 @@ function MakeCwd(id: number): ChatWithDetailsPB {
       id: id,
       name_option: "John Doe"
     }),
-    last_msg_option: Message.fromJSON({
+    lastMsgOption: Message.fromJSON({
       searchable_string: "Hey there! How can I help you?",
       regular: {}
     }),

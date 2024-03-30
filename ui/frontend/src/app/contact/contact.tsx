@@ -36,7 +36,7 @@ export default function Contact(args: {
         <div>
           <span className={"font-semibold " + color}>{GetChatPrettyName(chat)}</span>
           <SimpleMessage chat={chat}
-                         msg={GetOrNull(args.cwd.last_msg_option)}
+                         msg={GetOrNull(args.cwd.lastMsgOption)}
                          users={args.users}
                          myselfId={args.myselfId}/>
         </div>
@@ -89,23 +89,23 @@ function SimpleMessage(args: {
 function GetMessageSimpleText(msg: Message): string {
   if (msg.typed?.$case === 'regular') {
     let regular = msg.typed.regular
-    if (regular.is_deleted)
+    if (regular.isDeleted)
       return "(message deleted)"
 
-    let regularSvo = regular.content_option?.sealed_value_optional;
+    let regularSvo = regular.contentOption?.sealedValueOptional;
     if (!regularSvo?.$case)
-      return msg.searchable_string
+      return msg.searchableString
 
     switch (regularSvo.$case) {
       case "sticker":
-        return regularSvo.sticker.emoji_option ? regularSvo.sticker.emoji_option + " (sticker)" : "(sticker)"
+        return regularSvo.sticker.emojiOption ? regularSvo.sticker.emojiOption + " (sticker)" : "(sticker)"
       case "photo":
         return "(photo)"
-      case "voice_msg":
+      case "voiceMsg":
         return "(voice message)"
       case "audio":
         return "(audio)"
-      case "video_msg":
+      case "videoMsg":
         return "(video message)"
       case "video":
         return "(video)"
@@ -115,43 +115,43 @@ function GetMessageSimpleText(msg: Message): string {
         return "(location)"
       case "poll":
         return "(poll)"
-      case "shared_contact":
+      case "sharedContact":
         return "(shared contact)"
       default:
         AssertUnreachable(regularSvo)
     }
   } else if (msg.typed?.$case === 'service') {
-    let serviceSvo = msg.typed.service.sealed_value_optional
+    let serviceSvo = msg.typed.service.sealedValueOptional
     switch (serviceSvo?.$case) {
-      case 'phone_call':
+      case 'phoneCall':
         return "(call)"
-      case 'suggest_profile_photo':
+      case 'suggestProfilePhoto':
         return "(suggested photo)"
-      case 'pin_message':
+      case 'pinMessage':
         return "(message pinned)"
-      case 'clear_history':
+      case 'clearHistory':
         return "(history cleared)"
-      case 'block_user':
-        return "(user " + (serviceSvo.block_user.is_blocked ? "" : "un") + "blocked)"
-      case 'status_text_changed':
-        return "(status) " + msg.searchable_string
+      case 'blockUser':
+        return "(user " + (serviceSvo.blockUser.isBlocked ? "" : "un") + "blocked)"
+      case 'statusTextChanged':
+        return "(status) " + msg.searchableString
       case 'notice':
-        return "(notice) " + msg.searchable_string
-      case 'group_create':
+        return "(notice) " + msg.searchableString
+      case 'groupCreate':
         return "(group created)"
-      case 'group_edit_title':
+      case 'groupEditTitle':
         return "(title changed)"
-      case 'group_edit_photo':
+      case 'groupEditPhoto':
         return "(photo changed)"
-      case 'group_delete_photo':
+      case 'groupDeletePhoto':
         return "(photo deleted)"
-      case 'group_invite_members':
+      case 'groupInviteMembers':
         return "(invited members)"
-      case 'group_remove_members':
+      case 'groupRemoveMembers':
         return "(removed members)"
-      case 'group_migrate_from':
+      case 'groupMigrateFrom':
         return "(migrated from group)"
-      case 'group_migrate_to':
+      case 'groupMigrateTo':
         return "(migrated to group)"
       case undefined:
         throw new Error("Undefined service message type: " + JSON.stringify(serviceSvo))
