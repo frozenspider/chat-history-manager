@@ -11,7 +11,7 @@ frontendDist = "./frontend/out"
 withGlobalTauri = true
 
 [[app.windows]]
-title = "Hello, Tauri!"
+title = "Chat History Manager"
 fullscreen = false
 width = 800
 height = 600

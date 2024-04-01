@@ -16,6 +16,7 @@
 scalapb/scalapb.proto
 core/src/protobuf/*
 backend/src/protobuf/*
+ui/gen/*
 
 # WhatsApp databases
 backend/resources/test/*/databases/*
