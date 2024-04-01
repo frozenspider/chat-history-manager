@@ -152,21 +152,23 @@ function MessageTypedRegular(args: {
         <blockquote className={bqClass}>
           <ReplyToMessage replyToMsg={replyToMessage} state={args.state} replyDepth={args.replyDepth}/>
         </blockquote>
-
-      // Asynchronously load a message
-      services.daoClient.messageOption({
-        key: args.state.dsState.fileKey,
-        chat: args.state.cwd.chat,
-        sourceId: replyToId
-      }).then(response => {
-        let msg: Message | string | null = GetNonDefaultOrNull(response.message)
-        if (!msg) msg = "Message not found"
-        setReplyToMessage(msg)
-      }).catch(reason => {
-        setReplyToMessage("Failed to load message: " + reason)
-      })
     }
   }
+  // Asynchronously load a message
+  React.useEffect(() => {
+    if (!replyToId) return
+    services.daoClient.messageOption({
+      key: args.state.dsState.fileKey,
+      chat: args.state.cwd.chat,
+      sourceId: replyToId
+    }).then(response => {
+      let msg: Message | string | null = GetNonDefaultOrNull(response.message)
+      if (!msg) msg = "Message not found"
+      setReplyToMessage(msg)
+    }).catch(reason => {
+      setReplyToMessage("Failed to load message: " + reason)
+    })
+  }, [args.msg, args.replyDepth])
   return (
     <>
       {fwdFrom}
