@@ -105,3 +105,12 @@ export function GetNonDefaultOrNull<T>(v: T | null | undefined): T | null {
 export function RandomInt(from: number, to: number): number {
   return Math.floor(Math.random() * (to - from + 1) + from)
 }
+
+export function Deduplicate<T>(arr: T[]): T[] {
+  let set = new Set<T>()
+  return arr.filter((v) => {
+    if (set.has(v)) return false
+    set.add(v)
+    return true
+  })
+}

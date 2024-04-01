@@ -146,11 +146,16 @@ export function TestMessages(): Message[] {
       timestamp: 1698901235,
       fromId: 2,
       text: [
-        { searchableString: "", plain: { text: "  Demo of   different content types:   " } },
-        { searchableString: "", spoiler: { text: "   Spoiler  " } },
-        { searchableString: "", prefmtBlock: { text: "Prefmt   code block" } },
-        { searchableString: "", prefmtInline: { text: "Inline code   block" } },
-        { searchableString: "", link: { href: "https://www.google.com/", textOption: "My link" } }
+        { plain: { text: "Demo of different content types:" } },
+        { plain: { text: "  plain   " } },
+        { bold: { text: "  bold   " } },
+        { spoiler: { text: "   spoiler  " } },
+        { prefmtBlock: { text: "Prefmt   code block" } },
+        { prefmtInline: { text: "Inline code   block" } },
+        { link: { href: "https://www.google.com/", textOption: "   My    link  " } },
+        { link: { href: "https://www.amazon.com/", textOption: "My hidden link 1", hidden: "1" } },
+        { link: { href: "https://www.amazon.com/", textOption: "My hidden link 1 again", hidden: "1" } },
+        { link: { href: "https://www.rust-lang.org/", textOption: "My hidden link 2", hidden: "1" } }
       ],
       searchableString: "Search me!",
       regular: {

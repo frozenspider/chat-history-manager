@@ -3,21 +3,32 @@
 import React from "react";
 
 import { RichTextElement } from "@/protobuf/core/protobuf/entities";
-import { AssertDefined, AssertUnreachable } from "@/app/utils/utils";
+import { AssertDefined, AssertUnreachable, Deduplicate } from "@/app/utils/utils";
 
 export default function MessageRichText(args: {
   msgInternalId: bigint,
   rtes: RichTextElement[]
 }): React.JSX.Element {
+  let hiddenLinks =
+    Deduplicate(args.rtes
+      .flatMap(rte =>
+        rte.val?.$case === "link" && rte.val.link.hidden ? [rte.val.link.href] : []))
+
   return (
-    <div>{
-      args.rtes.map((rte, idx) => {
-        let rteJsx = MessageRichTextElement(rte)
-        return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
-          {rteJsx}
-        </React.Fragment>
-      })
-    }</div>
+    <div>
+      {
+        args.rtes.map((rte, idx) => {
+          let rteJsx = MessageRichTextElement(rte)
+          return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
+            {rteJsx}
+          </React.Fragment>
+        })
+      }
+      {
+        hiddenLinks.map(link =>
+          <p key={link}><MessageRichTextLink href={link} text={link}/></p>)
+      }
+    </div>
   )
 }
 
@@ -35,14 +46,9 @@ function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null 
     case "strikethrough":
       return <span className="whitespace-pre-wrap line-through">{rte.val.strikethrough.text}</span>
     case "link":
-      if (rte.val.link.hidden) {
-        return <>{rte.searchableString}</>
-      } else {
-        // TODO: Doesn't work in Tauri!
-        return <a target="_blank" href={rte.val.link.href} className="underline text-blue-600 hover:text-blue-800">
-          {rte.val.link.textOption ?? rte.val.link.href}
-        </a>
-      }
+      if (rte.val.link.hidden)
+        return null
+      return <MessageRichTextLink href={rte.val.link.href} text={rte.val.link.textOption ?? rte.val.link.href}/>
     case "prefmtInline":
       return <span className="whitespace-pre font-mono">{rte.val.prefmtInline.text}</span>
     case "prefmtBlock":
@@ -59,4 +65,16 @@ function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null 
     default:
       AssertUnreachable(rte.val)
   }
+}
+
+function MessageRichTextLink(args: {
+  href: string,
+  text: string
+}) {
+  // TODO: Doesn't work in Tauri!
+  return (
+    <a target="_blank" href={args.href} className="whitespace-pre-wrap underline text-blue-600 hover:text-blue-800">{
+      args.text
+    }</a>
+  )
 }
