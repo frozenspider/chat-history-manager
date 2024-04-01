@@ -15,11 +15,11 @@ export default function MessageContentVideoMsg(args: {
 
   // TODO: Implement video playback, someday
   return (
-    <TauriImage relativePath={thumbnailPath}
-                elementName={content.isOneTime ? "One-time video message thumbnail" : "Video message thumbnail"}
+    <TauriImage elementName={content.isOneTime ? "One-time video message thumbnail" : "Video message thumbnail"}
+                relativePath={thumbnailPath}
+                dsRoot={args.dsRoot}
                 width={content.width}
                 height={content.height}
-                mimeType={null /* unknown */}
-                dsRoot={args.dsRoot}/>
+                mimeType={null /* unknown */}/>
   )
 }

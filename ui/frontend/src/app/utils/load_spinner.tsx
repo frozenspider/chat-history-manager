@@ -1,9 +1,13 @@
 import React, { JSX, SVGProps } from "react";
 
-export default function MessagesLoadSpinner(args: { center: boolean }): React.JSX.Element {
+export default function MessagesLoadSpinner(args: {
+  center: boolean,
+  text?: string
+}): React.JSX.Element {
   return (
     <div className={"flex " + (args.center ? "justify-center" : "") + " items-center p-4"}>
       <LoaderIcon className="animate-spin h-5 w-5 text-gray-500"/>
+      {args.text && <span className="pl-2">{args.text}</span>}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import React from "react";
 
 import { AssertDefined } from "@/app/utils/utils";
-import MessagesLoadSpinner from "@/app/message/load_spinner";
+import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import { MessageComponent } from "@/app/message/message";
 import { CurrentChatState, ChatViewState, DatasetState } from "@/app/utils/state";
 
@@ -40,7 +40,6 @@ export default function MessagesList(args: {
           </p>
         </div>
       </div>
-      <MessagesLoadSpinner center={true}/>
     </>
   )
 }

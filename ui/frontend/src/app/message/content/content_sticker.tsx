@@ -17,21 +17,23 @@ export default function MessageContentSticker(args: {
     // Telegram animated sticker, not supported
     return <>
       <p>Animated sticker</p>
-      <TauriImage relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
-                  elementName="Sticker"
+      <TauriImage elementName="Sticker"
+                  relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
                   width={content.width / 2}
                   height={content.width / 2}
                   mimeType={null /* unknown */}
-                  dsRoot={args.dsRoot}/>
+                  dsRoot={args.dsRoot}
+                  altText={content.emojiOption}/>
     </>
   } else {
     return (
-      <TauriImage relativePath={path}
-                  elementName="Sticker"
+      <TauriImage elementName="Sticker"
+                  relativePath={path}
+                  dsRoot={args.dsRoot}
                   width={content.width / 2}
                   height={content.height / 2}
                   mimeType={null /* unknown */}
-                  dsRoot={args.dsRoot}/>
+                  altText={content.emojiOption}/>
     )
   }
 }

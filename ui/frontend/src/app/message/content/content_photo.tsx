@@ -13,11 +13,11 @@ export default function MessageContentPhoto(args: {
   let content = args.content
   let path = GetNonDefaultOrNull(content.pathOption);
   return (
-    <TauriImage relativePath={path}
-                elementName={content.isOneTime ? "One-time photo" : "Photo"}
+    <TauriImage elementName={content.isOneTime ? "One-time photo" : "Photo"}
+                relativePath={path}
+                dsRoot={args.dsRoot}
                 width={content.width}
                 height={content.height}
-                mimeType={null /* unknown */}
-                dsRoot={args.dsRoot}/>
+                mimeType={null /* unknown */}/>
   )
 }

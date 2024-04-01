@@ -16,12 +16,12 @@ export default function MessageContentFile(args: {
 
   if (thumbnailPath) {
     return (
-      <TauriImage relativePath={thumbnailPath}
-                  elementName={"File thumbnail"}
+      <TauriImage elementName={"File thumbnail"}
+                  relativePath={thumbnailPath}
+                  dsRoot={args.dsRoot}
                   width={0 /* unknown */}
                   height={0 /* unknown */}
-                  mimeType={null /* unknown */}
-                  dsRoot={args.dsRoot}/>
+                  mimeType={null /* unknown */}/>
     )
   } else {
     return (

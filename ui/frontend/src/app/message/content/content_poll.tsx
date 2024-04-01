@@ -3,7 +3,6 @@
 import React from "react";
 
 import { ContentPoll } from "@/protobuf/core/protobuf/entities";
-import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
 export default function MessageContentPoll(args: {
   content: ContentPoll,

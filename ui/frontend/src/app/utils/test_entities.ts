@@ -254,5 +254,38 @@ export function TestMessages(): Message[] {
         }
       }
     }),
+    Message.fromJSON({
+      internalId: 8,
+      sourceIdOption: 8,
+      timestamp: 1698902123,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      regular: {
+        contentOption: {
+          voiceMsg: {
+            pathOption: "does-not-matter",
+            mimeType: "audio/mp3"
+          }
+        }
+      }
+    }),
+
   ]
 }
+
+/** 250 ms of silence MP3 file taken from https://github.com/anars/blank-audio */
+export const TestMp3Base64Data = "data:audio/mp3;base64," +
+  "SUQzAwAAAAAAWFRBTEIAAAAMAAAAQmxhbmsgQXVkaW9USVQyAAAAHAAAADI1MCBN" +
+  "aWxsaXNlY29uZHMgb2YgU2lsZW5jZVRQRTEAAAASAAAAQW5hciBTb2Z0d2FyZSBM" +
+  "TEP/4xjEAAkzUfwIAE1NDwAzHwL+Y8gLIC/G5v+BEBSX///8bmN4Bjze/xjEAAg0" +
+  "ECEGaR+v///P////////+tk5/CLN2hyWE+D/4xjEFgkLZiQIAEdKDgZi0BBxxIIx" +
+  "YGALaBuq/+1/BSrxfylOzt5F7v///79f6+yGfIjsRzncM7CHmHFJcpIsUAi2Kh19" +
+  "f/7/4xjELAnTXhgAAEUt309f//////qq8zIhdkYopjjygKIZxYwnDwysg5EpI5HS" +
+  "YAJAlQ4f+an//D0ImhEa//////l6k4mYZCH/4xjEPwobYiQIAI1PMRo2HCoKhrRJ" +
+  "MFEhYMof//8yL//MjP+Rf/+Z/5f/zVpZ9lkMjJlDBQYR1VUVP9pEVUxBTUUzLjk4" +
+  "LjL/4xjEUQjbVhgIAEdNVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV" +
+  "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/4xjEaAiLJawIAEdJVVVVVVVVVVVV" +
+  "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV" +
+  "VVX/4xjEgAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV" +
+  "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="

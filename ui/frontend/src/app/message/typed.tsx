@@ -6,8 +6,8 @@ import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SecondsToHhMmSsS
 import { FindMemberIdxByPrettyName, NameColorClassFromNumber, RepliesMaxDepth } from "@/app/utils/entity_utils";
 import { CurrentChatState, ServicesContext } from "@/app/utils/state";
 
+import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import MessageContent from "@/app/message/content/content";
-import MessagesLoadSpinner from "@/app/message/load_spinner";
 
 import {
   Message,
