@@ -8,7 +8,7 @@ import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
 import { Chat, ContentSharedContact, User } from "@/protobuf/core/protobuf/entities";
 
-export const PlaceholderImage: StaticImport = StaticPlaceholderImage
+export const PlaceholderImageSvg: StaticImport = StaticPlaceholderImage
 
 export const MessagesBatchSize: bigint = BigInt(100)
 export const RepliesMaxDepth: bigint = BigInt(2)

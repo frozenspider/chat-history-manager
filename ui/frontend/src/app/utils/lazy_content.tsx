@@ -25,19 +25,25 @@ export default function LazyContent(
   relativePath: string | null,
   dsRoot: string,
   mimeType: string,
-  render: (lazyData: LazyData) => React.JSX.Element
+  render: (lazyData: LazyData) => React.JSX.Element,
+  proceedWithNullPath = false
 ): React.JSX.Element {
   let [content, setContent] =
     React.useState<LazyData>({ state: LazyDataState.NotStarted, data: null })
 
   React.useEffect(() => {
-    if (content.state == LazyDataState.NotStarted && relativePath) {
-      LoadRealData(elementName, relativePath, dsRoot, mimeType, setContent)
+    if (content.state == LazyDataState.NotStarted) {
+      if (relativePath) {
+        LoadRealData(elementName, relativePath, dsRoot, mimeType, setContent)
+      } else if (proceedWithNullPath) {
+        setContent({ state: LazyDataState.Success, data: null })
+      }
     }
-  }, [content.state, elementName, relativePath, dsRoot, mimeType])
+  }, [content.state, elementName, relativePath, dsRoot, mimeType, proceedWithNullPath])
 
-  if (relativePath == null)
+  if (!relativePath && !proceedWithNullPath) {
     return <>[{elementName} not downloaded]</>
+  }
 
   return render(content)
 }

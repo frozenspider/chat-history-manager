@@ -21,6 +21,7 @@ import {
   ServicesContextType
 } from "@/app/utils/state";
 import ColoredName from "@/app/message/colored_name";
+import TauriImage from "@/app/utils/tauri_image";
 
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
@@ -47,13 +48,15 @@ export default function ChatComponent(args: {
   ) : <></>
 
   return (
-    <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
+    <li className="p-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
       <div className="flex items-center space-x-3"
            onClick={() =>
              // Note: We're calling async function without awaiting it
              LoadChat(args.cwd, services, args.dsState, args.setChatState, args.setChatViewState)
            }>
-        <Avatar chat={chat}/>
+
+        <Avatar chat={chat} dsState={args.dsState}/>
+
         <div className="w-full">
           <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass}/>
           <SimpleMessage chat={chat}
@@ -61,6 +64,7 @@ export default function ChatComponent(args: {
                          users={args.dsState.users}
                          myselfId={args.dsState.myselfId}/>
         </div>
+
         {membersCount}
       </div>
     </li>
@@ -94,20 +98,20 @@ async function LoadChat(
   }))
 }
 
-function Avatar(args: { chat: Chat }) {
-  // TODO: Avatar
+function Avatar(args: {
+  chat: Chat,
+  dsState: DatasetState
+}) {
   return (
-    <img
-      alt="User Avatar"
-      className="rounded-full"
-      height="50"
-      src="/placeholder.svg"
-      style={{
-        aspectRatio: "50/50",
-        objectFit: "cover",
-      }}
-      width="50"
-    />
+    <TauriImage elementName="Avatar"
+                relativePath={GetNonDefaultOrNull(args.chat.imgPathOption)}
+                dsRoot={args.dsState.dsRoot}
+                width={50}
+                height={50}
+                mimeType={null}
+                altText="User Avatar"
+                keepPlaceholderOnNull={true}
+                addedClasses="rounded-md"/>
   )
 }
 
