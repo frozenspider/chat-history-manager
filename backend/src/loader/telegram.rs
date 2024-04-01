@@ -853,7 +853,7 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None),
         "pin_message" =>
             (SealedValueOptional::PinMessage(MessageServicePinMessage {
-                message_id: message_json.field_i64("message_id")?
+                message_source_id: message_json.field_i64("message_id")?
             }), None),
         "suggest_profile_photo" =>
             (SealedValueOptional::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {

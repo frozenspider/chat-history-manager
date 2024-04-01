@@ -377,7 +377,7 @@ fn adopt_slave_source_ids(mm: &mut Message, sm: &Message) {
         (message::Typed::Service(mms), message::Typed::Service(sms)) => {
             use message_service::SealedValueOptional::*;
             match (mms.sealed_value_optional.as_mut(), sms.sealed_value_optional.as_ref()) {
-                (Some(PinMessage(mmsv)), Some(PinMessage(smsv))) => mmsv.message_id = smsv.message_id,
+                (Some(PinMessage(mmsv)), Some(PinMessage(smsv))) => mmsv.message_source_id = smsv.message_source_id,
                 (_, _) => { /* NOOP */ }
             }
         }

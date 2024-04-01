@@ -472,7 +472,7 @@ pub mod message {
                  Some(serialize_photo_and_copy_files(&v.photo, chat_id, src_ds_root, dst_ds_root)?)),
             PinMessage(v) =>
                 ("pin_message", Some(RawMessageContent {
-                    pinned_message_id: Some(v.message_id),
+                    pinned_message_id: Some(v.message_source_id),
                     ..Default::default()
                 })),
             ClearHistory(_) =>
@@ -716,7 +716,7 @@ pub mod message {
             "pin_message" => {
                 let raw = raw_or_bail!();
                 PinMessage(MessageServicePinMessage {
-                    message_id: get_or_bail!(raw.pinned_message_id),
+                    message_source_id: get_or_bail!(raw.pinned_message_id),
                 })
             }
             "clear_history" =>
