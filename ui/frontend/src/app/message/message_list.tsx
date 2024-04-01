@@ -32,7 +32,7 @@ export default function MessagesList(args: {
         }
 
         <div className="flex flex-col">
-          <span className="font-semibold text-blue-500">
+          <span className="font-semibold text-inherit-500">
             System Message <span className="text-sm text-gray-500">(2023-11-05 17:34:00)</span>
           </span>
           <p>

@@ -4,7 +4,7 @@ import React from "react";
 
 import { ContentSharedContact } from "@/protobuf/core/protobuf/entities";
 import { CurrentChatState } from "@/app/utils/state";
-import { FindMemberIdxByPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import { GetUserPrettyName, NameColorClassFromPrettyName } from "@/app/utils/entity_utils";
 import ColoredName from "@/app/message/colored_name";
 
 export default function MessageContentSharedContact(args: {
@@ -14,8 +14,7 @@ export default function MessageContentSharedContact(args: {
   let content = args.content
 
   let contactPrettyName = GetUserPrettyName(content)
-  let memberIdx = FindMemberIdxByPrettyName(contactPrettyName, args.state.cwd.members)
-  let colorClass = NameColorClassFromNumber(memberIdx).text
+  let colorClass = NameColorClassFromPrettyName(contactPrettyName, args.state.cwd.members).text
 
   return (
     <blockquote>

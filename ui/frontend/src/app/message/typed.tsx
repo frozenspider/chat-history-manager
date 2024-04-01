@@ -3,7 +3,7 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SecondsToHhMmSsString } from "@/app/utils/utils";
-import { FindMemberIdxByPrettyName, NameColorClassFromNumber, RepliesMaxDepth } from "@/app/utils/entity_utils";
+import { GetUserPrettyName, NameColorClassFromPrettyName, RepliesMaxDepth } from "@/app/utils/entity_utils";
 import { CurrentChatState, ServicesContext } from "@/app/utils/state";
 
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
@@ -18,6 +18,10 @@ import {
 } from "@/protobuf/core/protobuf/entities";
 import { MessageComponent } from "@/app/message/message";
 import ColoredName from "@/app/message/colored_name";
+import SystemMessage from "@/app/message/system_message";
+import ColoredBlockquote from "@/app/message/colored_blockquote";
+import ColoredMembersList from "@/app/message/members_list";
+import MessageContentPhoto from "@/app/message/content/content_photo";
 
 export default function MessageTyped(args: {
   msg: Message,
@@ -34,9 +38,13 @@ export default function MessageTyped(args: {
                              replyDepth={args.replyDepth}/>
       )
     case "service":
+      let authorPrettyName = GetUserPrettyName(GetNonDefaultOrNull(args.state.dsState.users.get(args.msg.fromId)))
       return (
         <MessageTypedService msg={args.msg.typed.service}
-                             state={args.state}/>
+                             borderColorClass={args.borderColorClass}
+                             state={args.state}
+                             replyDepth={args.replyDepth}
+                             authorPrettyName={authorPrettyName}/>
       )
     default:
       throw new Error("Unknown message type " + JSON.stringify(args.msg.typed));
@@ -45,42 +53,72 @@ export default function MessageTyped(args: {
 
 function MessageTypedService(args: {
   msg: MessageService,
-  state: CurrentChatState
+  borderColorClass: string,
+  state: CurrentChatState,
+  replyDepth: number,
+  authorPrettyName: string
 }): React.JSX.Element {
-  // FIXME: Replace these placeholders with actual content
   let sealed = args.msg.sealedValueOptional
   AssertDefined(sealed, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
       return <ServicePhoneCall call={sealed.phoneCall} members={args.state.cwd.members}/>
     case "suggestProfilePhoto":
-      return <p>Suggest profile photo</p>
+      AssertDefined(sealed.suggestProfilePhoto.photo, "Suggested photo")
+      return <>
+        <SystemMessage>Suggested profile photo</SystemMessage>
+        <MessageContentPhoto content={sealed.suggestProfilePhoto.photo} dsRoot={args.state.dsState.dsRoot}/>
+      </>
     case "pinMessage":
-      return <p>Pin message</p>
+      return <>
+        <SystemMessage>Pinned message</SystemMessage>
+        <ColoredBlockquote borderColorClass={args.borderColorClass}>
+          <LazyMessageComponent sourceId={sealed.pinMessage.messageSourceId}
+                                state={args.state}
+                                replyDepth={args.replyDepth + 1}/>
+        </ColoredBlockquote>
+      </>
     case "clearHistory":
-      return <p>Clear history</p>
+      return <SystemMessage>History cleared</SystemMessage>
     case "blockUser":
-      return <p>Block user</p>
+      return <SystemMessage>User has been {sealed.blockUser.isBlocked ? "" : "un"}blocked</SystemMessage>
     case "statusTextChanged":
-      return <p>Status text changed</p>
+      return <SystemMessage>Status</SystemMessage>
     case "notice":
-      return <p>Notice</p>
+      return <SystemMessage>Notice</SystemMessage>
     case "groupCreate":
-      return <p>Group create</p>
+      return <>
+        <SystemMessage>Created group <b>{sealed.groupCreate.title}</b></SystemMessage>
+        <ColoredMembersList memberNames={sealed.groupCreate.members} members={args.state.cwd.members}/>
+      </>
     case "groupEditTitle":
-      return <p>Group edit title</p>
+      return <SystemMessage>Changed group title to <b>{sealed.groupEditTitle.title}</b></SystemMessage>
     case "groupEditPhoto":
-      return <p>Group edit photo</p>
+      AssertDefined(sealed.groupEditPhoto.photo, "Suggested photo")
+      return <>
+        <SystemMessage>Changed group photo</SystemMessage>
+        <MessageContentPhoto content={sealed.groupEditPhoto.photo} dsRoot={args.state.dsState.dsRoot}/>
+      </>
     case "groupDeletePhoto":
-      return <p>Group delete photo</p>
+      return <SystemMessage>Deleted group photo</SystemMessage>
     case "groupInviteMembers":
-      return <p>Group invite members</p>
+      return <ServiceInviteRemoveMembers authorPrettyName={args.authorPrettyName}
+                                         memberNames={sealed.groupInviteMembers.members}
+                                         members={args.state.cwd.members}
+                                         myselfMessage="Joined group"
+                                         oneLineMessage={list => <>Invited {list}</>}
+                                         multilineMessage="Invited members"/>
     case "groupRemoveMembers":
-      return <p>Group remove members</p>
+      return <ServiceInviteRemoveMembers authorPrettyName={args.authorPrettyName}
+                                         memberNames={sealed.groupRemoveMembers.members}
+                                         members={args.state.cwd.members}
+                                         myselfMessage="Left group"
+                                         oneLineMessage={list => <>Removed {list}</>}
+                                         multilineMessage="Removed members"/>
     case "groupMigrateFrom":
-      return <p>Group migrate from</p>
+      return <SystemMessage>Migrated from <b>{sealed.groupMigrateFrom.title}</b></SystemMessage>
     case "groupMigrateTo":
-      return <p>Group migrate to</p>
+      return <SystemMessage>Migrated to another group</SystemMessage>
     default:
       AssertUnreachable(sealed)
   }
@@ -102,20 +140,36 @@ function ServicePhoneCall(args: {
     }
   }
 
-  let membersNode = args.call.members.length > 0 ? (
-    <ul className="list-disc pl-4">
-      {args.call.members.map(n => {
-        let idx = FindMemberIdxByPrettyName(n, args.members)
-        let colorClass = NameColorClassFromNumber(idx).text
-        return <li key={n}><ColoredName name={n} colorClass={colorClass}/></li>
-      })}
-    </ul>
-  ) : <></>
-
   return <>
-    <p>Call {durationNode}{discardReason && discardReason != "hangup" ? `(${discardReason})` : null}</p>
-    {membersNode}
+    <SystemMessage>Call {durationNode}{discardReason && discardReason != "hangup" ? `(${discardReason})` : null}</SystemMessage>
+    <ColoredMembersList memberNames={args.call.members} members={args.members}/>
   </>
+}
+
+function ServiceInviteRemoveMembers(args: {
+  authorPrettyName: string
+  memberNames: string[],
+  members: User[],
+  myselfMessage: string,
+  oneLineMessage: (membersList: React.JSX.Element) => React.JSX.Element,
+  multilineMessage: string
+}): React.JSX.Element {
+  if (args.memberNames.length == 1) {
+    if (args.memberNames[0] == args.authorPrettyName) {
+      return <SystemMessage>{args.myselfMessage}</SystemMessage>
+    }
+    return <SystemMessage>{
+      args.oneLineMessage(<ColoredMembersList memberNames={args.memberNames}
+                                              members={args.members}
+                                              oneLine={true}/>)
+    }</SystemMessage>
+  } else {
+    return <>
+      <SystemMessage>{args.multilineMessage}</SystemMessage>
+      <ColoredMembersList memberNames={args.memberNames}
+                          members={args.members}/>
+    </>
+  }
 }
 
 function MessageTypedRegular(args: {
@@ -124,51 +178,28 @@ function MessageTypedRegular(args: {
   state: CurrentChatState
   replyDepth: number,
 }): React.JSX.Element {
-  // null - initial state, not yet loaded
-  // string - error message if loading failed, e.g. it wasn't found
-  let [replyToMessage, setReplyToMessage] =
-    React.useState<Message | string | null>(null)
-
-  let services = React.useContext(ServicesContext)!
-
   AssertDefined(args.state.cwd.chat)
   let fwdFromName = GetNonDefaultOrNull(args.msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let userIndex = FindMemberIdxByPrettyName(fwdFromName, args.state.cwd.members)
-    let colorClass = NameColorClassFromNumber(userIndex).text
+    let colorClass = NameColorClassFromPrettyName(fwdFromName, args.state.cwd.members).text
     fwdFrom = <p>Forwarded from <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
   }
 
   let replyToId = GetNonDefaultOrNull(args.msg.replyToMessageIdOption)
   let replyTo = <></>
   if (replyToId) {
-    let bqClass = "border-l-4 pl-2 " + args.borderColorClass
     if (args.replyDepth > RepliesMaxDepth) {
       replyTo =
-        <blockquote className={bqClass}>...</blockquote>
+        <ColoredBlockquote borderColorClass={args.borderColorClass}>...</ColoredBlockquote>
     } else {
       replyTo =
-        <blockquote className={bqClass}>
-          <ReplyToMessage replyToMsg={replyToMessage} state={args.state} replyDepth={args.replyDepth}/>
-        </blockquote>
+        <ColoredBlockquote borderColorClass={args.borderColorClass}>
+          <LazyMessageComponent sourceId={replyToId} state={args.state} replyDepth={args.replyDepth + 1}/>
+        </ColoredBlockquote>
     }
   }
-  // Asynchronously load a message
-  React.useEffect(() => {
-    if (!replyToId) return
-    services.daoClient.messageOption({
-      key: args.state.dsState.fileKey,
-      chat: args.state.cwd.chat,
-      sourceId: replyToId
-    }).then(response => {
-      let msg: Message | string | null = GetNonDefaultOrNull(response.message)
-      if (!msg) msg = "Message not found"
-      setReplyToMessage(msg)
-    }).catch(reason => {
-      setReplyToMessage("Failed to load message: " + reason)
-    })
-  }, [args.msg, args.replyDepth])
+
   return (
     <>
       {fwdFrom}
@@ -178,20 +209,43 @@ function MessageTypedRegular(args: {
   )
 }
 
-function ReplyToMessage(args: {
-  replyToMsg: Message | string | null,
+function LazyMessageComponent(args: {
+  sourceId: bigint,
   state: CurrentChatState,
   replyDepth: number
 }): React.JSX.Element {
-  if (!args.replyToMsg) {
+  let services = React.useContext(ServicesContext)!
+
+  // null - initial state, not yet loaded
+  // string - error message if loading failed, e.g. it wasn't found
+  let [message, setMessage] =
+    React.useState<Message | string | null>(null)
+
+  // Asynchronously load a message
+  React.useEffect(() => {
+    if (!args.sourceId) return
+    services.daoClient.messageOption({
+      key: args.state.dsState.fileKey,
+      chat: args.state.cwd.chat,
+      sourceId: args.sourceId
+    }).then(response => {
+      let msg: Message | string | null = GetNonDefaultOrNull(response.message)
+      if (!msg) msg = "Message not found"
+      setMessage(msg)
+    }).catch(reason => {
+      setMessage("Failed to load message: " + reason)
+    })
+  }, [args.sourceId, args.replyDepth])
+
+  if (!message) {
     // Still loading
     return <MessagesLoadSpinner center={false}/>
   }
 
-  if (typeof args.replyToMsg === "string") {
+  if (typeof message === "string") {
     // Server didn't find a message
-    return <>({args.replyToMsg})</>
+    return <>({message})</>
   }
 
-  return <MessageComponent msg={args.replyToMsg} state={args.state} replyDepth={args.replyDepth + 1}/>
+  return <MessageComponent msg={message} state={args.state} replyDepth={args.replyDepth}/>
 }

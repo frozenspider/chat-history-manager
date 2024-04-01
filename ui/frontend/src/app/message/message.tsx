@@ -5,11 +5,10 @@ import React from "react";
 import MessageTitle from "@/app/message/title";
 import MessageTyped from "@/app/message/typed";
 import MessageRichText from "@/app/message/rich_text";
-import { Message, User } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { Message } from "@/protobuf/core/protobuf/entities";
 import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { NameColorClassFromMembers } from "@/app/utils/entity_utils";
-import { CurrentChatState, DatasetState } from "@/app/utils/state";
+import { CurrentChatState } from "@/app/utils/state";
 
 export function MessageComponent(args: {
   msg: Message,

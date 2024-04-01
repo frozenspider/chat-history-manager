@@ -212,19 +212,6 @@ export function TestMessages(): Message[] {
     Message.fromJSON({
       internalId: 5,
       sourceIdOption: 5,
-      timestamp: 1698902120,
-      fromId: 5,
-      text: [],
-      searchableString: "",
-      service: {
-        groupInviteMembers: {
-          members: [GetUserPrettyName(users[5])]
-        }
-      }
-    }),
-    Message.fromJSON({
-      internalId: 6,
-      sourceIdOption: 6,
       timestamp: 1698902121,
       fromId: 6,
       text: [],
@@ -240,23 +227,8 @@ export function TestMessages(): Message[] {
       }
     }),
     Message.fromJSON({
-      internalId: 7,
-      sourceIdOption: 7,
-      timestamp: 1698902122,
-      fromId: 7,
-      text: [],
-      searchableString: "",
-      service: {
-        phoneCall: {
-          durationSecOption: 12345,
-          discardReasonOption: "hangup",
-          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2]), GetUserPrettyName(users[3])]
-        }
-      }
-    }),
-    Message.fromJSON({
-      internalId: 8,
-      sourceIdOption: 8,
+      internalId: 6,
+      sourceIdOption: 6,
       timestamp: 1698902123,
       fromId: 1,
       text: [],
@@ -268,6 +240,322 @@ export function TestMessages(): Message[] {
             mimeType: "audio/mp3"
           }
         }
+      }
+    }),
+
+    //
+    // Service messages
+    //
+
+    // MessageServicePhoneCall
+
+    Message.fromJSON({
+      internalId: 1000,
+      sourceIdOption: 1000,
+      timestamp: 1699001001,
+      fromId: 7,
+      text: [],
+      searchableString: "",
+      service: {
+        phoneCall: {
+          durationSecOption: 12345,
+          discardReasonOption: "hangup",
+          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2]), GetUserPrettyName(users[3])]
+        }
+      }
+    }),
+
+    // MessageServiceSuggestProfilePhoto
+
+    Message.fromJSON({
+      internalId: 1010,
+      sourceIdOption: 1010,
+      timestamp: 1699001010,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        suggestProfilePhoto: {
+          photo: {
+            pathOption: "my/file/path",
+            width: 200,
+            height: 200,
+            isOneTime: false
+          }
+        }
+      }
+    }),
+
+    // MessageServicePinMessage
+
+    Message.fromJSON({
+      internalId: 1020,
+      sourceIdOption: 1020,
+      timestamp: 1699001020,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        pinMessage: { messageSourceId: 1010 }
+      }
+    }),
+
+    // MessageServiceClearHistory
+
+    Message.fromJSON({
+      internalId: 1030,
+      sourceIdOption: 1030,
+      timestamp: 1699001030,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        clearHistory: {}
+      }
+    }),
+
+    // MessageServiceBlockUser
+
+    Message.fromJSON({
+      internalId: 1040,
+      sourceIdOption: 1040,
+      timestamp: 1699001040,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        blockUser: { isBlocked: true }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1041,
+      sourceIdOption: 1041,
+      timestamp: 1699001041,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        blockUser: { isBlocked: false }
+      }
+    }),
+
+    // MessageServiceStatusTextChanged
+
+    Message.fromJSON({
+      internalId: 1050,
+      sourceIdOption: 1050,
+      timestamp: 1699001050,
+      fromId: 1,
+      text: [{ plain: { text: "I'm busy!" } }],
+      searchableString: "",
+      service: {
+        statusTextChanged: {}
+      }
+    }),
+
+    // MessageServiceNotice
+
+    Message.fromJSON({
+      internalId: 1060,
+      sourceIdOption: 1060,
+      timestamp: 1699001060,
+      fromId: 1,
+      text: [{ plain: { text: "This is a notice." } }],
+      searchableString: "",
+      service: {
+        notice: {}
+      }
+    }),
+
+    // MessageServiceGroupCreate
+
+    Message.fromJSON({
+      internalId: 1070,
+      sourceIdOption: 1070,
+      timestamp: 1699001070,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupCreate: {
+          title: "Group name",
+          members: []
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1071,
+      sourceIdOption: 1071,
+      timestamp: 1699001071,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupCreate: {
+          title: "Group name",
+          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+        }
+      }
+    }),
+
+    // MessageServiceGroupEditTitle
+
+    Message.fromJSON({
+      internalId: 1080,
+      sourceIdOption: 1080,
+      timestamp: 1699001080,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupEditTitle: { title: "New title" }
+      }
+    }),
+
+    // MessageServiceGroupEditPhoto
+
+    Message.fromJSON({
+      internalId: 1090,
+      sourceIdOption: 1090,
+      timestamp: 1699001090,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupEditPhoto: {
+          photo: {
+            pathOption: "my/file/path",
+            width: 200,
+            height: 200,
+            isOneTime: false
+          }
+        }
+      }
+    }),
+
+    // MessageServiceGroupDeletePhoto
+
+    Message.fromJSON({
+      internalId: 1100,
+      sourceIdOption: 1100,
+      timestamp: 1699001100,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupDeletePhoto: {}
+      }
+    }),
+
+    // MessageServiceGroupInviteMembers
+
+    Message.fromJSON({
+      internalId: 1120,
+      sourceIdOption: 1120,
+      timestamp: 1699001120,
+      fromId: 5,
+      text: [],
+      searchableString: "",
+      service: {
+        groupInviteMembers: {
+          members: [GetUserPrettyName(users[4])]
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1121,
+      sourceIdOption: 1121,
+      timestamp: 1699001121,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupInviteMembers: {
+          members: [GetUserPrettyName(users[1])]
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1122,
+      sourceIdOption: 1122,
+      timestamp: 1699001122,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupInviteMembers: {
+          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+        }
+      }
+    }),
+
+    // MessageServiceGroupRemoveMembers
+
+    Message.fromJSON({
+      internalId: 1130,
+      sourceIdOption: 1130,
+      timestamp: 1699001130,
+      fromId: 5,
+      text: [],
+      searchableString: "",
+      service: {
+        groupRemoveMembers: {
+          members: [GetUserPrettyName(users[4])]
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1131,
+      sourceIdOption: 1131,
+      timestamp: 1699001131,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupRemoveMembers: {
+          members: [GetUserPrettyName(users[1])]
+        }
+      }
+    }),
+    Message.fromJSON({
+      internalId: 1132,
+      sourceIdOption: 1132,
+      timestamp: 1699001132,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupRemoveMembers: {
+          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+        }
+      }
+    }),
+
+    // MessageServiceGroupMigrateFrom
+
+    Message.fromJSON({
+      internalId: 1140,
+      sourceIdOption: 1140,
+      timestamp: 1699001140,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupMigrateFrom: { title: "My old group" }
+      }
+    }),
+
+    // MessageServiceGroupMigrateTo
+
+    Message.fromJSON({
+      internalId: 1150,
+      sourceIdOption: 1150,
+      timestamp: 1699001150,
+      fromId: 1,
+      text: [],
+      searchableString: "",
+      service: {
+        groupMigrateTo: {}
       }
     }),
 

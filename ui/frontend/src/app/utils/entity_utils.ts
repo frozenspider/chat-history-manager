@@ -1,5 +1,7 @@
 'use client'
 
+import React from "react";
+
 import StaticPlaceholderImage from '../../../public/placeholder.svg'
 
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
@@ -10,6 +12,9 @@ export const PlaceholderImage: StaticImport = StaticPlaceholderImage
 
 export const MessagesBatchSize: bigint = BigInt(100)
 export const RepliesMaxDepth: bigint = BigInt(2)
+
+export type ReactChild = React.JSX.Element | string | null
+export type ReactChildren = ReactChild | ReactChild[]
 
 /**
  * Tailwind REQUIRES us to embed color class names in code,
@@ -47,6 +52,10 @@ export function NameColorClassFromNumber(i: number | bigint): TailwindColor {
   }
 
   return CycleColorStyles[Number(BigInt(i) % BigInt(CycleColorStyles.length))]
+}
+
+export function NameColorClassFromPrettyName(prettyName: string | null, members: User[]): TailwindColor {
+  return NameColorClassFromNumber(FindMemberIdxByPrettyName(prettyName, members))
 }
 
 export function FindMemberIdxByPrettyName(prettyName: string | null, members: User[]): number {

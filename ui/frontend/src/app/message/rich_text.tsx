@@ -4,6 +4,7 @@ import React from "react";
 
 import { RichTextElement } from "@/protobuf/core/protobuf/entities";
 import { AssertDefined, AssertUnreachable, Deduplicate } from "@/app/utils/utils";
+import ColoredBlockquote from "@/app/message/colored_blockquote";
 
 export default function MessageRichText(args: {
   msgInternalId: bigint,
@@ -56,9 +57,9 @@ function MessageRichTextElement(rte: RichTextElement, borderColorClass: string):
       // TODO: Use syntax highlighter
       return <pre className="font-mono">{rte.val.prefmtBlock.text}</pre>
     case "blockquote":
-      return <blockquote className={"whitespace-pre-wrap border-l-4 pl-2 " + borderColorClass}>{
+      return <ColoredBlockquote borderColorClass={borderColorClass} preWrap={true}>{
         rte.val.blockquote.text
-      }</blockquote>
+      }</ColoredBlockquote>
     case "spoiler":
       return <span className="text-slate-500       bg-slate-500
                               hover:text-slate-600 hover:bg-slate-200

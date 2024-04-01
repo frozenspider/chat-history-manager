@@ -7,6 +7,7 @@ import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
+import SystemMessage from "@/app/message/system_message";
 
 export default function MessageContentVoiceMsg(args: {
   content: ContentVoiceMsg,
@@ -35,7 +36,7 @@ export default function MessageContentVoiceMsg(args: {
     mimeType,
     (lazyData) => {
       if (lazyData.state == LazyDataState.Failure) {
-        return <blockquote><i>Voice message loading failed</i></blockquote>
+        return <SystemMessage>Voice message loading failed</SystemMessage>
       } else if (lazyData.data || lazyData.state == LazyDataState.TauriNotAvailable) {
         let data = lazyData.data
         if (lazyData.state == LazyDataState.TauriNotAvailable) {
