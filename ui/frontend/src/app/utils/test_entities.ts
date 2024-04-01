@@ -78,7 +78,7 @@ export function TestCwds(): ChatWithDetailsPB[] {
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PRIVATE_GROUP,
       memberIds: testUsers.map((u) => u.id),
-      msgCount: 0, // FIXME
+      msgCount: 10,
       mainChatId: undefined
     },
     {

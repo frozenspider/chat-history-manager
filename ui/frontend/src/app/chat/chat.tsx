@@ -40,6 +40,12 @@ export default function ChatComponent(args: {
   let colorClass = NameColorClassFromNumber(chat.id).text
   let services = React.useContext(ServicesContext)!
 
+  let membersCount = chat.memberIds.length > 2 ? (
+    <div className="pr-2 text-xs">
+      <span>({chat.memberIds.length})</span>
+    </div>
+  ) : <></>
+
   return (
     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
       <div className="flex items-center space-x-3"
@@ -48,13 +54,14 @@ export default function ChatComponent(args: {
              LoadChat(args.cwd, services, args.dsState, args.setChatState, args.setChatViewState)
            }>
         <Avatar chat={chat}/>
-        <div>
-          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass} />
+        <div className="w-full">
+          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass}/>
           <SimpleMessage chat={chat}
                          msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
                          users={args.dsState.users}
                          myselfId={args.dsState.myselfId}/>
         </div>
+        {membersCount}
       </div>
     </li>
   )
