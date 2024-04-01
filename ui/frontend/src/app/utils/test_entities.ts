@@ -146,10 +146,10 @@ export function TestMessages(): Message[] {
       timestamp: 1698901235,
       fromId: 2,
       text: [
-        { searchableString: "", plain: { text: "Demo of different content types: " } },
-        { searchableString: "", spoiler: { text: "Spoiler" } },
-        { searchableString: "", prefmtBlock: { text: "Prefmt code block" } },
-        { searchableString: "", prefmtInline: { text: "Inline code block" } },
+        { searchableString: "", plain: { text: "  Demo of   different content types:   " } },
+        { searchableString: "", spoiler: { text: "   Spoiler  " } },
+        { searchableString: "", prefmtBlock: { text: "Prefmt   code block" } },
+        { searchableString: "", prefmtInline: { text: "Inline code   block" } },
         { searchableString: "", link: { href: "https://www.google.com/", textOption: "My link" } }
       ],
       searchableString: "Search me!",

@@ -14,8 +14,8 @@ export default function MessageRichText(args: {
       args.rtes.map((rte, idx) => {
         let rteJsx = MessageRichTextElement(rte)
         return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
-          {rteJsx}{rteJsx ? " " : null}
-        </React.Fragment>;
+          {rteJsx}
+        </React.Fragment>
       })
     }</div>
   )
@@ -25,31 +25,33 @@ function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null 
   AssertDefined(rte.val, "RichTextElement value")
   switch (rte.val.$case) {
     case "plain":
-      return <span>{rte.val.plain.text}</span>
+      return <span className="whitespace-pre-wrap">{rte.val.plain.text}</span>
     case "bold":
-      return <span className="font-bold">{rte.val.bold.text}</span>
+      return <span className="whitespace-pre-wrap font-bold">{rte.val.bold.text}</span>
     case "italic":
-      return <span className="italic">{rte.val.italic.text}</span>
+      return <span className="whitespace-pre-wrap italic">{rte.val.italic.text}</span>
     case "underline":
-      return <span className="underline">{rte.val.underline.text}</span>
+      return <span className="whitespace-pre-wrap underline">{rte.val.underline.text}</span>
     case "strikethrough":
-      return <span className="line-through">{rte.val.strikethrough.text}</span>
+      return <span className="whitespace-pre-wrap line-through">{rte.val.strikethrough.text}</span>
     case "link":
       if (rte.val.link.hidden) {
-        return null
+        return <>{rte.searchableString}</>
       } else {
-        // FIXME
-        return <span className="text-red-500">FIXME: Link!</span>
-        //return <a target="_blank" href={val.link.href}>{val.link.text_option ?? val.link.href}</a>
+        // TODO: Doesn't work in Tauri!
+        return <a target="_blank" href={rte.val.link.href} className="underline text-blue-600 hover:text-blue-800">
+          {rte.val.link.textOption ?? rte.val.link.href}
+        </a>
       }
     case "prefmtInline":
-      return <span className="font-mono">{rte.val.prefmtInline.text}</span>
+      return <span className="whitespace-pre font-mono">{rte.val.prefmtInline.text}</span>
     case "prefmtBlock":
       // TODO: Use syntax highlighter
       return <pre className="font-mono">{rte.val.prefmtBlock.text}</pre>
     case "blockquote":
-      return <blockquote
-        className="border-l-4 pl-2 border-blue-500 cursor-pointer">{rte.val.blockquote.text}</blockquote>
+      return <blockquote className="whitespace-pre-wrap border-l-4 pl-2 border-blue-500 cursor-pointer">{
+        rte.val.blockquote.text
+      }</blockquote>
     case "spoiler":
       return <span className="text-slate-500       bg-slate-500
                               hover:text-slate-600 hover:bg-slate-200
