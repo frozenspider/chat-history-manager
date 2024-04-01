@@ -7,7 +7,8 @@ import { AssertDefined, AssertUnreachable, Deduplicate } from "@/app/utils/utils
 
 export default function MessageRichText(args: {
   msgInternalId: bigint,
-  rtes: RichTextElement[]
+  rtes: RichTextElement[],
+  borderColorClass: string
 }): React.JSX.Element {
   let hiddenLinks =
     Deduplicate(args.rtes
@@ -18,7 +19,7 @@ export default function MessageRichText(args: {
     <div>
       {
         args.rtes.map((rte, idx) => {
-          let rteJsx = MessageRichTextElement(rte)
+          let rteJsx = MessageRichTextElement(rte, args.borderColorClass)
           return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
             {rteJsx}
           </React.Fragment>
@@ -32,7 +33,7 @@ export default function MessageRichText(args: {
   )
 }
 
-function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null {
+function MessageRichTextElement(rte: RichTextElement, borderColorClass: string): React.JSX.Element | null {
   AssertDefined(rte.val, "RichTextElement value")
   switch (rte.val.$case) {
     case "plain":
@@ -55,7 +56,7 @@ function MessageRichTextElement(rte: RichTextElement): React.JSX.Element | null 
       // TODO: Use syntax highlighter
       return <pre className="font-mono">{rte.val.prefmtBlock.text}</pre>
     case "blockquote":
-      return <blockquote className="whitespace-pre-wrap border-l-4 pl-2 border-blue-500 cursor-pointer">{
+      return <blockquote className={"whitespace-pre-wrap border-l-4 pl-2 " + borderColorClass}>{
         rte.val.blockquote.text
       }</blockquote>
     case "spoiler":

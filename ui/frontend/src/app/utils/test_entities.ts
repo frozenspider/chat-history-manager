@@ -133,29 +133,22 @@ export function TestMessages(): Message[] {
       internalId: 1,
       sourceIdOption: 1,
       timestamp: 1698901234,
-      fromId: 1,
-      text: [
-        { searchableString: "Hey there! How can I help you?", plain: { text: "Hey there! How can I help you?" } }
-      ],
-      searchableString: "Hey there! How can I help you?",
-      regular: {}
-    }),
-    Message.fromJSON({
-      internalId: 2,
-      sourceIdOption: 2,
-      timestamp: 1698901235,
       fromId: 2,
       text: [
         { plain: { text: "Demo of different content types:" } },
         { plain: { text: "  plain   " } },
         { bold: { text: "  bold   " } },
-        { spoiler: { text: "   spoiler  " } },
-        { prefmtBlock: { text: "Prefmt   code block" } },
-        { prefmtInline: { text: "Inline code   block" } },
+        { italic: { text: "  italic   " } },
+        { underline: { text: "  underline   " } },
+        { strikethrough: { text: "  strikethrough   " } },
         { link: { href: "https://www.google.com/", textOption: "   My    link  " } },
         { link: { href: "https://www.amazon.com/", textOption: "My hidden link 1", hidden: "1" } },
         { link: { href: "https://www.amazon.com/", textOption: "My hidden link 1 again", hidden: "1" } },
-        { link: { href: "https://www.rust-lang.org/", textOption: "My hidden link 2", hidden: "1" } }
+        { link: { href: "https://www.rust-lang.org/", textOption: "My hidden link 2", hidden: "1" } },
+        { spoiler: { text: "   spoiler  " } },
+        { prefmtInline: { text: "inline code   block" } },
+        { prefmtBlock: { text: "prefmt   code block" } },
+        { blockquote: { text: "block    quote   " } }
       ],
       searchableString: "Search me!",
       regular: {
@@ -172,6 +165,17 @@ export function TestMessages(): Message[] {
           }
         }
       }
+    }),
+    Message.fromJSON({
+      internalId: 2,
+      sourceIdOption: 2,
+      timestamp: 1698901235,
+      fromId: 1,
+      text: [
+        { searchableString: "Hey there! How can I help you?", plain: { text: "Hey there! How can I help you?" } }
+      ],
+      searchableString: "Hey there! How can I help you?",
+      regular: {}
     }),
     Message.fromJSON({
       internalId: 3,

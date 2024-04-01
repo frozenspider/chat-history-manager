@@ -33,7 +33,8 @@ export function MessageComponent(args: {
                     replyDepth={args.replyDepth}
                     state={args.state}/>
       <MessageRichText msgInternalId={args.msg.internalId}
-                       rtes={args.msg.text}/>
+                       rtes={args.msg.text}
+                       borderColorClass={colorClass.border}/>
     </div>
   )
 }
