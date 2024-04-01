@@ -5,7 +5,6 @@ import StaticPlaceholderImage from '../../../public/placeholder.svg'
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
 import { Chat, ContentSharedContact, User } from "@/protobuf/core/protobuf/entities";
-import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
 export const PlaceholderImage: StaticImport = StaticPlaceholderImage
 

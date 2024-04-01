@@ -27,7 +27,7 @@ export default function MessageRichText(args: {
       }
       {
         hiddenLinks.map(link =>
-          <p key={link}><MessageRichTextLink href={link} text={link}/></p>)
+          <p key={link}>{MessageRichTextLink(link, link)}</p>)
       }
     </div>
   )
@@ -49,7 +49,7 @@ function MessageRichTextElement(rte: RichTextElement, borderColorClass: string):
     case "link":
       if (rte.val.link.hidden)
         return null
-      return <MessageRichTextLink href={rte.val.link.href} text={rte.val.link.textOption ?? rte.val.link.href}/>
+      return MessageRichTextLink(rte.val.link.href, rte.val.link.textOption ?? rte.val.link.href)
     case "prefmtInline":
       return <span className="whitespace-pre font-mono">{rte.val.prefmtInline.text}</span>
     case "prefmtBlock":
@@ -68,14 +68,12 @@ function MessageRichTextElement(rte: RichTextElement, borderColorClass: string):
   }
 }
 
-function MessageRichTextLink(args: {
-  href: string,
-  text: string
-}) {
+function MessageRichTextLink(href: string, text: string): React.JSX.Element {
   // TODO: Doesn't work in Tauri!
   return (
-    <a target="_blank" href={args.href} className="whitespace-pre-wrap underline text-blue-600 hover:text-blue-800">{
-      args.text
-    }</a>
+    <a target="_blank"
+       href={href}
+       className="whitespace-pre-wrap underline text-blue-600 hover:text-blue-800"
+    >{text}</a>
   )
 }

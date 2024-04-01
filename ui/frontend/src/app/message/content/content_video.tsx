@@ -16,7 +16,7 @@ export default function MessageContentVideo(args: {
   // TODO: Implement video playback, someday
   return (
     <TauriImage relativePath={thumbnailPath}
-                elementName={content.isOneTime ? "Video thumbnail" : "One-time video thumbnail"}
+                elementName={content.isOneTime ? "One-time video thumbnail" : "Video thumbnail"}
                 width={content.width}
                 height={content.height}
                 mimeType={null /* unknown */}
