@@ -124,7 +124,7 @@ function SimpleMessage(args: {
   myselfId: bigint
 }) {
   let namePrefix = <></>;
-  let text: string = "No messages yet"
+  let text: string = "(no messages yet)"
   if (args.msg) {
     text = GetMessageSimpleText(args.msg)
     if (args.msg.fromId == args.myselfId) {

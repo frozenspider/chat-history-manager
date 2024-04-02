@@ -34,7 +34,7 @@ export default function MessagesList(args: {
     if (scrollOwner && viewState) {
       RestoreScroll(scrollOwner, viewState.scrollTop)
     }
-  }, [wrapperElRef, args.viewState])
+  }, [wrapperElRef, viewState])
 
   prevCwd.current = GetNonDefaultOrNull(state?.cwd)
   prevViewState.current = viewState

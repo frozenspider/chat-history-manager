@@ -12,20 +12,11 @@ export default function ChatList(args: {
   setChatViewState: (viewState: ChatViewState) => void
 }): React.JSX.Element {
   if (!args.fileState)
-    return <p>No open files</p>
+    return <DatsetHeader text="No open files"/>
 
   return (
     <ul className="divide-y divide-gray-200 dark:divide-gray-700">{
       args.fileState.datasets.map((dsState) => {
-        let dsHeaderComponent = (
-          <header key={dsState.fileKey}
-                  className="bg-white dark:bg-gray-900">
-            <div className="container mx-auto flex px-10 py-1 justify-center space-x-4">
-              <h1 className="text-lg font-bold tracking-tighter">{dsState.ds.alias}</h1>
-            </div>
-          </header>
-        )
-
         let chatComponents = dsState.cwds
           .filter((cwd) => {
             if (!cwd.chat) return false
@@ -40,9 +31,22 @@ export default function ChatList(args: {
                            setChatViewState={args.setChatViewState}/>
           )
 
-        return [dsHeaderComponent, ...chatComponents]
+        return [
+          <DatsetHeader key={dsState.fileKey} text={dsState.ds.alias}/>,
+          ...chatComponents
+        ]
       })
-    }</ul>
+    }
+    </ul>
   )
 }
 
+function DatsetHeader(args: {
+  text: string
+}): React.JSX.Element {
+  return <header className="bg-white dark:bg-gray-900">
+    <div className="container mx-auto flex px-10 py-1 justify-center space-x-4">
+      <h1 className="text-lg font-bold tracking-tighter">{args.text}</h1>
+    </div>
+  </header>
+}
