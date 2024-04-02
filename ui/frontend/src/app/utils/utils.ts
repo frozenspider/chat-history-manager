@@ -31,7 +31,7 @@ export function ReportError(message: String) {
   }
 }
 
-export async function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
+export async function PromiseCatchReportError<T>(p: Promise<T>): Promise<T | void> {
   return p.catch(reason => ReportError(reason.toString()))
 }
 
@@ -47,7 +47,7 @@ export function InvokeTauri<T, R = void>(
 ) {
   if (IsTauriAvailable()) {
     if (!onError) {
-      WrapPromise(invoke<T>(cmd, args).then(onSuccess))
+      PromiseCatchReportError(invoke<T>(cmd, args).then(onSuccess))
     } else {
       invoke<T>(cmd, args).then(onSuccess).catch(onError)
     }
@@ -63,7 +63,7 @@ export async function InvokeTauriAsync<T>(
   args?: InvokeArgs,
 ): Promise<T | void> {
   if (IsTauriAvailable()) {
-    return WrapPromise(invoke<T>(cmd, args))
+    return PromiseCatchReportError(invoke<T>(cmd, args))
   } else {
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)

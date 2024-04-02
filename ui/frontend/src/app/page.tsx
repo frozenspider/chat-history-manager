@@ -4,7 +4,7 @@ import React from "react";
 
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
-import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
+import { Assert, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   ChatState,
   ClearCachedChatState,
@@ -55,6 +55,7 @@ export default function Home() {
           dsState: dsState,
           viewState: {
             messages: TestMessages(),
+            scrollHeight: 0,
             scrollTop: Number.MAX_SAFE_INTEGER,
             beginReached: true,
             endReached: true
@@ -131,7 +132,7 @@ export default function Home() {
   React.useEffect(() => {
     if (!firstLoadComplete) {
       firstLoadComplete = true
-      WrapPromise(LoadExistingData())
+      PromiseCatchReportError(LoadExistingData())
     }
   }, [LoadExistingData])
 

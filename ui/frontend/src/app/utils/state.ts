@@ -126,12 +126,16 @@ export interface DatasetState {
 }
 
 export interface ChatViewState {
+  /** Messages loaded from server, with their order preserved (should be older to newer) */
   messages: Message[],
-  scrollTop: number,
   beginReached: boolean,
   endReached: boolean,
+
+  scrollTop: number,
+  scrollHeight: number,
 }
 
+/** State of a chat view, including necessary context, loaded messages and scroll state. */
 export interface ChatState {
   cwd: ChatWithDetailsPB,
   dsState: DatasetState,
