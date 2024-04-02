@@ -124,7 +124,6 @@ export default function Home() {
     }
   }, [LoadExistingData])
 
-  // FIXME: Avoid line breaks on contact list
   return (
     <ServicesContext.Provider value={services}>
       <ResizablePanelGroup className="mx-auto p-6 md:p-10 flex" direction="horizontal">

@@ -58,7 +58,7 @@ export default function ChatComponent(args: {
         <Avatar chat={chat} dsState={args.dsState}/>
 
         <div className="w-full">
-          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass}/>
+          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass} addedClasses="line-clamp-1 break-all"/>
           <SimpleMessage chat={chat}
                          msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
                          users={args.dsState.users}
@@ -136,7 +136,7 @@ function SimpleMessage(args: {
     }
   }
   return (
-    <p className="text-sm text-gray-500 line-clamp-2">{namePrefix}{text}</p>
+    <p className="text-sm text-gray-500 line-clamp-1 break-all">{namePrefix}{text}</p>
   )
 }
 
