@@ -8,18 +8,17 @@ import MessageRichText from "@/app/message/rich_text";
 import { Message } from "@/protobuf/core/protobuf/entities";
 import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { NameColorClassFromMembers } from "@/app/utils/entity_utils";
-import { CurrentChatState } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/state";
 
 export function MessageComponent(args: {
   msg: Message,
-  state: CurrentChatState,
-  resolvedMessagesCache: Map<bigint, Message>,
+  chatState: ChatState,
   replyDepth: number
 }) {
-  let chat = args.state.cwd.chat
+  let chat = args.chatState.cwd.chat
   AssertDefined(chat)
   // Author could be outside the chat
-  let author = GetNonDefaultOrNull(args.state.dsState.users.get(args.msg.fromId))
+  let author = GetNonDefaultOrNull(args.chatState.dsState.users.get(args.msg.fromId))
   let colorClass = NameColorClassFromMembers(args.msg.fromId, chat.memberIds)
 
   return (
@@ -30,8 +29,7 @@ export function MessageComponent(args: {
                     includeSeconds={false}/>
       <MessageTyped msg={args.msg}
                     borderColorClass={colorClass.border}
-                    state={args.state}
-                    resolvedMessagesCache={args.resolvedMessagesCache}
+                    chatState={args.chatState}
                     replyDepth={args.replyDepth}/>
       <MessageRichText msgInternalId={args.msg.internalId}
                        rtes={args.msg.text}

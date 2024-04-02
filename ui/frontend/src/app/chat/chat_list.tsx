@@ -4,12 +4,11 @@ import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
-import { ChatViewState, CurrentChatState, LoadedFileState } from "@/app/utils/state";
+import { ChatState, LoadedFileState } from "@/app/utils/state";
 
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
-  setChatState: (state: CurrentChatState) => void,
-  setChatViewState: (viewState: ChatViewState) => void
+  setChatState: (s: ChatState) => void,
 }): React.JSX.Element {
   if (!args.fileState)
     return <DatsetHeader text="No open files"/>
@@ -27,8 +26,7 @@ export default function ChatList(args: {
             <ChatComponent key={dsState.fileKey + "_" + cwd.chat?.id.toString()}
                            cwd={cwd}
                            dsState={dsState}
-                           setChatState={args.setChatState}
-                           setChatViewState={args.setChatViewState}/>
+                           setChatState={args.setChatState}/>
           )
 
         return [

@@ -2,32 +2,19 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable, WrapPromise } from "@/app/utils/utils";
-import {
-  GetChatPrettyName,
-  GetUserPrettyName,
-  MessagesBatchSize,
-  NameColorClassFromNumber
-} from "@/app/utils/entity_utils";
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
+import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import {
-  ChatViewState,
-  CurrentChatState,
-  DatasetState,
-  GetCachedChatViewStateAsync,
-  ServicesContext,
-  ServicesContextType
-} from "@/app/utils/state";
+import { ChatState, DatasetState, GetCachedChatState, } from "@/app/utils/state";
 import ColoredName from "@/app/message/colored_name";
 import TauriImage from "@/app/utils/tauri_image";
 
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
   dsState: DatasetState,
-  setChatState: (state: CurrentChatState) => void,
-  setChatViewState: (viewState: ChatViewState) => void
+  setChatState: (s: ChatState) => void
 }): React.JSX.Element {
   // FIXME: On hover, the dropdown menu should be displayed
   // <div
@@ -39,7 +26,6 @@ export default function ChatComponent(args: {
   AssertDefined(args.cwd.chat);
   let chat = args.cwd.chat
   let colorClass = NameColorClassFromNumber(chat.id).text
-  let services = React.useContext(ServicesContext)!
 
   let membersCount = chat.memberIds.length > 2 ? (
     <div className="pr-2 text-xs">
@@ -50,10 +36,7 @@ export default function ChatComponent(args: {
   return (
     <li className="p-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
       <div className="flex items-center space-x-3"
-           onClick={() =>
-             // Note: We're calling async function without awaiting it
-             LoadChat(args.cwd, services, args.dsState, args.setChatState, args.setChatViewState)
-           }>
+           onClick={() => LoadChat(args.cwd, args.dsState, args.setChatState)}>
 
         <Avatar chat={chat} dsState={args.dsState}/>
 
@@ -71,33 +54,19 @@ export default function ChatComponent(args: {
   )
 }
 
-async function LoadChat(
+function LoadChat(
   cwd: ChatWithDetailsPB,
-  services: ServicesContextType,
   dsState: DatasetState,
-  setChatState: (state: CurrentChatState) => void,
-  setChatViewState: (viewState: ChatViewState) => void
+  setChatState: (state: ChatState) => void,
 ) {
-  return WrapPromise(GetCachedChatViewStateAsync(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id, async () => {
-    console.log("Cache miss! Fetching messages from the server and updating")
-
-    let response = await services.daoClient.lastMessages({
-      key: dsState.fileKey,
-      chat: cwd.chat!,
-      limit: MessagesBatchSize
-    })
-
-    return {
-      messages: response.messages,
-      scrollTop: Number.MAX_SAFE_INTEGER,
-      beginReached: false,
-      endReached: true,
+  let cvState = GetCachedChatState(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id,
+    () => ({
+      cwd: cwd,
+      dsState: dsState,
+      viewState: null,
       resolvedMessages: new Map()
-    }
-  }).then((viewState) => {
-    setChatState({ cwd: cwd, dsState: dsState })
-    setChatViewState(viewState)
-  }))
+    }))
+  setChatState(cvState)
 }
 
 function Avatar(args: {

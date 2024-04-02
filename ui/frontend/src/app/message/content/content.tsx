@@ -5,7 +5,7 @@ import React from "react";
 import { Content } from "@/protobuf/core/protobuf/entities";
 import MessageContentPhoto from "@/app/message/content/content_photo";
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { CurrentChatState } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/state";
 import MessageContentSticker from "@/app/message/content/content_sticker";
 import MessageContentVoiceMsg from "@/app/message/content/content_voice";
 import MessageContentVideo from "@/app/message/content/content_video";
@@ -18,31 +18,32 @@ import MessageContentSharedContact from "@/app/message/content/content_shared_co
 
 export default function MessageContent(args: {
   content: Content | null,
-  state: CurrentChatState
+  chatState: ChatState
 }): React.JSX.Element | null {
   let sealed = GetNonDefaultOrNull(args.content?.sealedValueOptional)
   if (sealed === null) return null
+  let dsRoot = args.chatState.dsState.dsRoot
   switch (sealed?.$case) {
     case "sticker":
-      return <MessageContentSticker content={sealed.sticker} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentSticker content={sealed.sticker} dsRoot={dsRoot}/>
     case "photo":
-      return <MessageContentPhoto content={sealed.photo} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentPhoto content={sealed.photo} dsRoot={dsRoot}/>
     case "voiceMsg":
-      return <MessageContentVoiceMsg content={sealed.voiceMsg} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentVoiceMsg content={sealed.voiceMsg} dsRoot={dsRoot}/>
     case "audio":
-      return <MessageContentAudio content={sealed.audio} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentAudio content={sealed.audio} dsRoot={dsRoot}/>
     case "videoMsg":
-      return <MessageContentVideoMsg content={sealed.videoMsg} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentVideoMsg content={sealed.videoMsg} dsRoot={dsRoot}/>
     case "video":
-      return <MessageContentVideo content={sealed.video} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentVideo content={sealed.video} dsRoot={dsRoot}/>
     case "file":
-      return <MessageContentFile content={sealed.file} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentFile content={sealed.file} dsRoot={dsRoot}/>
     case "location":
-      return <MessageContentLocation content={sealed.location} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentLocation content={sealed.location} dsRoot={dsRoot}/>
     case "poll":
-      return <MessageContentPoll content={sealed.poll} dsRoot={args.state.dsState.dsRoot}/>
+      return <MessageContentPoll content={sealed.poll} dsRoot={dsRoot}/>
     case "sharedContact":
-      return <MessageContentSharedContact content={sealed.sharedContact} state={args.state}/>
+      return <MessageContentSharedContact content={sealed.sharedContact} chatMembers={args.chatState.cwd.members}/>
     default:
       AssertUnreachable(sealed)
   }

@@ -31,8 +31,8 @@ export function ReportError(message: String) {
   }
 }
 
-export function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
-  return p.catch((reason) => ReportError(reason.toString()))
+export async function WrapPromise<T>(p: Promise<T>): Promise<T | void> {
+  return p.catch(reason => ReportError(reason.toString()))
 }
 
 /**
@@ -55,6 +55,20 @@ export function InvokeTauri<T, R = void>(
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)
     window.alert(msg)
+  }
+}
+
+export async function InvokeTauriAsync<T>(
+  cmd: string,
+  args?: InvokeArgs,
+): Promise<T | void> {
+  if (IsTauriAvailable()) {
+    return WrapPromise(invoke<T>(cmd, args))
+  } else {
+    const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
+    console.warn(msg)
+    window.alert(msg)
+    return Promise.resolve()
   }
 }
 

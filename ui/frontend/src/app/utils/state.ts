@@ -8,6 +8,7 @@ import {
   HistoryDaoServiceClient,
   HistoryLoaderServiceClient
 } from "@/protobuf/backend/protobuf/services";
+import { AssertDefined } from "@/app/utils/utils";
 
 //
 // Misc
@@ -29,43 +30,60 @@ export interface ServicesContextType {
 }
 
 //
-// Globally accessible cache of chat view states
+// Globally accessible cache of chat states
 //
 
-const ChatViewStateCache =
-  new Map<FileKey, Map<UuidString, Map<bigint, ChatViewState>>>()
+const ChatStateCache =
+  new Map<FileKey, Map<UuidString, Map<bigint, ChatState>>>()
 
 /** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
-export async function GetCachedChatViewStateAsync(
+export function GetCachedChatState(
   key: FileKey,
   uuid: UuidString,
   chatId: bigint,
-  onMiss: () => Promise<ChatViewState>
-): Promise<ChatViewState> {
-  if (!ChatViewStateCache.has(key)) {
-    ChatViewStateCache.set(key, new Map())
+  getDefaultValue: () => ChatState
+): ChatState {
+  if (!ChatStateCache.has(key)) {
+    ChatStateCache.set(key, new Map())
   }
-  let fileMap = ChatViewStateCache.get(key)!
+  let fileMap = ChatStateCache.get(key)!
   if (!fileMap.has(uuid)) {
     fileMap.set(uuid, new Map())
   }
   let uuidMap = fileMap.get(uuid)!
   if (!uuidMap.has(chatId)) {
-    uuidMap.set(chatId, await onMiss())
+    uuidMap.set(chatId, getDefaultValue())
   }
   return uuidMap.get(chatId)!
 }
 
+export function SetCachedChatState(
+  value: ChatState
+): void {
+  AssertDefined(value.dsState.ds.uuid)
+  AssertDefined(value.cwd.chat)
+  if (!ChatStateCache.has(value.dsState.fileKey)) {
+    ChatStateCache.set(value.dsState.fileKey, new Map())
+  }
+  let fileMap = ChatStateCache.get(value.dsState.fileKey)!
+  if (!fileMap.has(value.dsState.ds.uuid.value)) {
+    fileMap.set(value.dsState.ds.uuid.value, new Map())
+  }
+  fileMap
+    .get(value.dsState.ds.uuid.value)!
+    .set(value.cwd.chat.id, value)
+}
+
 /** If values are omitted, clear all */
-export function ClearCachedChatViewState(
+export function ClearCachedChatState(
   key: FileKey,
   uuid?: UuidString,
   chatId?: bigint,
 ): void {
-  if (!ChatViewStateCache.has(key)) {
+  if (!ChatStateCache.has(key)) {
     return
   }
-  let fileMap = ChatViewStateCache.get(key)!
+  let fileMap = ChatStateCache.get(key)!
   if (uuid === undefined) {
     fileMap.clear()
     return
@@ -83,25 +101,12 @@ export function ClearCachedChatViewState(
     fileMap.delete(uuid)
   }
   if (fileMap.size === 0) {
-    ChatViewStateCache.delete(key)
+    ChatStateCache.delete(key)
   }
 }
 
-export interface ChatViewState {
-  messages: Message[],
-  scrollTop: number,
-  beginReached: boolean,
-  endReached: boolean,
-
-  /**
-   * Individual messages fetched to render replies, pinned messages, etc.
-   * Used for eager render when restoring chat view.
-   */
-  resolvedMessages: Map<bigint, Message>
-}
-
 //
-// Other kinds of state
+// Different kinds of state
 //
 
 export interface LoadedFileState {
@@ -120,7 +125,21 @@ export interface DatasetState {
   cwds: ChatWithDetailsPB[]
 }
 
-export interface CurrentChatState {
+export interface ChatViewState {
+  messages: Message[],
+  scrollTop: number,
+  beginReached: boolean,
+  endReached: boolean,
+}
+
+export interface ChatState {
   cwd: ChatWithDetailsPB,
-  dsState: DatasetState
+  dsState: DatasetState,
+  viewState: ChatViewState | null,
+
+  /**
+   * Individual messages fetched to render replies, pinned messages, etc.
+   * Used for eager render when restoring chat view.
+   */
+  resolvedMessages: Map<bigint, Message>
 }

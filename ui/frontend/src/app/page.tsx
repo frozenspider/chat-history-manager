@@ -6,8 +6,8 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
 import {
-  ChatViewState, ClearCachedChatViewState,
-  CurrentChatState,
+  ChatState,
+  ClearCachedChatState,
   DatasetState,
   LoadedFileState,
   ServicesContext,
@@ -45,19 +45,23 @@ export default function Home() {
   let [currentFileState, setCurrentFileState] =
     React.useState<LoadedFileState | null>(openFiles[0] ?? null)
   let [currentChatState, setCurrentChatState] =
-    React.useState<CurrentChatState | null>(() => {
+    React.useState<ChatState | null>(() => {
       let dsState = GetNonDefaultOrNull(openFiles[0]?.datasets[0])
       let cwd = dsState?.cwds[0]
-      return !dsState || !cwd ? null : { cwd: cwd, dsState: dsState }
+      return !dsState || !cwd ?
+        null :
+        {
+          cwd: cwd,
+          dsState: dsState,
+          viewState: {
+            messages: TestMessages(),
+            scrollTop: Number.MAX_SAFE_INTEGER,
+            beginReached: true,
+            endReached: true
+          },
+          resolvedMessages: new Map()
+        }
     })
-
-  let [chatViewState, setChatViewState] = React.useState<ChatViewState>({
-    messages: TestMessages(),
-    scrollTop: Number.MAX_SAFE_INTEGER,
-    beginReached: true,
-    endReached: true,
-    resolvedMessages: new Map()
-  })
 
   const channel = createChannel('http://localhost:50051');
 
@@ -68,7 +72,7 @@ export default function Home() {
 
   async function LoadExistingData() {
     // Reset open files
-    openFiles.forEach(f => ClearCachedChatViewState(f.key))
+    openFiles.forEach(f => ClearCachedChatState(f.key))
     setOpenFiles([])
     // setCurrentChatState(null)
     setCurrentFileState(null)
@@ -156,21 +160,20 @@ export default function Home() {
             <div className="border-r h-full relative">
               <ScrollArea className="w-full rounded-md border overflow-y-scroll">
                 {tabs}
-                <ScrollBar orientation="horizontal" />
+                <ScrollBar orientation="horizontal"/>
               </ScrollArea>
 
               <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
                 <ChatList fileState={currentFileState}
-                          setChatState={setCurrentChatState}
-                          setChatViewState={setChatViewState}/>
+                          setChatState={setCurrentChatState}/>
               </ScrollArea>
             </div>
           </ResizablePanel>
           <ResizableHandle className="w-1 bg-stone-400"/>
           <ResizablePanel defaultSize={67}>
             <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
-              <MessagesList state={currentChatState}
-                            viewState={chatViewState}/>
+              <MessagesList chatState={currentChatState}
+                            setChatState={setCurrentChatState}/>
             </ScrollArea>
           </ResizablePanel>
         </ResizablePanelGroup>
