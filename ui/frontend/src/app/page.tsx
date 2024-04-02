@@ -6,8 +6,8 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
 import {
-  CurrentChatState,
   ChatViewState,
+  CurrentChatState,
   DatasetState,
   LoadedFileState,
   ServicesContext,
@@ -17,15 +17,12 @@ import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/t
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { User } from "@/protobuf/core/protobuf/entities";
 
 import { createChannel, createClient } from 'nice-grpc-web';
-import {
-  ChatWithDetailsPB,
-  HistoryDaoServiceDefinition,
-  HistoryLoaderServiceDefinition
-} from "@/protobuf/backend/protobuf/services";
+import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
 
 let firstLoadComplete = false;
 
@@ -45,6 +42,8 @@ export default function Home() {
         },
       ],
     }])
+  let [currentFileState, setCurrentFileState] =
+    React.useState<LoadedFileState | null>(openFiles[0] ?? null)
   let [currentChatState, setCurrentChatState] =
     React.useState<CurrentChatState | null>(() => {
       let dsState = GetNonDefaultOrNull(openFiles[0]?.datasets[0])
@@ -70,13 +69,14 @@ export default function Home() {
     // Reset open files
     setOpenFiles([])
     // setCurrentChatState(null)
+    setCurrentFileState(null)
 
     let loadedFilesResponse = await services.loadClient.getLoadedFiles({});
     if (loadedFilesResponse.files.length == 0) {
       console.log("No files open")
       return
     }
-
+    let firstFile = true
     for (let file of loadedFilesResponse.files) {
       let fileState: LoadedFileState = {
         key: file.key,
@@ -113,6 +113,11 @@ export default function Home() {
       }
 
       setOpenFiles((oldState) => [...oldState, fileState])
+      if (firstFile) {
+        console.log("Setting current file to ", fileState)
+        setCurrentFileState(fileState)
+        firstFile = false
+      }
     }
     console.log("Done!")
   }
@@ -124,26 +129,47 @@ export default function Home() {
     }
   }, [LoadExistingData])
 
+  let tabs = openFiles.length > 1 ? (
+    <Tabs defaultValue={currentFileState?.key}
+          onValueChange={(newKey) => {
+            let file = openFiles.find(f => f.key == newKey)
+            if (file) {
+              setCurrentFileState(file)
+            }
+          }}
+          className="w-[400px]">
+      <TabsList>{
+        openFiles.map((file) =>
+          <TabsTrigger key={file.key} value={file.key}>{file.name}</TabsTrigger>
+        )
+      }</TabsList>
+    </Tabs>
+  ) : <></>
+
   return (
     <ServicesContext.Provider value={services}>
-      <ResizablePanelGroup className="mx-auto p-6 md:p-10 flex" direction="horizontal">
-        <ResizablePanel defaultSize={33} minSize={10}>
-          <div className="border-r h-full relative">
+      <div className="mx-auto p-6 md:p-10 flex flex-col">
+        {tabs}
+
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={33} minSize={10}>
+            <div className="border-r h-full relative">
+              <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
+                <ChatList fileState={currentFileState}
+                          setChatState={setCurrentChatState}
+                          setChatViewState={setChatViewState}/>
+              </ScrollArea>
+            </div>
+          </ResizablePanel>
+          <ResizableHandle className="w-1 bg-stone-400"/>
+          <ResizablePanel defaultSize={67}>
             <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
-              <ChatList openFiles={openFiles}
-                        setChatState={setCurrentChatState}
-                        setChatViewState={setChatViewState}/>
+              <MessagesList state={currentChatState}
+                            viewState={chatViewState}/>
             </ScrollArea>
-          </div>
-        </ResizablePanel>
-        <ResizableHandle className="w-1 bg-stone-400"/>
-        <ResizablePanel defaultSize={67}>
-          <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
-            <MessagesList state={currentChatState}
-                          viewState={chatViewState}/>
-          </ScrollArea>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </ServicesContext.Provider>
   )
 }

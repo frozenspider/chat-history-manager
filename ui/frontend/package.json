@@ -26,7 +26,8 @@
     "tailwind-merge": "^2.2.2",
     "tailwindcss-animate": "^1.0.7",
     "react-resizable-panels": "^2.0.16",
-    "@radix-ui/react-scroll-area": "^1.0.5"
+    "@radix-ui/react-scroll-area": "^1.0.5",
+    "@radix-ui/react-tabs": "^1.0.4"
   },
   "devDependencies": {
     "typescript": "^5",
