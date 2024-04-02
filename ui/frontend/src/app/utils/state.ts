@@ -35,6 +35,7 @@ export interface ServicesContextType {
 const ChatViewStateCache =
   new Map<FileKey, Map<UuidString, Map<bigint, ChatViewState>>>()
 
+/** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
 export async function GetCachedChatViewStateAsync(
   key: FileKey,
   uuid: UuidString,
@@ -55,19 +56,28 @@ export async function GetCachedChatViewStateAsync(
   return uuidMap.get(chatId)!
 }
 
+/** If values are omitted, clear all */
 export function ClearCachedChatViewState(
   key: FileKey,
-  uuid: UuidString,
-  chatId: bigint,
+  uuid?: UuidString,
+  chatId?: bigint,
 ): void {
   if (!ChatViewStateCache.has(key)) {
     return
   }
   let fileMap = ChatViewStateCache.get(key)!
+  if (uuid === undefined) {
+    fileMap.clear()
+    return
+  }
   if (!fileMap.has(uuid)) {
     return
   }
   let uuidMap = fileMap.get(uuid)!
+  if (chatId === undefined) {
+    uuidMap.clear()
+    return
+  }
   uuidMap.delete(chatId)
   if (uuidMap.size === 0) {
     fileMap.delete(uuid)

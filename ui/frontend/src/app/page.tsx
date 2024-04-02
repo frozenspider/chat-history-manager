@@ -6,7 +6,7 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, GetNonDefaultOrNull, WrapPromise } from "@/app/utils/utils";
 import {
-  ChatViewState,
+  ChatViewState, ClearCachedChatViewState,
   CurrentChatState,
   DatasetState,
   LoadedFileState,
@@ -15,7 +15,7 @@ import {
 } from "@/app/utils/state";
 import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/test_entities";
 
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -67,6 +67,7 @@ export default function Home() {
 
   async function LoadExistingData() {
     // Reset open files
+    openFiles.forEach(f => ClearCachedChatViewState(f.key))
     setOpenFiles([])
     // setCurrentChatState(null)
     setCurrentFileState(null)
@@ -148,13 +149,16 @@ export default function Home() {
 
   return (
     <ServicesContext.Provider value={services}>
-      <div className="mx-auto p-6 md:p-10 flex flex-col">
-        {tabs}
-
+      <div className="mx-auto p-6 md:p-10 flex flex-col h-screen">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={33} minSize={10}>
             <div className="border-r h-full relative">
-              <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
+              <ScrollArea className="w-full rounded-md border overflow-y-scroll">
+                {tabs}
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+
+              <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
                 <ChatList fileState={currentFileState}
                           setChatState={setCurrentChatState}
                           setChatViewState={setChatViewState}/>
@@ -163,7 +167,7 @@ export default function Home() {
           </ResizablePanel>
           <ResizableHandle className="w-1 bg-stone-400"/>
           <ResizablePanel defaultSize={67}>
-            <ScrollArea className="h-96 w-full rounded-md border overflow-y-scroll">
+            <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
               <MessagesList state={currentChatState}
                             viewState={chatViewState}/>
             </ScrollArea>

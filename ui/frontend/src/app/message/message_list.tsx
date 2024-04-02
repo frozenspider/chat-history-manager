@@ -27,6 +27,7 @@ export default function MessagesList(args: {
     prevViewState.current.scrollTop = scrollOwner.scrollTop
   }
 
+  // TODO: This doesn't always work because some elements (e.g. lazy messages) shift the scroll position.
   // Happens when view state changes, restore scroll position associated with the view state.
   React.useEffect(() => {
     let scrollOwner = getScrollOwner()
