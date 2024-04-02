@@ -91,7 +91,8 @@ async function LoadChat(
       messages: response.messages,
       scrollTop: Number.MAX_SAFE_INTEGER,
       beginReached: false,
-      endReached: true
+      endReached: true,
+      resolvedMessages: new Map()
     }
   }).then((viewState) => {
     setChatState({ cwd: cwd, dsState: dsState })

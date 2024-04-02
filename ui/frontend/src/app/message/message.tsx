@@ -13,6 +13,7 @@ import { CurrentChatState } from "@/app/utils/state";
 export function MessageComponent(args: {
   msg: Message,
   state: CurrentChatState,
+  resolvedMessagesCache: Map<bigint, Message>,
   replyDepth: number
 }) {
   let chat = args.state.cwd.chat
@@ -29,8 +30,9 @@ export function MessageComponent(args: {
                     includeSeconds={false}/>
       <MessageTyped msg={args.msg}
                     borderColorClass={colorClass.border}
-                    replyDepth={args.replyDepth}
-                    state={args.state}/>
+                    state={args.state}
+                    resolvedMessagesCache={args.resolvedMessagesCache}
+                    replyDepth={args.replyDepth}/>
       <MessageRichText msgInternalId={args.msg.internalId}
                        rtes={args.msg.text}
                        borderColorClass={colorClass.border}/>

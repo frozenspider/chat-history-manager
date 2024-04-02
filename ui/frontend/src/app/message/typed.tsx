@@ -26,8 +26,9 @@ import MessageContentPhoto from "@/app/message/content/content_photo";
 export default function MessageTyped(args: {
   msg: Message,
   borderColorClass: string
-  replyDepth: number,
-  state: CurrentChatState
+  state: CurrentChatState,
+  resolvedMessagesCache: Map<bigint, Message>,
+  replyDepth: number
 }): React.JSX.Element {
   switch (args.msg.typed?.$case) {
     case "regular":
@@ -35,6 +36,7 @@ export default function MessageTyped(args: {
         <MessageTypedRegular msg={args.msg.typed.regular}
                              borderColorClass={args.borderColorClass}
                              state={args.state}
+                             resolvedMessagesCache={args.resolvedMessagesCache}
                              replyDepth={args.replyDepth}/>
       )
     case "service":
@@ -43,6 +45,7 @@ export default function MessageTyped(args: {
         <MessageTypedService msg={args.msg.typed.service}
                              borderColorClass={args.borderColorClass}
                              state={args.state}
+                             resolvedMessagesCache={args.resolvedMessagesCache}
                              replyDepth={args.replyDepth}
                              authorPrettyName={authorPrettyName}/>
       )
@@ -55,6 +58,7 @@ function MessageTypedService(args: {
   msg: MessageService,
   borderColorClass: string,
   state: CurrentChatState,
+  resolvedMessagesCache: Map<bigint, Message>,
   replyDepth: number,
   authorPrettyName: string
 }): React.JSX.Element {
@@ -75,6 +79,7 @@ function MessageTypedService(args: {
         <ColoredBlockquote borderColorClass={args.borderColorClass}>
           <LazyMessageComponent sourceId={sealed.pinMessage.messageSourceId}
                                 state={args.state}
+                                resolvedMessagesCache={args.resolvedMessagesCache}
                                 replyDepth={args.replyDepth + 1}/>
         </ColoredBlockquote>
       </>
@@ -175,7 +180,8 @@ function ServiceInviteRemoveMembers(args: {
 function MessageTypedRegular(args: {
   msg: MessageRegular,
   borderColorClass: string,
-  state: CurrentChatState
+  state: CurrentChatState,
+  resolvedMessagesCache: Map<bigint, Message>,
   replyDepth: number,
 }): React.JSX.Element {
   AssertDefined(args.state.cwd.chat)
@@ -195,7 +201,10 @@ function MessageTypedRegular(args: {
     } else {
       replyTo =
         <ColoredBlockquote borderColorClass={args.borderColorClass}>
-          <LazyMessageComponent sourceId={replyToId} state={args.state} replyDepth={args.replyDepth + 1}/>
+          <LazyMessageComponent sourceId={replyToId}
+                                state={args.state}
+                                resolvedMessagesCache={args.resolvedMessagesCache}
+                                replyDepth={args.replyDepth + 1}/>
         </ColoredBlockquote>
     }
   }
@@ -209,9 +218,14 @@ function MessageTypedRegular(args: {
   )
 }
 
+/**
+ * Renders a message, does so eagerly if it's cached, or lazily if it's not.
+ * In the latter case queries the `messageOption` from server and caches the result.
+ */
 function LazyMessageComponent(args: {
   sourceId: bigint,
   state: CurrentChatState,
+  resolvedMessagesCache: Map<bigint, Message>,
   replyDepth: number
 }): React.JSX.Element {
   let services = React.useContext(ServicesContext)!
@@ -219,19 +233,23 @@ function LazyMessageComponent(args: {
   // null - initial state, not yet loaded
   // string - error message if loading failed, e.g. it wasn't found
   let [message, setMessage] =
-    React.useState<Message | string | null>(null)
+    React.useState<Message | string | null>(args.resolvedMessagesCache.get(args.sourceId) || null)
 
   // Asynchronously load a message
   React.useEffect(() => {
-    if (!args.sourceId) return
+    if (!args.sourceId || message) return
     services.daoClient.messageOption({
       key: args.state.dsState.fileKey,
       chat: args.state.cwd.chat,
       sourceId: args.sourceId
     }).then(response => {
       let msg: Message | string | null = GetNonDefaultOrNull(response.message)
-      if (!msg) msg = "Message not found"
-      setMessage(msg)
+      if (msg) {
+        args.resolvedMessagesCache.set(args.sourceId, msg)
+        setMessage(msg)
+      } else {
+        setMessage("Message not found")
+      }
     }).catch(reason => {
       setMessage("Failed to load message: " + reason)
     })
@@ -247,5 +265,6 @@ function LazyMessageComponent(args: {
     return <>({message})</>
   }
 
-  return <MessageComponent msg={message} state={args.state} replyDepth={args.replyDepth}/>
+  return <MessageComponent msg={message} state={args.state} resolvedMessagesCache={args.resolvedMessagesCache}
+                           replyDepth={args.replyDepth}/>
 }

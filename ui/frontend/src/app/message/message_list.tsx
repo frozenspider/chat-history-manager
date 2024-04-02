@@ -53,6 +53,7 @@ export default function MessagesList(args: {
           <MessageComponent key={state.dsState.ds.uuid + "_" + state.cwd.chat!.id + "_" + msg.internalId}
                             msg={msg}
                             state={state}
+                            resolvedMessagesCache={viewState.resolvedMessages}
                             replyDepth={0}/>
         )
       }

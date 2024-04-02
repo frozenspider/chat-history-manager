@@ -91,7 +91,13 @@ export interface ChatViewState {
   messages: Message[],
   scrollTop: number,
   beginReached: boolean,
-  endReached: boolean
+  endReached: boolean,
+
+  /**
+   * Individual messages fetched to render replies, pinned messages, etc.
+   * Used for eager render when restoring chat view.
+   */
+  resolvedMessages: Map<bigint, Message>
 }
 
 //

@@ -55,7 +55,8 @@ export default function Home() {
     messages: TestMessages(),
     scrollTop: Number.MAX_SAFE_INTEGER,
     beginReached: true,
-    endReached: true
+    endReached: true,
+    resolvedMessages: new Map()
   })
 
   const channel = createChannel('http://localhost:50051');
