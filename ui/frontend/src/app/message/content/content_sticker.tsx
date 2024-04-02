@@ -5,6 +5,7 @@ import React from "react";
 import { ContentSticker } from "@/protobuf/core/protobuf/entities";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import TauriImage from "@/app/utils/tauri_image";
+import SystemMessage from "@/app/message/system_message";
 
 export default function MessageContentSticker(args: {
   content: ContentSticker,
@@ -16,7 +17,7 @@ export default function MessageContentSticker(args: {
   if (path?.endsWith(".tgs")) {
     // Telegram animated sticker, not supported
     return <>
-      <p>Animated sticker</p>
+      <SystemMessage>Animated sticker</SystemMessage>
       <TauriImage elementName="Sticker"
                   relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
                   width={content.width / 2}

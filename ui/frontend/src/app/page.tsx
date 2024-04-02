@@ -54,6 +54,7 @@ export default function Home() {
 
   let [chatViewState, setChatViewState] = React.useState<ChatViewState>({
     messages: TestMessages(),
+    scrollTop: Number.MAX_SAFE_INTEGER,
     beginReached: true,
     endReached: true
   })

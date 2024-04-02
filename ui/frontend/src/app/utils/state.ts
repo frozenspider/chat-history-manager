@@ -79,6 +79,7 @@ export function ClearCachedChatViewState(
 
 export interface ChatViewState {
   messages: Message[],
+  scrollTop: number,
   beginReached: boolean,
   endReached: boolean
 }

@@ -89,8 +89,9 @@ async function LoadChat(
 
     return {
       messages: response.messages,
-      endReached: true,
-      beginReached: false
+      scrollTop: Number.MAX_SAFE_INTEGER,
+      beginReached: false,
+      endReached: true
     }
   }).then((viewState) => {
     setChatState({ cwd: cwd, dsState: dsState })
