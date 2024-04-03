@@ -114,25 +114,60 @@ export function MessageContentVoiceMsg(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  let path = GetNonDefaultOrNull(content.pathOption)
-  let mimeType = GetNonDefaultOrNull(content.mimeType)
+  return AudioComponent(
+    "Voice message",
+    GetNonDefaultOrNull(content.pathOption),
+    args.dsRoot,
+    GetNonDefaultOrNull(content.mimeType)
+  )
+}
 
+export function MessageContentAudio(args: {
+  content: ContentAudio,
+  dsRoot: string
+}): React.JSX.Element {
+  let content = args.content
+  let audio = AudioComponent(
+    "Audio",
+    GetNonDefaultOrNull(content.pathOption),
+    args.dsRoot,
+    GetNonDefaultOrNull(content.mimeType)
+  )
+  let title =
+    GetNonDefaultOrNull([content.performerOption, content.titleOption]
+      .map(GetNonDefaultOrNull)
+      .filter(x => x)
+      .join(" - "))
+  return <>
+    {title && <blockquote><i>Audio:</i> <b>{title}</b></blockquote>}
+    {audio}
+  </>
+}
+
+function AudioComponent(
+  elementName: string,
+  relativePath: string | null,
+  dsRoot: string,
+  mimeType: string | null
+): React.JSX.Element {
   if (!mimeType) {
     // Handling some basic MIME types
-    if (path?.endsWith(".ogg"))
-      mimeType = "audio/ogg"
-    else if (path?.endsWith(".mp3"))
+    if (!relativePath)
+      mimeType = "audio/mpeg" // Placeholder audio type
+    else if (relativePath.endsWith(".mp3"))
       mimeType = "audio/mpeg"
-    else if (path?.endsWith(".wav"))
+    else if (relativePath.endsWith(".ogg"))
+      mimeType = "audio/ogg"
+    else if (relativePath.endsWith(".wav"))
       mimeType = "audio/wav"
     else
-      mimeType = "audio/mp3"
+      mimeType = "audio/mpeg"
   }
 
   return LazyContent(
-    "Voice message",
-    path,
-    args.dsRoot,
+    elementName,
+    relativePath,
+    dsRoot,
     mimeType,
     (lazyData) => {
       if (lazyData.state == LazyDataState.Failure) {
@@ -143,7 +178,7 @@ export function MessageContentVoiceMsg(args: {
           // If not using Tauri, use test data
           data = TestMp3Base64Data
         }
-        // TODO: Doesn't work in Tauri window!
+        // FIXME: Doesn't work in Tauri window!
         return (
           <audio className="block w-full max-w-md mr-auto" controls>
             <source src={data!}/>
@@ -156,34 +191,19 @@ export function MessageContentVoiceMsg(args: {
   )
 }
 
-export function MessageContentAudio(args: {
-  content: ContentAudio,
-  dsRoot: string
-}): React.JSX.Element {
-  let content = args.content
-  let path = GetNonDefaultOrNull(content.pathOption);
-
-  // TODO: Implement this!
-  return (
-    <p>{"(TODO: Audio)"}</p>
-  )
-}
-
 export function MessageContentVideoMsg(args: {
   content: ContentVideoMsg,
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  let thumbnailPath = GetNonDefaultOrNull(content.thumbnailPathOption);
-
-  // TODO: Implement video playback, someday
-  return (
-    <TauriImage elementName={content.isOneTime ? "One-time video message thumbnail" : "Video message thumbnail"}
-                relativePath={thumbnailPath}
-                dsRoot={args.dsRoot}
-                width={content.width}
-                height={content.height}
-                mimeType={null /* unknown */}/>
+  return VideoComponent(
+    content.isOneTime ? "One-time video message" : "Video message",
+    GetNonDefaultOrNull(content.pathOption),
+    GetNonDefaultOrNull(content.thumbnailPathOption),
+    args.dsRoot,
+    content.width,
+    content.height,
+    GetNonDefaultOrNull(content.mimeType)
   )
 }
 
@@ -192,16 +212,44 @@ export function MessageContentVideo(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  let thumbnailPath = GetNonDefaultOrNull(content.thumbnailPathOption);
+  let video = VideoComponent(
+    content.isOneTime ? "One-time video" : "Video",
+    GetNonDefaultOrNull(content.pathOption),
+    GetNonDefaultOrNull(content.thumbnailPathOption),
+    args.dsRoot,
+    content.width,
+    content.height,
+    GetNonDefaultOrNull(content.mimeType)
+  )
+  let title =
+    GetNonDefaultOrNull([content.performerOption, content.titleOption]
+      .map(GetNonDefaultOrNull)
+      .filter(x => x)
+      .join(" - "))
+  return <>
+    {title && <blockquote><i>Video:</i> <b>{title}</b></blockquote>}
+    {video}
+  </>
+}
 
+function VideoComponent(
+  elementName: string,
+  _relativeFilePath: string | null,
+  relativeThumbnailPath: string | null,
+  dsRoot: string,
+  width: number,
+  height: number,
+  _mimeType: string | null
+): React.JSX.Element {
   // TODO: Implement video playback, someday
   return (
-    <TauriImage elementName={content.isOneTime ? "One-time video thumbnail" : "Video thumbnail"}
-                relativePath={thumbnailPath}
-                dsRoot={args.dsRoot}
-                width={content.width}
-                height={content.height}
-                mimeType={null /* unknown */}/>
+    <TauriImage elementName={elementName + " thumbnail"}
+                relativePath={relativeThumbnailPath}
+                dsRoot={dsRoot}
+                width={width}
+                height={height}
+                mimeType={null /* thumbnail mime unknown */}
+                altText={elementName + " thumbnail"}/>
   )
 }
 
