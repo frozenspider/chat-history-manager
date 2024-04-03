@@ -16,13 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ChatState, ServicesContext } from "@/app/utils/state";
+import { ChatState, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function NavigationBar(args: {
   chatState: ChatState | null,
+  navigationCallbacks: NavigationCallbacks | null
 }) {
-
   let services = React.useContext(ServicesContext)!
 
   let [navEnabled, setNavEnabled] =
@@ -55,7 +55,7 @@ export default function NavigationBar(args: {
       })).messages
 
       if (first.length > 0 && last.length > 0) {
-        setNavEnabled(true)
+        setNavEnabled(args.navigationCallbacks !== null)
         setDateLimits([
           new Date(Number(first[0].timestamp) * 1000),
           new Date(Number(last[0].timestamp) * 1000)
@@ -73,6 +73,7 @@ export default function NavigationBar(args: {
     args.chatState?.dsState.fileKey,
     args.chatState?.dsState.ds.uuid?.value,
     args.chatState?.cwd.chat,
+    args.navigationCallbacks,
     services.daoClient
   ])
 
@@ -92,7 +93,10 @@ export default function NavigationBar(args: {
           <div className="flex items-center space-x-2 text-xs">
 
             <Tooltip>
-              <Button size="icon" variant="ghost" disabled={!navEnabled} asChild>
+              <Button size="icon" variant="ghost"
+                      onClick={() => args.navigationCallbacks?.toBeginning()}
+                      disabled={!navEnabled}
+                      asChild>
                 <TooltipTrigger>
                   <ArrowUpToLineIcon className="h-4 w-4"/>
                 </TooltipTrigger>
@@ -103,7 +107,10 @@ export default function NavigationBar(args: {
             </Tooltip>
 
             <Tooltip>
-              <Button size="icon" variant="ghost" disabled={!navEnabled} asChild>
+              <Button size="icon" variant="ghost"
+                      onClick={() => args.navigationCallbacks?.toEnd()}
+                      disabled={!navEnabled}
+                      asChild>
                 <TooltipTrigger>
                   <ArrowDownToLineIcon className="h-4 w-4"/>
                 </TooltipTrigger>
@@ -119,7 +126,13 @@ export default function NavigationBar(args: {
               <Popover>
                 <TooltipTrigger asChild>
                   <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost" disabled={!navEnabled}>
+                    <Button size="icon" variant="ghost"
+                            onClick={() =>
+                              // NOOP for now
+                              // args.navigationCallbacks?.toDate(...)
+                              0
+                            }
+                            disabled={!navEnabled}>
                       <CalendarIcon className="h-4 w-4"/>
                     </Button>
                   </PopoverTrigger>

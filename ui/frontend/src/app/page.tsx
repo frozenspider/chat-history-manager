@@ -4,16 +4,17 @@ import React from "react";
 
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
-import { Assert, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
+import { Assert, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   ChatState,
   ClearCachedChatState,
   DatasetState,
   LoadedFileState,
+  NavigationCallbacks,
   ServicesContext,
   ServicesContextType
 } from "@/app/utils/state";
-import { TestCwds, TestDataset, TestMessages, TestUsersMap } from "@/app/utils/test_entities";
+import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -29,48 +30,22 @@ let firstLoadComplete = false;
 
 export default function Home() {
   let [openFiles, setOpenFiles] =
-    React.useState<LoadedFileState[]>([{
-      key: "<no-file>",
-      name: "<no-name>",
-      datasets: [
-        {
-          fileKey: "<no-file>",
-          ds: TestDataset,
-          dsRoot: ".",
-          users: TestUsersMap(),
-          myselfId: BigInt(1),
-          cwds: TestCwds()
-        },
-      ],
-    }])
+    React.useState<LoadedFileState[]>(TestLoadedFiles)
   let [currentFileState, setCurrentFileState] =
     React.useState<LoadedFileState | null>(openFiles[0] ?? null)
   let [currentChatState, setCurrentChatState] =
-    React.useState<ChatState | null>(() => {
-      let dsState = GetNonDefaultOrNull(openFiles[0]?.datasets[0])
-      let cwd = dsState?.cwds[0]
-      return !dsState || !cwd ?
-        null :
-        {
-          cwd: cwd,
-          dsState: dsState,
-          viewState: {
-            messages: TestMessages(),
-            scrollHeight: 0,
-            scrollTop: Number.MAX_SAFE_INTEGER,
-            beginReached: true,
-            endReached: true
-          },
-          resolvedMessages: new Map()
-        }
-    })
+    React.useState<ChatState | null>(() => TestChatState)
+  let [navigationCallbacks, setNavigationCallbacks] =
+    React.useState<NavigationCallbacks | null>(null)
 
-  const channel = createChannel('http://localhost:50051');
-
-  const services: ServicesContextType = {
-    loadClient: createClient(HistoryLoaderServiceDefinition, channel),
-    daoClient: createClient(HistoryDaoServiceDefinition, channel)
-  }
+  // No-dependency useMemo ensures that the services are created only once
+  const services = React.useMemo<ServicesContextType>(() => {
+    const channel = createChannel('http://localhost:50051');
+    return {
+      loadClient: createClient(HistoryLoaderServiceDefinition, channel),
+      daoClient: createClient(HistoryDaoServiceDefinition, channel)
+    }
+  }, [])
 
   async function LoadExistingData() {
     // Reset open files
@@ -174,10 +149,12 @@ export default function Home() {
           <ResizableHandle className="w-1 bg-stone-400"/>
           <ResizablePanel defaultSize={67}>
             <div className="h-full flex flex-col">
-              {/*<NavigationBar chatState={currentChatState}/>*/}
+              <NavigationBar chatState={currentChatState}
+                             navigationCallbacks={navigationCallbacks}/>
               <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
                 <MessagesList chatState={currentChatState}
-                              setChatState={setCurrentChatState}/>
+                              setChatState={setCurrentChatState}
+                              setNavigationCallbacks={setNavigationCallbacks}/>
               </ScrollArea>
             </div>
           </ResizablePanel>

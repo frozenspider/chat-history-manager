@@ -1,6 +1,9 @@
+'use client'
+
 import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { GetUserPrettyName } from "@/app/utils/entity_utils";
+import { ChatState, LoadedFileState } from "@/app/utils/state";
 
 export const TestDataset: Dataset = {
   uuid: { value: "00000000-0000-0000-0000-000000000000" },
@@ -560,6 +563,35 @@ export function TestMessages(): Message[] {
     }),
 
   ]
+}
+
+export const TestLoadedFiles: LoadedFileState[] = [{
+  key: "<no-file>",
+  name: "<no-name>",
+  datasets: [
+    {
+      fileKey: "<no-file>",
+      ds: TestDataset,
+      dsRoot: ".",
+      users: TestUsersMap(),
+      myselfId: BigInt(1),
+      cwds: TestCwds()
+    },
+  ],
+}]
+
+export const TestChatState: ChatState = {
+  cwd: TestLoadedFiles[0].datasets[0].cwds[0],
+  dsState: TestLoadedFiles[0].datasets[0],
+  viewState: {
+    messages: TestMessages(),
+    beginReached: true,
+    endReached: true,
+    scrollHeight: 0,
+    scrollTop: Number.MAX_SAFE_INTEGER,
+    lastScrollDirectionUp: false
+  },
+  resolvedMessages: new Map()
 }
 
 /** 250 ms of silence MP3 file taken from https://github.com/anars/blank-audio */

@@ -89,8 +89,8 @@ export function GetUserPrettyName(user: User | ContentSharedContact | null): str
   }
 }
 
-export function GetChatPrettyName(chat: Chat): string {
-  if (chat.nameOption) {
+export function GetChatPrettyName(chat: Chat | null): string {
+  if (chat?.nameOption) {
     return chat.nameOption
   } else {
     return Unnamed

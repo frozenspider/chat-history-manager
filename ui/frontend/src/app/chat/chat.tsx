@@ -1,5 +1,3 @@
-'use client'
-
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";

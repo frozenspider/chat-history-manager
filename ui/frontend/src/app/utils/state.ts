@@ -133,6 +133,9 @@ export interface ChatViewState {
 
   scrollTop: number,
   scrollHeight: number,
+
+  /** Whether last time we loaded previous messages (user scrolled up) */
+  lastScrollDirectionUp: boolean
 }
 
 /** State of a chat view, including necessary context, loaded messages and scroll state. */
@@ -146,4 +149,11 @@ export interface ChatState {
    * Used for eager render when restoring chat view.
    */
   resolvedMessages: Map<bigint, Message>
+}
+
+/** Navigation callbacks, used to navigate to different time points in chat history */
+export interface NavigationCallbacks {
+  toBeginning(): void,
+  toEnd(): void,
+  // toDate(date: Date): void,
 }
