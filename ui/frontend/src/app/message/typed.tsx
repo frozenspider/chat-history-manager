@@ -7,7 +7,7 @@ import { GetUserPrettyName, NameColorClassFromPrettyName, RepliesMaxDepth } from
 import { ChatState, ServicesContext } from "@/app/utils/state";
 
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
-import MessageContent from "@/app/message/content/content";
+import MessageContent, { MessageContentPhoto } from "@/app/message/content";
 
 import {
   Message,
@@ -21,7 +21,6 @@ import ColoredName from "@/app/message/colored_name";
 import SystemMessage from "@/app/message/system_message";
 import ColoredBlockquote from "@/app/message/colored_blockquote";
 import ColoredMembersList from "@/app/message/members_list";
-import MessageContentPhoto from "@/app/message/content/content_photo";
 
 export default function MessageTyped(args: {
   msg: Message,
