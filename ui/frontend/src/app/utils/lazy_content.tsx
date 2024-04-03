@@ -2,6 +2,7 @@
 
 import React from "react";
 import { InvokeTauri, IsTauriAvailable } from "@/app/utils/utils";
+import SystemMessage from "@/app/message/system_message";
 
 export enum LazyDataState {
   NotStarted,
@@ -42,7 +43,7 @@ export default function LazyContent(
   }, [content.state, elementName, relativePath, dsRoot, mimeType, proceedWithNullPath])
 
   if (!relativePath && !proceedWithNullPath) {
-    return <>[{elementName} not downloaded]</>
+    return <SystemMessage>{elementName} not downloaded</SystemMessage>
   }
 
   return render(content)

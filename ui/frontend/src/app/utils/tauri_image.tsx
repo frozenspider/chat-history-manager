@@ -69,15 +69,18 @@ export default function TauriImage(args: {
       } else {
         // Workaround as per official docs, see
         // https://nextjs.org/docs/pages/api-reference/components/image#responsive-image-with-fill
+        // TODO: Doesn't look good! Image is too large
         return (
           <div style={{ position: "relative", width: MaxWidth + "px", height: MaxHeight + "px" }}>
             <Image src={srcToUse}
                    alt={args.altText ?? args.relativePath!}
                    className={args.addedClasses}
+                   sizes={`${MaxWidth}px`}
                    style={{
-                     objectFit: "contain"
+                     objectFit: "contain",
+                     objectPosition: "left",
                    }}
-                   fill/>)
+                   fill/>
           </div>
         )
       }

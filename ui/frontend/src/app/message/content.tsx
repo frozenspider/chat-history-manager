@@ -260,18 +260,22 @@ export function MessageContentFile(args: {
   let content = args.content
   let thumbnailPath = GetNonDefaultOrNull(content.thumbnailPathOption);
 
+  let header = <blockquote><i>File:</i> <b>{content.fileNameOption || Unnamed}</b></blockquote>
   if (thumbnailPath) {
     return (
-      <TauriImage elementName={"File thumbnail"}
-                  relativePath={thumbnailPath}
-                  dsRoot={args.dsRoot}
-                  width={0 /* unknown */}
-                  height={0 /* unknown */}
-                  mimeType={null /* unknown */}/>
+      <>
+        {header}
+        <TauriImage elementName={"File thumbnail"}
+                    relativePath={thumbnailPath}
+                    dsRoot={args.dsRoot}
+                    width={0 /* unknown */}
+                    height={0 /* unknown */}
+                    mimeType={null /* unknown */}/>
+      </>
     )
   } else {
     return (
-      <blockquote><i>File:</i> <b>{content.fileNameOption || Unnamed}</b></blockquote>
+      header
     )
   }
 }
@@ -284,8 +288,8 @@ export function MessageContentLocation(args: {
 
   return (
     <blockquote>
-      {GetNonDefaultOrNull(content.titleOption) && <p><b>content.titleOption</b></p>}
-      {GetNonDefaultOrNull(content.addressOption) && <p>content.addressOption</p>}
+      {GetNonDefaultOrNull(content.titleOption) && <p><b>{content.titleOption}</b></p>}
+      {GetNonDefaultOrNull(content.addressOption) && <p>{content.addressOption}</p>}
       <p><i>Location:</i> <b>{content.latStr}, {content.lonStr}</b></p>
       {GetNonDefaultOrNull(content.durationSecOption) && <p>(live for {content.durationSecOption} s)</p>}
     </blockquote>
