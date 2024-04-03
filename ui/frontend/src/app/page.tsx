@@ -23,6 +23,7 @@ import { User } from "@/protobuf/core/protobuf/entities";
 
 import { createChannel, createClient } from 'nice-grpc-web';
 import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
+import NavigationBar from "@/app/navigation_bar";
 
 let firstLoadComplete = false;
 
@@ -126,7 +127,7 @@ export default function Home() {
         firstFile = false
       }
     }
-    console.log("Done!")
+    console.log("Done fetching initial data")
   }
 
   React.useEffect(() => {
@@ -158,7 +159,7 @@ export default function Home() {
       <div className="mx-auto p-6 md:p-10 flex flex-col h-screen">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={33} minSize={10}>
-            <div className="border-r h-full relative">
+            <div className="border-r h-full relative flex flex-col">
               <ScrollArea className="w-full rounded-md border overflow-y-scroll">
                 {tabs}
                 <ScrollBar orientation="horizontal"/>
@@ -172,10 +173,13 @@ export default function Home() {
           </ResizablePanel>
           <ResizableHandle className="w-1 bg-stone-400"/>
           <ResizablePanel defaultSize={67}>
-            <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
-              <MessagesList chatState={currentChatState}
-                            setChatState={setCurrentChatState}/>
-            </ScrollArea>
+            <div className="h-full flex flex-col">
+              {/*<NavigationBar chatState={currentChatState}/>*/}
+              <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
+                <MessagesList chatState={currentChatState}
+                              setChatState={setCurrentChatState}/>
+              </ScrollArea>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
