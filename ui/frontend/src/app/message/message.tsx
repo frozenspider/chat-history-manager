@@ -21,6 +21,7 @@ export function MessageComponent(args: {
   let author = GetNonDefaultOrNull(args.chatState.dsState.users.get(args.msg.fromId))
   let colorClass = NameColorClassFromMembers(args.msg.fromId, chat.memberIds)
 
+  // TODO: Limit height/#lines for replyDepth > 0
   return (
     <div className="flex flex-col">
       <MessageTitle msg={args.msg}

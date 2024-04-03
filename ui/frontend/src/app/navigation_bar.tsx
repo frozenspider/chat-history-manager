@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { ChatState, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SelectSingleEventHandler } from "react-day-picker";
 
 export default function NavigationBar(args: {
   chatState: ChatState | null,
@@ -86,6 +87,10 @@ export default function NavigationBar(args: {
     button: '',
     button_reset: '',
   }
+  let onDateSelected: SelectSingleEventHandler = (d1, d2, mods, e) => {
+    console.log("Selected date:", d1, d2)
+    // args.navigationCallbacks?.toDate(d1)
+  }
   return <>
     <header className="sticky top-0 bg-white dark:bg-gray-900 z-10">
       <TooltipProvider delayDuration={0}>
@@ -127,21 +132,19 @@ export default function NavigationBar(args: {
                 <TooltipTrigger asChild>
                   <PopoverTrigger asChild>
                     <Button size="icon" variant="ghost"
-                            onClick={() =>
-                              // NOOP for now
-                              // args.navigationCallbacks?.toDate(...)
-                              0
-                            }
-                            disabled={!navEnabled}>
+                            disabled={true /* NYI */}>
                       <CalendarIcon className="h-4 w-4"/>
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
                 <PopoverContent className="w-auto p-0">
-                  <Calendar classNames={calendarClassNames}
-                            initialFocus
+                  <Calendar mode="single"
+                            classNames={calendarClassNames}
                             fromDate={dateLimits[0]}
                             toDate={dateLimits[1]}
+                            initialFocus
+                            required
+                            onSelect={onDateSelected}
                             captionLayout="dropdown-buttons"/>
                 </PopoverContent>
               </Popover>
@@ -149,34 +152,6 @@ export default function NavigationBar(args: {
                 <span>To the specific date</span>
               </TooltipContent>
             </Tooltip>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <Button className="rounded-full" variant="outline">
-              <ArrowLeftToLineIcon className="h-4 w-4"/>
-              Previous
-            </Button>
-            <Button className="rounded-full" variant="outline">
-              Next
-              <ArrowRightToLineIcon className="h-4 w-4"/>
-            </Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button className="rounded-full" variant="outline">
-                  <CalendarDaysIcon className="h-4 w-4 -translate-x-1 mr-1"/>
-                  Pick a date
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-auto p-0">
-                <Calendar classNames={calendarClassNames}
-                          initialFocus
-                          mode="single"
-                          fromDate={dateLimits[0]}
-                          toDate={dateLimits[1]}
-                          numberOfMonths={2}
-                          captionLayout="dropdown-buttons"/>
-              </PopoverContent>
-            </Popover>
           </div>
         </div>
       </TooltipProvider>
