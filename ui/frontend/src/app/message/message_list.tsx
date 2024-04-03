@@ -34,7 +34,6 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
   let services = React.useContext(ServicesContext)!
 
   let wrapperElRef = React.useRef<HTMLDivElement | null>(null)
-  let prevChatState = React.useRef<ChatState | null>(null)
   let isFetching = React.useRef(false)
   let infiniteScrollActive = React.useRef(false)
 
@@ -42,18 +41,22 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
   let getScrollOwner = React.useCallback(() =>
     GetNonDefaultOrNull(wrapperElRef.current?.parentElement?.parentElement), [wrapperElRef])
 
-  // Save an old scroll position on each render.
-  // (This itself should not trigger a React state change event)
-  if (prevChatState.current?.viewState && getScrollOwner()) {
-    let scrollOwner = getScrollOwner()!
-    if (prevChatState.current?.cwd !== chatState?.cwd) {
-      console.log(GetLogPrefix(prevChatState.current?.cwd?.chat)
-        + "Saving scroll " + [scrollOwner.scrollTop, scrollOwner.scrollHeight])
+  // Save scroll position every time users scrolls
+  React.useEffect(() => {
+    let scrollOwner = getScrollOwner()
+    if (!scrollOwner || !chatState) return
+    let viewState = chatState.viewState
+    if (!viewState) return
+
+    let onScroll = () => {
       // Note: directly mutating part of what might (still) be a state object!
-      prevChatState.current.viewState.scrollTop = scrollOwner.scrollTop
-      prevChatState.current.viewState.scrollHeight = scrollOwner.scrollHeight
+      viewState.scrollTop = scrollOwner.scrollTop
+      viewState.scrollHeight = scrollOwner.scrollHeight
     }
-  }
+
+    scrollOwner.addEventListener('scroll', onScroll)
+    return () => scrollOwner?.removeEventListener('scroll', onScroll)
+  }, [chatState, getScrollOwner])
 
   // Restore scroll position associated with the view state, happens when view state changes.
   // TODO: This doesn't always work because some elements (e.g. lazy messages) shift the scroll position.
@@ -112,8 +115,6 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
     }
 
   }, [chatState, setChatState, setNavigationCallbacks, services, getScrollOwner])
-
-  prevChatState.current = GetNonDefaultOrNull(chatState)
 
   if (!chatState)
     return <></>
