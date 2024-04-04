@@ -4,7 +4,7 @@ import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
 import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { ChatState, LoadedFileState } from "@/app/utils/state";
+import { ChatState, DatasetState, GetCachedChatState, LoadedFileState } from "@/app/utils/state";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -18,6 +18,9 @@ export default function ChatList(args: {
   fileState: LoadedFileState | null,
   setChatState: (s: ChatState) => void,
 }): React.JSX.Element {
+  let [selectedChat, setSelectedChat] =
+    React.useState<CombinedChat | null>(null)
+
   if (!args.fileState)
     return <DatsetHeader text="No open files"/>
 
@@ -40,7 +43,12 @@ export default function ChatList(args: {
               <ChatComponent key={dsState.fileKey + "_" + mainCwd.chat!.id.toString()}
                              cc={cc}
                              dsState={dsState}
-                             setChatState={args.setChatState}/>
+                             setChatState={args.setChatState}
+                             isSelected={cc.dsUuid == selectedChat?.dsUuid && cc.mainChatId == selectedChat?.mainChatId}
+                             onClick={(cc, dsState) => {
+                               setSelectedChat(cc)
+                               LoadChat(cc, dsState, args.setChatState)
+                             }}/>
             )
           })
 
@@ -78,4 +86,19 @@ function DatsetHeader(args: {
       <h1 className="text-lg font-bold tracking-tighter line-clamp-1">{args.text}</h1>
     </div>
   </header>
+}
+
+function LoadChat(
+  cc: CombinedChat,
+  dsState: DatasetState,
+  setChatState: (state: ChatState) => void,
+) {
+  let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
+    () => ({
+      cc: cc,
+      dsState: dsState,
+      viewState: null,
+      resolvedMessages: new Map()
+    }))
+  setChatState(cvState)
 }

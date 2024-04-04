@@ -15,6 +15,11 @@ export const PlaceholderImageSvg: StaticImport = StaticPlaceholderImage
 export const MessagesBatchSize: bigint = BigInt(100)
 export const RepliesMaxDepth: bigint = BigInt(2)
 
+export type FileKey = string
+export type UuidString = string
+export type ChatId = bigint
+export type MsgSourceId = bigint
+
 export type ReactChild = React.JSX.Element | string | null
 export type ReactChildren = ReactChild | ReactChild[]
 
@@ -124,7 +129,7 @@ export class CombinedChat {
   }
 
   get members(): User[] {
-    return Deduplicate(this.cwds.flatMap(cwd => cwd.members))
+    return Deduplicate(this.cwds.flatMap(cwd => cwd.members), u => u.id)
   }
 
   get memberIds(): bigint[] {
@@ -134,9 +139,9 @@ export class CombinedChat {
   get lastMsgOption(): [Message, ChatWithDetailsPB] | [null, null] {
     let resArray = this.cwds
       .map(cwd => [GetNonDefaultOrNull(cwd.lastMsgOption), cwd] as [Message, ChatWithDetailsPB])
-      .filter(([m, cwd]) => m !== null)
-      .sort(([msg1, cwd1], [msg2, cwd2]) =>
-        Number(msg1!.timestamp - msg2!.timestamp)
+      .filter(([m, _]) => m !== null)
+      .sort(([msg1, _cwd1], [msg2, _cwd2]) =>
+        Number(msg2!.timestamp - msg1!.timestamp)
       )
     return resArray.length > 0 ? resArray[0] : [null, null]
   }

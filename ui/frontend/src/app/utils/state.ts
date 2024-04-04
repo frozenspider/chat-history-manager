@@ -9,16 +9,7 @@ import {
   HistoryLoaderServiceClient
 } from "@/protobuf/backend/protobuf/services";
 import { GetOrInsertDefault } from "@/app/utils/utils";
-import { CombinedChat } from "@/app/utils/entity_utils";
-
-//
-// Misc
-//
-
-export type FileKey = string
-export type UuidString = string
-export type ChatId = bigint
-export type MsgSourceId = bigint
+import { ChatId, CombinedChat, FileKey, MsgSourceId, UuidString } from "@/app/utils/entity_utils";
 
 //
 // gRPC service clients context

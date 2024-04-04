@@ -2,7 +2,7 @@ import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
 import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
-import { ChatState, DatasetState, GetCachedChatState, } from "@/app/utils/state";
+import { ChatState, DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
@@ -19,13 +19,15 @@ import {
 export default function ChatComponent(args: {
   cc: CombinedChat,
   dsState: DatasetState,
-  setChatState: (s: ChatState) => void
+  setChatState: (s: ChatState) => void,
+  isSelected: boolean,
+  onClick: (cc: CombinedChat, dsState: DatasetState) => void
 }): React.JSX.Element {
   let mainChat = args.cc.mainCwd.chat
   AssertDefined(mainChat)
   let colorClass = NameColorClassFromNumber(mainChat.id).text
 
-  let membersCount = args.cc.memberIds.length > 2 ? (
+  let membersCount = args.cc.mainCwd.chat?.tpe == ChatType.PRIVATE_GROUP ? (
     <div className="pr-2 text-xs">
       <span>({args.cc.memberIds.length})</span>
     </div>
@@ -35,11 +37,11 @@ export default function ChatComponent(args: {
 
   // TODO: Implement dropdown
   return (
-    <li className="p-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
+    <li className={"p-1.5 cursor-pointer group hover:bg-gray-100 " + (args.isSelected ? "bg-slate-100" : "")}>
       <ContextMenu>
         <ContextMenuTrigger>
           <div className="flex items-center space-x-3"
-               onClick={() => LoadChat(args.cc, args.dsState, args.setChatState)}>
+               onClick={() => args.onClick(args.cc, args.dsState)}>
 
             <Avatar chat={mainChat} dsState={args.dsState}/>
 
@@ -77,21 +79,6 @@ export default function ChatComponent(args: {
       </ContextMenu>
     </li>
   )
-}
-
-function LoadChat(
-  cc: CombinedChat,
-  dsState: DatasetState,
-  setChatState: (state: ChatState) => void,
-) {
-  let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
-    () => ({
-      cc: cc,
-      dsState: dsState,
-      viewState: null,
-      resolvedMessages: new Map()
-    }))
-  setChatState(cvState)
 }
 
 function Avatar(args: {

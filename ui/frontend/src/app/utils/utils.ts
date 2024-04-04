@@ -129,11 +129,12 @@ export function RandomInt(from: number, to: number): number {
   return Math.floor(Math.random() * (to - from + 1) + from)
 }
 
-export function Deduplicate<T>(arr: T[]): T[] {
-  let set = new Set<T>()
+export function Deduplicate<T, By = T>(arr: T[], by?: (t: T) => By): T[] {
+  let set = new Set<T | By>()
   return arr.filter((v) => {
-    if (set.has(v)) return false
-    set.add(v)
+    let key = by ? by(v) : v
+    if (set.has(key)) return false
+    set.add(key)
     return true
   })
 }
