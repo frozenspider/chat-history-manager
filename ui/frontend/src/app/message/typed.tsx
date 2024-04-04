@@ -133,14 +133,14 @@ function ServicePhoneCall(args: {
   let durationNode = <></>
   if (duration) {
     if (duration < 60) {
-      durationNode = <>({duration} sec)</>
+      durationNode = <> ({duration} sec)</>
     } else {
-      durationNode = <>({SecondsToHhMmSsString(duration)})</>
+      durationNode = <> ({SecondsToHhMmSsString(duration)})</>
     }
   }
 
   return <>
-    <SystemMessage>Call {durationNode}{discardReason && discardReason != "hangup" ? `(${discardReason})` : null}</SystemMessage>
+    <SystemMessage>Call{durationNode}{discardReason && discardReason != "hangup" ? ` (${discardReason})` : null}</SystemMessage>
     <ColoredMembersList memberNames={args.call.members} members={args.members}/>
   </>
 }

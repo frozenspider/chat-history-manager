@@ -208,6 +208,7 @@ function TryFetchMoreMessages(
 ) {
   let viewState = chatState.viewState
 
+  // FIXME: Merged chat support
   Assert(!isFetching.current, "Fetching is already in progress")
   isFetching.current = true
   console.log(GetLogPrefix(chatState?.cwd.chat) + "Fetching more messages: " + FetchType[fetchType])

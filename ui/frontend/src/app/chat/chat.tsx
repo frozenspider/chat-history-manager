@@ -2,25 +2,25 @@ import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
 import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import { ChatState, DatasetState, GetCachedChatState, } from "@/app/utils/state";
+import TauriImage from "@/app/utils/tauri_image";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { ChatState, DatasetState, GetCachedChatState, } from "@/app/utils/state";
+
 import ColoredName from "@/app/message/colored_name";
-import TauriImage from "@/app/utils/tauri_image";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem, ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 export default function ChatComponent(args: {
   cwd: ChatWithDetailsPB,
   dsState: DatasetState,
   setChatState: (s: ChatState) => void
 }): React.JSX.Element {
-  // FIXME: On hover, the dropdown menu should be displayed
-  // <div
-  //   className="absolute right-0 top-0 hidden group-hover:block bg-white shadow-lg rounded-md mt-2 mr-2 z-10">
-  //   <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-  //     <li className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">View Contact Details</li>
-  //   </ul>
-  // </div>
   AssertDefined(args.cwd.chat);
   let chat = args.cwd.chat
   let colorClass = NameColorClassFromNumber(chat.id).text
@@ -31,23 +31,48 @@ export default function ChatComponent(args: {
     </div>
   ) : <></>
 
+  // TODO: Implement dropdown
   return (
     <li className="p-1.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 group">
-      <div className="flex items-center space-x-3"
-           onClick={() => LoadChat(args.cwd, args.dsState, args.setChatState)}>
+      <ContextMenu>
+        <ContextMenuTrigger>
+          <div className="flex items-center space-x-3"
+               onClick={() => LoadChat(args.cwd, args.dsState, args.setChatState)}>
 
-        <Avatar chat={chat} dsState={args.dsState}/>
+            <Avatar chat={chat} dsState={args.dsState}/>
 
-        <div className="w-full">
-          <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass} addedClasses="line-clamp-1 break-all"/>
-          <SimpleMessage chat={chat}
-                         msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
-                         users={args.dsState.users}
-                         myselfId={args.dsState.myselfId}/>
-        </div>
+            <div className="w-full">
+              <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass}
+                           addedClasses="line-clamp-1 break-all"/>
+              <SimpleMessage chat={chat}
+                             msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
+                             users={args.dsState.users}
+                             myselfId={args.dsState.myselfId}/>
+            </div>
 
-        {membersCount}
-      </div>
+            {membersCount}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => console.log("Clicked")}>
+            Details [NYI]
+          </ContextMenuItem>
+          <ContextMenuSeparator/>
+          <ContextMenuItem>
+            Combine Into [NYI]
+          </ContextMenuItem>
+          <ContextMenuItem>
+            Combine With [NYI]
+          </ContextMenuItem>
+          <ContextMenuItem>
+            Export As HTML [NYI]
+          </ContextMenuItem>
+          <ContextMenuSeparator/>
+          <ContextMenuItem className="text-red-600">
+            Delete [NYI]
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </li>
   )
 }
