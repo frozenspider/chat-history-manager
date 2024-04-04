@@ -2,7 +2,7 @@
 
 import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { GetUserPrettyName } from "@/app/utils/entity_utils";
+import { CombinedChat, GetUserPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, LoadedFileState } from "@/app/utils/state";
 
 export const TestDataset: Dataset = {
@@ -10,7 +10,7 @@ export const TestDataset: Dataset = {
   alias: "Test Dataset",
 };
 
-export function TestUsers(): User[] {
+const TestUsers: User[] = (() => {
   return [
     {
       dsUuid: TestDataset.uuid,
@@ -61,18 +61,17 @@ export function TestUsers(): User[] {
       phoneNumberOption: "+1 (23) 456-78-90"
     }
   ];
-}
+})()
 
-export function TestUsersMap(): Map<bigint, User> {
+export const TestUsersMap: Map<bigint, User> = (() => {
   let users = new Map<bigint, User>();
-  TestUsers().forEach((user) => {
+  TestUsers.forEach((user) => {
     users.set(user.id, user);
   });
   return users;
-}
+})()
 
-export function TestCwds(): ChatWithDetailsPB[] {
-  let testUsers = TestUsers();
+const TestCwds: ChatWithDetailsPB[] = (() => {
   let chats: Chat[] = [
     {
       dsUuid: TestDataset.uuid,
@@ -80,7 +79,7 @@ export function TestCwds(): ChatWithDetailsPB[] {
       nameOption: "Everyone",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PRIVATE_GROUP,
-      memberIds: testUsers.map((u) => u.id),
+      memberIds: TestUsers.map((u) => u.id),
       msgCount: 10,
       mainChatId: undefined
     },
@@ -90,7 +89,7 @@ export function TestCwds(): ChatWithDetailsPB[] {
       nameOption: "John Doe chat one",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
-      memberIds: [testUsers[0].id, testUsers[1].id],
+      memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 321,
       mainChatId: undefined
     },
@@ -100,7 +99,7 @@ export function TestCwds(): ChatWithDetailsPB[] {
       nameOption: "John Doe chat two",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
-      memberIds: [testUsers[0].id, testUsers[1].id],
+      memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 321,
       mainChatId: BigInt(2),
     },
@@ -112,7 +111,7 @@ export function TestCwds(): ChatWithDetailsPB[] {
       nameOption: "Chat " + i,
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
-      memberIds: [testUsers[0].id, testUsers[1].id],
+      memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 100 + i,
       mainChatId: undefined
     });
@@ -125,12 +124,11 @@ export function TestCwds(): ChatWithDetailsPB[] {
       searchableString: "Hey there! How can I help you?",
       regular: {}
     }),
-    members: testUsers.filter((u) => chat.memberIds.includes(u.id))
+    members: TestUsers.filter((u) => chat.memberIds.includes(u.id))
   }))
-}
+})()
 
-export function TestMessages(): Message[] {
-  let users = TestUsers()
+export const TestMessages: Message[] = (() => {
   return [
     Message.fromJSON({
       internalId: 1,
@@ -561,9 +559,9 @@ export function TestMessages(): Message[] {
       regular: {
         contentOption: {
           sharedContact: {
-            firstNameOption: users[1].firstNameOption,
-            lastNameOption: users[1].lastNameOption,
-            phoneNumberOption: users[1].phoneNumberOption,
+            firstNameOption: TestUsers[1].firstNameOption,
+            lastNameOption: TestUsers[1].lastNameOption,
+            phoneNumberOption: TestUsers[1].phoneNumberOption,
           },
         },
       }
@@ -586,7 +584,7 @@ export function TestMessages(): Message[] {
         phoneCall: {
           durationSecOption: 12345,
           discardReasonOption: "hangup",
-          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2]), GetUserPrettyName(users[3])]
+          members: [GetUserPrettyName(TestUsers[1]), GetUserPrettyName(TestUsers[2]), GetUserPrettyName(TestUsers[3])]
         }
       }
     }),
@@ -719,7 +717,7 @@ export function TestMessages(): Message[] {
       service: {
         groupCreate: {
           title: "Group name",
-          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+          members: [GetUserPrettyName(TestUsers[1]), GetUserPrettyName(TestUsers[2])]
         }
       }
     }),
@@ -784,7 +782,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupInviteMembers: {
-          members: [GetUserPrettyName(users[4])]
+          members: [GetUserPrettyName(TestUsers[4])]
         }
       }
     }),
@@ -797,7 +795,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupInviteMembers: {
-          members: [GetUserPrettyName(users[1])]
+          members: [GetUserPrettyName(TestUsers[1])]
         }
       }
     }),
@@ -810,7 +808,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupInviteMembers: {
-          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+          members: [GetUserPrettyName(TestUsers[1]), GetUserPrettyName(TestUsers[2])]
         }
       }
     }),
@@ -826,7 +824,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupRemoveMembers: {
-          members: [GetUserPrettyName(users[4])]
+          members: [GetUserPrettyName(TestUsers[4])]
         }
       }
     }),
@@ -839,7 +837,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupRemoveMembers: {
-          members: [GetUserPrettyName(users[1])]
+          members: [GetUserPrettyName(TestUsers[1])]
         }
       }
     }),
@@ -852,7 +850,7 @@ export function TestMessages(): Message[] {
       searchableString: "",
       service: {
         groupRemoveMembers: {
-          members: [GetUserPrettyName(users[1]), GetUserPrettyName(users[2])]
+          members: [GetUserPrettyName(TestUsers[1]), GetUserPrettyName(TestUsers[2])]
         }
       }
     }),
@@ -884,9 +882,8 @@ export function TestMessages(): Message[] {
         groupMigrateTo: {}
       }
     }),
-
   ]
-}
+})()
 
 export const TestLoadedFiles: LoadedFileState[] = [{
   key: "<no-file>",
@@ -896,18 +893,18 @@ export const TestLoadedFiles: LoadedFileState[] = [{
       fileKey: "<no-file>",
       ds: TestDataset,
       dsRoot: ".",
-      users: TestUsersMap(),
+      users: TestUsersMap,
       myselfId: BigInt(1),
-      cwds: TestCwds()
+      cwds: TestCwds
     },
   ],
 }]
 
 export const TestChatState: ChatState = {
-  cwd: TestLoadedFiles[0].datasets[0].cwds[0],
+  cc: new CombinedChat(TestCwds[0], []),
   dsState: TestLoadedFiles[0].datasets[0],
   viewState: {
-    messages: TestMessages(),
+    chatMessages: TestMessages.map(m => [TestCwds[0].chat!.id, m]),
     beginReached: true,
     endReached: true,
     scrollHeight: 0,

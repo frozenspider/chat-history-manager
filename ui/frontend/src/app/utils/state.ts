@@ -8,7 +8,8 @@ import {
   HistoryDaoServiceClient,
   HistoryLoaderServiceClient
 } from "@/protobuf/backend/protobuf/services";
-import { AssertDefined } from "@/app/utils/utils";
+import { GetOrInsertDefault } from "@/app/utils/utils";
+import { CombinedChat } from "@/app/utils/entity_utils";
 
 //
 // Misc
@@ -16,6 +17,8 @@ import { AssertDefined } from "@/app/utils/utils";
 
 export type FileKey = string
 export type UuidString = string
+export type ChatId = bigint
+export type MsgSourceId = bigint
 
 //
 // gRPC service clients context
@@ -34,51 +37,37 @@ export interface ServicesContextType {
 //
 
 const ChatStateCache =
-  new Map<FileKey, Map<UuidString, Map<bigint, ChatState>>>()
+  new Map<FileKey, Map<UuidString, Map<ChatId, ChatState>>>()
 
 /** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
 export function GetCachedChatState(
   key: FileKey,
   uuid: UuidString,
-  chatId: bigint,
+  mainChatId: ChatId,
   getDefaultValue: () => ChatState
 ): ChatState {
-  if (!ChatStateCache.has(key)) {
-    ChatStateCache.set(key, new Map())
-  }
-  let fileMap = ChatStateCache.get(key)!
-  if (!fileMap.has(uuid)) {
-    fileMap.set(uuid, new Map())
-  }
-  let uuidMap = fileMap.get(uuid)!
-  if (!uuidMap.has(chatId)) {
-    uuidMap.set(chatId, getDefaultValue())
-  }
-  return uuidMap.get(chatId)!
+  let fileMap =
+    GetOrInsertDefault(ChatStateCache, key, () => new Map<UuidString, Map<ChatId, ChatState>>())
+  let uuidMap =
+    GetOrInsertDefault(fileMap, uuid, () => new Map<ChatId, ChatState>())
+  return GetOrInsertDefault(uuidMap, mainChatId, getDefaultValue)
 }
 
 export function SetCachedChatState(
   value: ChatState
 ): void {
-  AssertDefined(value.dsState.ds.uuid)
-  AssertDefined(value.cwd.chat)
-  if (!ChatStateCache.has(value.dsState.fileKey)) {
-    ChatStateCache.set(value.dsState.fileKey, new Map())
-  }
-  let fileMap = ChatStateCache.get(value.dsState.fileKey)!
-  if (!fileMap.has(value.dsState.ds.uuid.value)) {
-    fileMap.set(value.dsState.ds.uuid.value, new Map())
-  }
-  fileMap
-    .get(value.dsState.ds.uuid.value)!
-    .set(value.cwd.chat.id, value)
+  let fileMap =
+    GetOrInsertDefault(ChatStateCache, value.dsState.fileKey, () => new Map<UuidString, Map<ChatId, ChatState>>())
+  let uuidMap =
+    GetOrInsertDefault(fileMap, value.cc.dsUuid, () => new Map<ChatId, ChatState>())
+  uuidMap.set(value.cc.mainChatId, value)
 }
 
 /** If values are omitted, clear all */
 export function ClearCachedChatState(
   key: FileKey,
   uuid?: UuidString,
-  chatId?: bigint,
+  mainChatId?: ChatId,
 ): void {
   if (!ChatStateCache.has(key)) {
     return
@@ -92,11 +81,11 @@ export function ClearCachedChatState(
     return
   }
   let uuidMap = fileMap.get(uuid)!
-  if (chatId === undefined) {
+  if (mainChatId === undefined) {
     uuidMap.clear()
     return
   }
-  uuidMap.delete(chatId)
+  uuidMap.delete(mainChatId)
   if (uuidMap.size === 0) {
     fileMap.delete(uuid)
   }
@@ -126,8 +115,8 @@ export interface DatasetState {
 }
 
 export interface ChatViewState {
-  /** Messages loaded from server, with their order preserved (should be older to newer) */
-  messages: Message[],
+  /** Messages loaded from server */
+  chatMessages: [ChatId, Message][],
   beginReached: boolean,
   endReached: boolean,
 
@@ -140,7 +129,7 @@ export interface ChatViewState {
 
 /** State of a chat view, including necessary context, loaded messages and scroll state. */
 export interface ChatState {
-  cwd: ChatWithDetailsPB,
+  cc: CombinedChat,
   dsState: DatasetState,
   viewState: ChatViewState | null,
 
@@ -148,12 +137,14 @@ export interface ChatState {
    * Individual messages fetched to render replies, pinned messages, etc.
    * Used for eager render when restoring chat view.
    */
-  resolvedMessages: Map<bigint, Message>
+  resolvedMessages: Map<ChatId, Map<MsgSourceId, Message>>
 }
 
 /** Navigation callbacks, used to navigate to different time points in chat history */
 export interface NavigationCallbacks {
   toBeginning(): void,
+
   toEnd(): void,
+
   // toDate(date: Date): void,
 }

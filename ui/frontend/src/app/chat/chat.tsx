@@ -1,35 +1,37 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
-import { GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 import { ChatState, DatasetState, GetCachedChatState, } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
 import ColoredName from "@/app/message/colored_name";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem, ContextMenuSeparator,
+  ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
 export default function ChatComponent(args: {
-  cwd: ChatWithDetailsPB,
+  cc: CombinedChat,
   dsState: DatasetState,
   setChatState: (s: ChatState) => void
 }): React.JSX.Element {
-  AssertDefined(args.cwd.chat);
-  let chat = args.cwd.chat
-  let colorClass = NameColorClassFromNumber(chat.id).text
+  let mainChat = args.cc.mainCwd.chat
+  AssertDefined(mainChat)
+  let colorClass = NameColorClassFromNumber(mainChat.id).text
 
-  let membersCount = chat.memberIds.length > 2 ? (
+  let membersCount = args.cc.memberIds.length > 2 ? (
     <div className="pr-2 text-xs">
-      <span>({chat.memberIds.length})</span>
+      <span>({args.cc.memberIds.length})</span>
     </div>
   ) : <></>
+
+  let [lastMsg, lastMsgCwd] = args.cc.lastMsgOption
 
   // TODO: Implement dropdown
   return (
@@ -37,15 +39,15 @@ export default function ChatComponent(args: {
       <ContextMenu>
         <ContextMenuTrigger>
           <div className="flex items-center space-x-3"
-               onClick={() => LoadChat(args.cwd, args.dsState, args.setChatState)}>
+               onClick={() => LoadChat(args.cc, args.dsState, args.setChatState)}>
 
-            <Avatar chat={chat} dsState={args.dsState}/>
+            <Avatar chat={mainChat} dsState={args.dsState}/>
 
             <div className="w-full">
-              <ColoredName name={GetChatPrettyName(chat)} colorClass={colorClass}
+              <ColoredName name={GetChatPrettyName(mainChat)} colorClass={colorClass}
                            addedClasses="line-clamp-1 break-all"/>
-              <SimpleMessage chat={chat}
-                             msg={GetNonDefaultOrNull(args.cwd.lastMsgOption)}
+              <SimpleMessage chat={lastMsgCwd?.chat ?? mainChat}
+                             msg={lastMsg}
                              users={args.dsState.users}
                              myselfId={args.dsState.myselfId}/>
             </div>
@@ -78,13 +80,13 @@ export default function ChatComponent(args: {
 }
 
 function LoadChat(
-  cwd: ChatWithDetailsPB,
+  cc: CombinedChat,
   dsState: DatasetState,
   setChatState: (state: ChatState) => void,
 ) {
-  let cvState = GetCachedChatState(dsState.fileKey, dsState.ds.uuid!.value, cwd.chat!.id,
+  let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
     () => ({
-      cwd: cwd,
+      cc: cc,
       dsState: dsState,
       viewState: null,
       resolvedMessages: new Map()

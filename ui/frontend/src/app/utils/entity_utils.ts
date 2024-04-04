@@ -6,7 +6,9 @@ import StaticPlaceholderImage from '../../../public/placeholder.svg'
 
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
-import { Chat, ContentSharedContact, User } from "@/protobuf/core/protobuf/entities";
+import { Chat, ContentSharedContact, Message, User } from "@/protobuf/core/protobuf/entities";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { AssertDefined, Deduplicate, GetNonDefaultOrNull } from "@/app/utils/utils";
 
 export const PlaceholderImageSvg: StaticImport = StaticPlaceholderImage
 
@@ -96,3 +98,47 @@ export function GetChatPrettyName(chat: Chat | null): string {
     return Unnamed
   }
 }
+
+export class CombinedChat {
+  readonly mainChatId: bigint
+  readonly cwds: ChatWithDetailsPB[]
+
+  constructor(
+    mainCwd: ChatWithDetailsPB,
+    slaveCwds: ChatWithDetailsPB[]
+  ) {
+    let sortedCwds = slaveCwds.sort((a, b) =>
+      a.chat!.id < b.chat!.id ? -1 : 1)
+    AssertDefined(mainCwd.chat, "CWD.chat")
+    AssertDefined(mainCwd.chat.dsUuid, "CWD.chat.dsUuid")
+    this.mainChatId = mainCwd.chat!.id
+    this.cwds = [mainCwd, ...sortedCwds]
+  }
+
+  get dsUuid(): string {
+    return this.mainCwd.chat!.dsUuid!.value
+  }
+
+  get mainCwd(): ChatWithDetailsPB {
+    return this.cwds.find(cwd => cwd.chat!.id === this.mainChatId)!
+  }
+
+  get members(): User[] {
+    return Deduplicate(this.cwds.flatMap(cwd => cwd.members))
+  }
+
+  get memberIds(): bigint[] {
+    return this.members.map(m => m.id)
+  }
+
+  get lastMsgOption(): [Message, ChatWithDetailsPB] | [null, null] {
+    let resArray = this.cwds
+      .map(cwd => [GetNonDefaultOrNull(cwd.lastMsgOption), cwd] as [Message, ChatWithDetailsPB])
+      .filter(([m, cwd]) => m !== null)
+      .sort(([msg1, cwd1], [msg2, cwd2]) =>
+        Number(msg1!.timestamp - msg2!.timestamp)
+      )
+    return resArray.length > 0 ? resArray[0] : [null, null]
+  }
+}
+

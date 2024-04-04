@@ -18,7 +18,7 @@ import {
 } from "@/app/utils/state";
 import { GetChatPrettyName, MessagesBatchSize } from "@/app/utils/entity_utils";
 import { InView } from "react-intersection-observer";
-import { Chat } from "@/protobuf/core/protobuf/entities";
+import { Chat, Message } from "@/protobuf/core/protobuf/entities";
 
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
@@ -63,15 +63,15 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
   React.useEffect(() => {
     let scrollOwner = getScrollOwner()
     if (scrollOwner && chatState?.viewState) {
-      console.log(GetLogPrefix(chatState?.cwd.chat)
+      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
         + "Applying scroll", chatState.viewState.scrollTop +
-        " (" + (chatState.viewState.lastScrollDirectionUp ? "up" : "down") + ")")
+        " (user scrolled " + (chatState.viewState.lastScrollDirectionUp ? "up" : "down") + ")")
       ApplyScroll(scrollOwner, chatState.viewState.scrollTop, chatState.viewState.scrollHeight,
         chatState.viewState.lastScrollDirectionUp)
       // Allow infinite scroll to trigger only after the initial scroll position is set
       infiniteScrollActive.current = true
     }
-  }, [wrapperElRef, chatState?.cwd.chat, chatState?.viewState, getScrollOwner])
+  }, [wrapperElRef, chatState?.cc.mainCwd.chat, chatState?.viewState, getScrollOwner])
 
   // Set navigation callbacks and fetch initial data on first render
   React.useEffect(() => {
@@ -109,7 +109,7 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
 
     if (chatState && !chatState.viewState) {
       // First invocation, load initial messages
-      console.log(GetLogPrefix(chatState.cwd.chat) +
+      console.log(GetLogPrefix(chatState.cc.mainCwd.chat) +
         "Cache miss, fetching messages from the server and updating")
       callbacks.toEnd()
     }
@@ -122,8 +122,7 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
   if (!chatState.viewState)
     return <p>Fetching...</p>
 
-  AssertDefined(chatState.cwd.chat)
-  AssertDefined(chatState.dsState.ds.uuid)
+  AssertDefined(chatState.cc.mainCwd.chat)
 
   function onSideMessagesView(inView: boolean, isTop: boolean) {
     if (!inView || !infiniteScrollActive || isFetching.current) return
@@ -143,17 +142,20 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
     )
   }
 
-  let totalMessages = chatState.viewState.messages.length
+  let totalMessages = chatState.viewState.chatMessages.length
   return (
     <div className="p-4 space-y-4"
          ref={wrapperElRef}>
       {
-        chatState.viewState.messages
-          .map(msg =>
-            [ // eslint-disable-next-line react/jsx-key
-              <MessageComponent msg={msg} chatState={chatState} replyDepth={0}/>,
+        chatState.viewState.chatMessages
+          .map(([chatId, msg]) => {
+            let chat = chatState.cc.cwds.find(cwd => cwd.chat!.id === chatId)?.chat
+            AssertDefined(chat, "Chat with ID " + chatId + " was not found in the combined chat")
+            return [ // eslint-disable-next-line react/jsx-key
+              <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={0}/>,
               msg.internalId
-            ] as const)
+            ] as const
+          })
           .map(([msgComp, internalId], idx) => {
             // Wrapping border messages inside InView that will trigger fetching more messages.
             let comp = msgComp
@@ -166,7 +168,7 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
             return [comp, internalId] as const
           })
           .map(([msgComp, internalId]) =>
-            <React.Fragment key={chatState.dsState.ds.uuid!.value + "_" + chatState.cwd.chat!.id + "_" + internalId}>
+            <React.Fragment key={chatState.cc.dsUuid + "_" + chatState.cc.mainCwd.chat!.id + "_" + internalId}>
               {msgComp}
             </React.Fragment>
           )
@@ -208,88 +210,101 @@ function TryFetchMoreMessages(
 ) {
   let viewState = chatState.viewState
 
+  function AmendWithChatId(chatId: bigint, msgs: Message[]): [bigint, Message][] {
+    return msgs.map(msg => [chatId, msg] as const)
+  }
+
   // FIXME: Merged chat support
   Assert(!isFetching.current, "Fetching is already in progress")
   isFetching.current = true
-  console.log(GetLogPrefix(chatState?.cwd.chat) + "Fetching more messages: " + FetchType[fetchType])
-  let newChatViewStatePromise: Promise<ChatViewState>
-  switch (fetchType) {
-    case FetchType.Beginning:
-      newChatViewStatePromise = services.daoClient.scrollMessages({
-        key: chatState.dsState.fileKey,
-        chat: chatState.cwd.chat!,
-        offset: BigInt(0),
-        limit: MessagesBatchSize
-      }).then(response => ({
-        messages: response.messages,
-        beginReached: true,
-        endReached: response.messages.length < MessagesBatchSize,
-        scrollTop: 0,
-        scrollHeight: Number.MAX_SAFE_INTEGER,
-        lastScrollDirectionUp: true
-      }))
-      break
-    case FetchType.End:
-      newChatViewStatePromise = services.daoClient.lastMessages({
-        key: chatState.dsState.fileKey,
-        chat: chatState.cwd.chat!,
-        limit: MessagesBatchSize
-      }).then(response => ({
-        messages: response.messages,
-        beginReached: response.messages.length < MessagesBatchSize,
-        endReached: true,
-        scrollTop: Number.MAX_SAFE_INTEGER,
-        scrollHeight: 0,
-        lastScrollDirectionUp: false
-      }))
-      break
-    case FetchType.Previous:
-      Assert(viewState != null, "Chat view state was null")
-      let firstMessage = viewState.messages[0]
-      AssertDefined(firstMessage.internalId, "firstMessage.internalId")
-      newChatViewStatePromise = services.daoClient.messagesBefore({
-        key: chatState.dsState.fileKey,
-        chat: chatState.cwd.chat!,
-        messageInternalId: firstMessage.internalId,
-        limit: MessagesBatchSize
-      }).then(response => ({
-        ...viewState,
-        messages: [...response.messages, ...viewState!.messages],
-        beginReached: response.messages.length < MessagesBatchSize,
-        scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-        scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-        lastScrollDirectionUp: true
-      }))
-      break
-    case FetchType.Next:
-      Assert(viewState != null, "Chat view state was null")
-      let lastMessage = viewState.messages[viewState.messages.length - 1]
-      AssertDefined(lastMessage.internalId, "lastMessage.internalId")
-      newChatViewStatePromise = services.daoClient.messagesAfter({
-        key: chatState.dsState.fileKey,
-        chat: chatState.cwd.chat!,
-        messageInternalId: lastMessage.internalId,
-        limit: MessagesBatchSize
-      }).then(response => ({
-        ...viewState,
-        messages: [...viewState!.messages, ...response.messages],
-        endReached: response.messages.length < MessagesBatchSize,
-        scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-        scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-        lastScrollDirectionUp: false
-      }))
-      break
-    default:
-      AssertUnreachable(fetchType)
-  }
+  console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + FetchType[fetchType])
+  let newChatViewStatePromise: Promise<ChatViewState> = (async () => {
+    switch (fetchType) {
+      case FetchType.Beginning: {
+        let chat = chatState.cc.mainCwd.chat!
+        let response = await services.daoClient.scrollMessages({
+          key: chatState.dsState.fileKey,
+          chat: chat,
+          offset: BigInt(0),
+          limit: MessagesBatchSize
+        })
+        return {
+          chatMessages: AmendWithChatId(chat.id, response.messages),
+          beginReached: true,
+          endReached: response.messages.length < MessagesBatchSize,
+          scrollTop: 0,
+          scrollHeight: Number.MAX_SAFE_INTEGER,
+          lastScrollDirectionUp: true
+        }
+      }
+      case FetchType.End: {
+        let chat = chatState.cc.mainCwd.chat!
+        let response = await services.daoClient.lastMessages({
+          key: chatState.dsState.fileKey,
+          chat: chatState.cc.mainCwd.chat!,
+          limit: MessagesBatchSize
+        })
+        return {
+          chatMessages: AmendWithChatId(chat.id, response.messages),
+          beginReached: response.messages.length < MessagesBatchSize,
+          endReached: true,
+          scrollTop: Number.MAX_SAFE_INTEGER,
+          scrollHeight: 0,
+          lastScrollDirectionUp: false
+        }
+      }
+      case FetchType.Previous: {
+        Assert(viewState != null, "Chat view state was null")
+        let chat = chatState.cc.mainCwd.chat!
+        let firstMessage = viewState.chatMessages[0][1]
+        AssertDefined(firstMessage.internalId, "firstMessage.internalId")
+        let response = await services.daoClient.messagesBefore({
+          key: chatState.dsState.fileKey,
+          chat: chatState.cc.mainCwd.chat!,
+          messageInternalId: firstMessage.internalId,
+          limit: MessagesBatchSize
+        })
+        return {
+          ...viewState,
+          chatMessages: [...AmendWithChatId(chat.id, response.messages), ...viewState!.chatMessages],
+          beginReached: response.messages.length < MessagesBatchSize,
+          scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
+          scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
+          lastScrollDirectionUp: true
+        }
+      }
+      case FetchType.Next: {
+        Assert(viewState != null, "Chat view state was null")
+        let chat = chatState.cc.mainCwd.chat!
+        let lastMessage = viewState.chatMessages[viewState.chatMessages.length - 1][1]
+        AssertDefined(lastMessage.internalId, "lastMessage.internalId")
+        let response = await services.daoClient.messagesAfter({
+          key: chatState.dsState.fileKey,
+          chat: chatState.cc.mainCwd.chat!,
+          messageInternalId: lastMessage.internalId,
+          limit: MessagesBatchSize
+        })
+        return {
+          ...viewState,
+          messages: [...viewState.chatMessages, ...AmendWithChatId(chat.id, response.messages)],
+          endReached: response.messages.length < MessagesBatchSize,
+          scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
+          scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
+          lastScrollDirectionUp: false
+        }
+      }
+      default:
+        AssertUnreachable(fetchType)
+    }
+  })()
 
   PromiseCatchReportError(newChatViewStatePromise
     .then((newViewState) => {
-      console.log(GetLogPrefix(chatState?.cwd.chat)
-        + "Fetched " + newViewState.messages.length + " messages. Updating chat view state.")
-      console.log(GetLogPrefix(chatState?.cwd.chat)
+      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
+        + "Fetched " + newViewState.chatMessages.length + " messages. Updating chat view state.")
+      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
         + "Scroll owner:", scrollOwner)
-      console.log(GetLogPrefix(chatState?.cwd.chat)
+      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
         + "View state:", newViewState)
       let newChatState: ChatState = {
         ...chatState,

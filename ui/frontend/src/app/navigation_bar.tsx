@@ -4,14 +4,7 @@ import React from "react";
 
 import 'react-day-picker/dist/style.css';
 
-import {
-  ArrowDownToLineIcon,
-  ArrowLeftToLineIcon,
-  ArrowRightToLineIcon,
-  ArrowUpToLineIcon,
-  CalendarDaysIcon,
-  CalendarIcon
-} from "lucide-react";
+import { ArrowDownToLineIcon, ArrowUpToLineIcon, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -36,24 +29,28 @@ export default function NavigationBar(args: {
     async function inner() {
       // To minimize dependencies
       let fileKey = args.chatState?.dsState?.fileKey
-      let chat = args.chatState?.cwd?.chat
-      if (!chat || !fileKey) {
+      let chats = args.chatState?.cc.cwds.map(cwd => cwd.chat!)
+      if (!chats || chats.length == 0 || !fileKey) {
         setNavEnabled(false)
         return
       }
 
-      let first = (await services.daoClient.scrollMessages({
-        key: fileKey,
-        chat: chat,
-        offset: BigInt(0),
-        limit: BigInt(1)
-      })).messages
+      let first = (await Promise.all(
+        chats.map(chat => services.daoClient.scrollMessages({
+          key: fileKey,
+          chat: chat,
+          offset: BigInt(0),
+          limit: BigInt(1)
+        }).then(r => r.messages))
+      )).flat().sort((a, b) => Number(a.timestamp - b.timestamp))
 
-      let last = (await services.daoClient.lastMessages({
-        key: fileKey,
-        chat: chat,
-        limit: BigInt(1)
-      })).messages
+      let last = (await Promise.all(
+        chats.map(chat => services.daoClient.lastMessages({
+          key: fileKey,
+          chat: chat,
+          limit: BigInt(1)
+        }).then(r => r.messages))
+      )).flat().sort((a, b) => Number(b.timestamp - a.timestamp))
 
       if (first.length > 0 && last.length > 0) {
         setNavEnabled(args.navigationCallbacks !== null)
@@ -68,12 +65,11 @@ export default function NavigationBar(args: {
 
     inner().catch((e) => {
       setNavEnabled(false)
-      console.error("Failed to fetch date limits", e)
+      console.warn("Failed to fetch date limits", e)
     })
   }, [
     args.chatState?.dsState.fileKey,
-    args.chatState?.dsState.ds.uuid?.value,
-    args.chatState?.cwd.chat,
+    args.chatState?.cc,
     args.navigationCallbacks,
     services.daoClient
   ])
@@ -87,7 +83,7 @@ export default function NavigationBar(args: {
     button: '',
     button_reset: '',
   }
-  let onDateSelected: SelectSingleEventHandler = (d1, d2, mods, e) => {
+  let onDateSelected: SelectSingleEventHandler = (d1, d2, _mods, _e) => {
     console.log("Selected date:", d1, d2)
     // args.navigationCallbacks?.toDate(d1)
   }

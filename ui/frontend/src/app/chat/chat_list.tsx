@@ -3,7 +3,7 @@
 import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
-import { GetNonDefaultOrNull } from "@/app/utils/utils";
+import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { ChatState, LoadedFileState } from "@/app/utils/state";
 import {
   ContextMenu,
@@ -12,6 +12,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
+import { CombinedChat } from "@/app/utils/entity_utils";
 
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
@@ -26,16 +27,22 @@ export default function ChatList(args: {
       args.fileState.datasets.map((dsState) => {
         let chatComponents = dsState.cwds
           .filter((cwd) => {
-            if (!cwd.chat) return false
+            AssertDefined(cwd.chat)
             let mainChatId = GetNonDefaultOrNull(cwd.chat.mainChatId)
             return mainChatId === null
           })
-          .map((cwd) =>
-            <ChatComponent key={dsState.fileKey + "_" + cwd.chat?.id.toString()}
-                           cwd={cwd}
-                           dsState={dsState}
-                           setChatState={args.setChatState}/>
-          )
+          .map((mainCwd) => {
+            let slaveCwds = dsState.cwds
+              .filter((cwd) => cwd.chat!.mainChatId === mainCwd.chat!.id)
+
+            let cc = new CombinedChat(mainCwd, slaveCwds)
+            return (
+              <ChatComponent key={dsState.fileKey + "_" + mainCwd.chat!.id.toString()}
+                             cc={cc}
+                             dsState={dsState}
+                             setChatState={args.setChatState}/>
+            )
+          })
 
         return [
           <ContextMenu key={dsState.fileKey}>
@@ -59,8 +66,8 @@ export default function ChatList(args: {
         ]
       })
     }
-</ul>
-)
+    </ul>
+  )
 }
 
 function DatsetHeader(args: {

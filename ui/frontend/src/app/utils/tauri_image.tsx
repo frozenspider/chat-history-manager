@@ -46,6 +46,7 @@ export default function TauriImage(args: {
     args.dsRoot,
     mimeType,
     (lazyData) => {
+      let isPlaceholder = lazyData.data == null
       let srcToUse = lazyData.data ?? PlaceholderImageSvg
       if (args.width > 0 && args.height > 0) {
         // TODO: Allow clicking to show full-size image
@@ -64,7 +65,8 @@ export default function TauriImage(args: {
                  height={height}
                  style={{
                    aspectRatio: `${width}/${height}`,
-                 }}/>
+                 }}
+                 priority={isPlaceholder}/>
         )
       } else {
         // Workaround as per official docs, see
@@ -80,7 +82,8 @@ export default function TauriImage(args: {
                      objectFit: "contain",
                      objectPosition: "left",
                    }}
-                   fill/>
+                   fill
+                   priority={isPlaceholder}/>
           </div>
         )
       }

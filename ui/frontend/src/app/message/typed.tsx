@@ -2,14 +2,21 @@
 
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SecondsToHhMmSsString } from "@/app/utils/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  GetNonDefaultOrNull,
+  GetOrInsertDefault,
+  SecondsToHhMmSsString
+} from "@/app/utils/utils";
 import { GetUserPrettyName, NameColorClassFromPrettyName, RepliesMaxDepth } from "@/app/utils/entity_utils";
-import { ChatState, ServicesContext } from "@/app/utils/state";
+import { ChatState, MsgSourceId, ServicesContext } from "@/app/utils/state";
 
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import MessageContent, { MessageContentPhoto } from "@/app/message/content";
 
 import {
+  Chat,
   Message,
   MessageRegular,
   MessageService,
@@ -24,6 +31,7 @@ import ColoredMembersList from "@/app/message/members_list";
 
 export default function MessageTyped(args: {
   msg: Message,
+  chat: Chat,
   borderColorClass: string
   chatState: ChatState,
   replyDepth: number
@@ -32,6 +40,7 @@ export default function MessageTyped(args: {
     case "regular":
       return (
         <MessageTypedRegular msg={args.msg.typed.regular}
+                             chat={args.chat}
                              borderColorClass={args.borderColorClass}
                              chatState={args.chatState}
                              replyDepth={args.replyDepth}/>
@@ -40,6 +49,7 @@ export default function MessageTyped(args: {
       let authorPrettyName = GetUserPrettyName(GetNonDefaultOrNull(args.chatState.dsState.users.get(args.msg.fromId)))
       return (
         <MessageTypedService msg={args.msg.typed.service}
+                             chat={args.chat}
                              borderColorClass={args.borderColorClass}
                              chatState={args.chatState}
                              replyDepth={args.replyDepth}
@@ -52,6 +62,7 @@ export default function MessageTyped(args: {
 
 function MessageTypedService(args: {
   msg: MessageService,
+  chat: Chat
   borderColorClass: string,
   chatState: ChatState,
   replyDepth: number,
@@ -61,7 +72,7 @@ function MessageTypedService(args: {
   AssertDefined(sealed, "MessageService sealed value")
   switch (sealed.$case) {
     case "phoneCall":
-      return <ServicePhoneCall call={sealed.phoneCall} members={args.chatState.cwd.members}/>
+      return <ServicePhoneCall call={sealed.phoneCall} members={args.chatState.cc.members}/>
     case "suggestProfilePhoto":
       AssertDefined(sealed.suggestProfilePhoto.photo, "Suggested photo")
       return <>
@@ -73,6 +84,7 @@ function MessageTypedService(args: {
         <SystemMessage>Pinned message</SystemMessage>
         <ColoredBlockquote borderColorClass={args.borderColorClass}>
           <LazyMessageComponent sourceId={sealed.pinMessage.messageSourceId}
+                                chat={args.chat}
                                 chatState={args.chatState}
                                 replyDepth={args.replyDepth + 1}/>
         </ColoredBlockquote>
@@ -88,7 +100,7 @@ function MessageTypedService(args: {
     case "groupCreate":
       return <>
         <SystemMessage>Created group <b>{sealed.groupCreate.title}</b></SystemMessage>
-        <ColoredMembersList memberNames={sealed.groupCreate.members} members={args.chatState.cwd.members}/>
+        <ColoredMembersList memberNames={sealed.groupCreate.members} members={args.chatState.cc.members}/>
       </>
     case "groupEditTitle":
       return <SystemMessage>Changed group title to <b>{sealed.groupEditTitle.title}</b></SystemMessage>
@@ -103,14 +115,14 @@ function MessageTypedService(args: {
     case "groupInviteMembers":
       return <ServiceInviteRemoveMembers authorPrettyName={args.authorPrettyName}
                                          memberNames={sealed.groupInviteMembers.members}
-                                         members={args.chatState.cwd.members}
+                                         members={args.chatState.cc.members}
                                          myselfMessage="Joined group"
                                          oneLineMessage={list => <>Invited {list}</>}
                                          multilineMessage="Invited members"/>
     case "groupRemoveMembers":
       return <ServiceInviteRemoveMembers authorPrettyName={args.authorPrettyName}
                                          memberNames={sealed.groupRemoveMembers.members}
-                                         members={args.chatState.cwd.members}
+                                         members={args.chatState.cc.members}
                                          myselfMessage="Left group"
                                          oneLineMessage={list => <>Removed {list}</>}
                                          multilineMessage="Removed members"/>
@@ -173,15 +185,15 @@ function ServiceInviteRemoveMembers(args: {
 
 function MessageTypedRegular(args: {
   msg: MessageRegular,
+  chat: Chat,
   borderColorClass: string,
   chatState: ChatState,
   replyDepth: number,
 }): React.JSX.Element {
-  AssertDefined(args.chatState.cwd.chat)
   let fwdFromName = GetNonDefaultOrNull(args.msg.forwardFromNameOption)
   let fwdFrom = <></>
   if (fwdFromName) {
-    let colorClass = NameColorClassFromPrettyName(fwdFromName, args.chatState.cwd.members).text
+    let colorClass = NameColorClassFromPrettyName(fwdFromName, args.chatState.cc.members).text
     fwdFrom = <p>Forwarded from <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
   }
 
@@ -195,6 +207,7 @@ function MessageTypedRegular(args: {
       replyTo =
         <ColoredBlockquote borderColorClass={args.borderColorClass}>
           <LazyMessageComponent sourceId={replyToId}
+                                chat={args.chat}
                                 chatState={args.chatState}
                                 replyDepth={args.replyDepth + 1}/>
         </ColoredBlockquote>
@@ -216,6 +229,7 @@ function MessageTypedRegular(args: {
  */
 function LazyMessageComponent(args: {
   sourceId: bigint,
+  chat: Chat,
   chatState: ChatState,
   replyDepth: number
 }): React.JSX.Element {
@@ -224,7 +238,9 @@ function LazyMessageComponent(args: {
   // null - initial state, not yet loaded
   // string - error message if loading failed, e.g. it wasn't found
   let [message, setMessage] =
-    React.useState<Message | string | null>(args.chatState.resolvedMessages.get(args.sourceId) || null)
+    React.useState<Message | string | null>(
+      args.chatState.resolvedMessages.get(args.chat.id)?.get(args.sourceId) || null
+    )
 
   // Asynchronously load a message
   React.useEffect(() => {
@@ -234,13 +250,18 @@ function LazyMessageComponent(args: {
       let response =
         await services.daoClient.messageOption({
           key: args.chatState.dsState.fileKey,
-          chat: args.chatState.cwd.chat,
+          chat: args.chat,
           sourceId: args.sourceId
         })
 
       let msg: Message | string | null = GetNonDefaultOrNull(response.message)
       if (msg) {
-        args.chatState.resolvedMessages.set(args.sourceId, msg)
+        let msgsMap = GetOrInsertDefault(
+          args.chatState.resolvedMessages,
+          args.chat.id,
+          () => new Map<MsgSourceId, Message>()
+        )
+        msgsMap.set(args.sourceId, msg)
         setMessage(msg)
       } else {
         setMessage("Message not found")
@@ -249,7 +270,7 @@ function LazyMessageComponent(args: {
     fn().catch(reason => {
       setMessage("Failed to load message: " + reason)
     })
-  }, [args.sourceId, args.replyDepth])
+  }, [args.sourceId, args.chat, args.chatState, args.replyDepth, message, services.daoClient])
 
   if (!message) {
     // Still loading
@@ -261,5 +282,5 @@ function LazyMessageComponent(args: {
     return <>({message})</>
   }
 
-  return <MessageComponent msg={message} chatState={args.chatState} replyDepth={args.replyDepth}/>
+  return <MessageComponent msg={message} chat={args.chat} chatState={args.chatState} replyDepth={args.replyDepth}/>
 }

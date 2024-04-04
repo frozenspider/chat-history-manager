@@ -116,6 +116,15 @@ export function GetNonDefaultOrNull<T>(v: T | null | undefined): T | null {
   return v
 }
 
+export function GetOrInsertDefault<K, V>(m: Map<K, V>, key: K, getDefaultValue: () => V): V {
+  let v = m.get(key)
+  if (v === undefined) {
+    v = getDefaultValue()
+    m.set(key, v)
+  }
+  return v
+}
+
 export function RandomInt(from: number, to: number): number {
   return Math.floor(Math.random() * (to - from + 1) + from)
 }
