@@ -2,14 +2,14 @@
 
 import React from "react";
 
-import { Dataset, Message, User } from "@/protobuf/core/protobuf/entities";
+import { Chat, Dataset, Message, User } from "@/protobuf/core/protobuf/entities";
 import {
   ChatWithDetailsPB,
   HistoryDaoServiceClient,
   HistoryLoaderServiceClient
 } from "@/protobuf/backend/protobuf/services";
 import { GetOrInsertDefault } from "@/app/utils/utils";
-import { ChatId, CombinedChat, FileKey, MsgSourceId, UuidString } from "@/app/utils/entity_utils";
+import { ChatAndMessage, ChatId, CombinedChat, FileKey, MsgSourceId, UuidString } from "@/app/utils/entity_utils";
 
 //
 // gRPC service clients context
@@ -107,7 +107,7 @@ export interface DatasetState {
 
 export interface ChatViewState {
   /** Messages loaded from server */
-  chatMessages: [ChatId, Message][],
+  chatMessages: ChatAndMessage[],
   beginReached: boolean,
   endReached: boolean,
 

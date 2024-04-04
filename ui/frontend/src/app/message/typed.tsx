@@ -9,8 +9,13 @@ import {
   GetOrInsertDefault,
   SecondsToHhMmSsString
 } from "@/app/utils/utils";
-import { GetUserPrettyName, NameColorClassFromPrettyName, RepliesMaxDepth } from "@/app/utils/entity_utils";
-import { ChatState, MsgSourceId, ServicesContext } from "@/app/utils/state";
+import {
+  GetUserPrettyName,
+  MsgSourceId,
+  NameColorClassFromPrettyName,
+  RepliesMaxDepth
+} from "@/app/utils/entity_utils";
+import { ChatState, ServicesContext } from "@/app/utils/state";
 
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import MessageContent, { MessageContentPhoto } from "@/app/message/content";

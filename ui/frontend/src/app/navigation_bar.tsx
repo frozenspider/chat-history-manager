@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChatState, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SelectSingleEventHandler } from "react-day-picker";
+import { ObjAsc, ObjDesc } from "@/app/utils/utils";
 
 export default function NavigationBar(args: {
   chatState: ChatState | null,
@@ -42,7 +43,7 @@ export default function NavigationBar(args: {
           offset: BigInt(0),
           limit: BigInt(1)
         }).then(r => r.messages))
-      )).flat().sort((a, b) => Number(a.timestamp - b.timestamp))
+      )).flat().sort(ObjAsc(msg => msg.timestamp))
 
       let last = (await Promise.all(
         chats.map(chat => services.daoClient.lastMessages({
@@ -50,7 +51,7 @@ export default function NavigationBar(args: {
           chat: chat,
           limit: BigInt(1)
         }).then(r => r.messages))
-      )).flat().sort((a, b) => Number(b.timestamp - a.timestamp))
+      )).flat().sort(ObjDesc(msg => msg.timestamp))
 
       if (first.length > 0 && last.length > 0) {
         setNavEnabled(args.navigationCallbacks !== null)

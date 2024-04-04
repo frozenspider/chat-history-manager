@@ -16,7 +16,7 @@ import {
   ServicesContextType,
   SetCachedChatState
 } from "@/app/utils/state";
-import { GetChatPrettyName, MessagesBatchSize } from "@/app/utils/entity_utils";
+import { ChatAndMessage, GetChatPrettyName, MessagesBatchSize } from "@/app/utils/entity_utils";
 import { InView } from "react-intersection-observer";
 import { Chat, Message } from "@/protobuf/core/protobuf/entities";
 
@@ -148,9 +148,8 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
          ref={wrapperElRef}>
       {
         chatState.viewState.chatMessages
-          .map(([chatId, msg]) => {
-            let chat = chatState.cc.cwds.find(cwd => cwd.chat!.id === chatId)?.chat
-            AssertDefined(chat, "Chat with ID " + chatId + " was not found in the combined chat")
+          .map(([chat, msg]) => {
+            AssertDefined(chat, "Chat with ID " + chat.id + " was not found in the combined chat")
             return [ // eslint-disable-next-line react/jsx-key
               <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={0}/>,
               msg.internalId
@@ -210,8 +209,8 @@ function TryFetchMoreMessages(
 ) {
   let viewState = chatState.viewState
 
-  function AmendWithChatId(chatId: bigint, msgs: Message[]): [bigint, Message][] {
-    return msgs.map(msg => [chatId, msg] as const)
+  function AmendWithChat(chat: Chat, msgs: Message[]): ChatAndMessage[] {
+    return msgs.map(msg => [chat, msg] as const)
   }
 
   // FIXME: Merged chat support
@@ -229,7 +228,7 @@ function TryFetchMoreMessages(
           limit: MessagesBatchSize
         })
         return {
-          chatMessages: AmendWithChatId(chat.id, response.messages),
+          chatMessages: AmendWithChat(chat, response.messages),
           beginReached: true,
           endReached: response.messages.length < MessagesBatchSize,
           scrollTop: 0,
@@ -245,7 +244,7 @@ function TryFetchMoreMessages(
           limit: MessagesBatchSize
         })
         return {
-          chatMessages: AmendWithChatId(chat.id, response.messages),
+          chatMessages: AmendWithChat(chat, response.messages),
           beginReached: response.messages.length < MessagesBatchSize,
           endReached: true,
           scrollTop: Number.MAX_SAFE_INTEGER,
@@ -266,7 +265,7 @@ function TryFetchMoreMessages(
         })
         return {
           ...viewState,
-          chatMessages: [...AmendWithChatId(chat.id, response.messages), ...viewState!.chatMessages],
+          chatMessages: [...AmendWithChat(chat, response.messages), ...viewState!.chatMessages],
           beginReached: response.messages.length < MessagesBatchSize,
           scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
           scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
@@ -286,7 +285,7 @@ function TryFetchMoreMessages(
         })
         return {
           ...viewState,
-          messages: [...viewState.chatMessages, ...AmendWithChatId(chat.id, response.messages)],
+          messages: [...viewState.chatMessages, ...AmendWithChat(chat, response.messages)],
           endReached: response.messages.length < MessagesBatchSize,
           scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
           scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,

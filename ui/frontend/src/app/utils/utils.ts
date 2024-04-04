@@ -10,7 +10,7 @@ export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts 
   Assert(v !== undefined, (valueName ?? "Value") + " is undefined")
 }
 
-export function AssertUnreachable(x: never): never {
+export function AssertUnreachable(_: never): never {
   Unreachable()
 }
 
@@ -45,16 +45,13 @@ export function InvokeTauri<T, R = void>(
   onSuccess?: ((arg: T) => R),
   onError?: ((error: any) => void),
 ) {
-  if (IsTauriAvailable()) {
-    if (!onError) {
-      PromiseCatchReportError(invoke<T>(cmd, args).then(onSuccess))
-    } else {
-      invoke<T>(cmd, args).then(onSuccess).catch(onError)
-    }
+  if (IsTauriAvailable() && onError) {
+    invoke<T>(cmd, args).then(onSuccess).catch(onError)
   } else {
-    const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
-    console.warn(msg)
-    window.alert(msg)
+    InvokeTauriAsync<T>(cmd, args).then(v => {
+      // There's no good way to typeguard against void
+      if (v && onSuccess) return onSuccess(v)
+    })
   }
 }
 
@@ -125,10 +122,6 @@ export function GetOrInsertDefault<K, V>(m: Map<K, V>, key: K, getDefaultValue: 
   return v
 }
 
-export function RandomInt(from: number, to: number): number {
-  return Math.floor(Math.random() * (to - from + 1) + from)
-}
-
 export function Deduplicate<T, By = T>(arr: T[], by?: (t: T) => By): T[] {
   let set = new Set<T | By>()
   return arr.filter((v) => {
@@ -137,4 +130,24 @@ export function Deduplicate<T, By = T>(arr: T[], by?: (t: T) => By): T[] {
     set.add(key)
     return true
   })
+}
+
+//
+// Ordering
+//
+
+export function Asc<N extends bigint | number>(lhs: N, rhs: N): number {
+  return Number(lhs - rhs)
+}
+
+export function Desc<N extends bigint | number>(lhs: N, rhs: N): number {
+  return Number(rhs - lhs)
+}
+
+export function ObjAsc<T, N extends bigint | number>(get: (obj: T) => N): (lhs: T, rhs: T) => number {
+  return (lhs: T, rhs: T) => Asc(get(lhs), get(rhs))
+}
+
+export function ObjDesc<T, N extends bigint | number>(get: (obj: T) => N): (lhs: T, rhs: T) => number {
+  return (lhs: T, rhs: T) => Desc(get(lhs), get(rhs))
 }

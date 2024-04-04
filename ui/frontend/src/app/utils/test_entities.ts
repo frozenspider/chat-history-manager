@@ -904,7 +904,7 @@ export const TestChatState: ChatState = {
   cc: new CombinedChat(TestCwds[0], []),
   dsState: TestLoadedFiles[0].datasets[0],
   viewState: {
-    chatMessages: TestMessages.map(m => [TestCwds[0].chat!.id, m]),
+    chatMessages: TestMessages.map(m => [TestCwds[0].chat!, m]),
     beginReached: true,
     endReached: true,
     scrollHeight: 0,

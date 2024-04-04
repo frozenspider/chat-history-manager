@@ -8,7 +8,7 @@ import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
 import { Chat, ContentSharedContact, Message, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { AssertDefined, Deduplicate, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { AssertDefined, Deduplicate, GetNonDefaultOrNull, ObjAsc, ObjDesc } from "@/app/utils/utils";
 
 export const PlaceholderImageSvg: StaticImport = StaticPlaceholderImage
 
@@ -19,6 +19,7 @@ export type FileKey = string
 export type UuidString = string
 export type ChatId = bigint
 export type MsgSourceId = bigint
+export type ChatAndMessage = [Chat, Message]
 
 export type ReactChild = React.JSX.Element | string | null
 export type ReactChildren = ReactChild | ReactChild[]
@@ -140,10 +141,16 @@ export class CombinedChat {
     let resArray = this.cwds
       .map(cwd => [GetNonDefaultOrNull(cwd.lastMsgOption), cwd] as [Message, ChatWithDetailsPB])
       .filter(([m, _]) => m !== null)
-      .sort(([msg1, _cwd1], [msg2, _cwd2]) =>
-        Number(msg2!.timestamp - msg1!.timestamp)
-      )
+      .sort(ObjDesc(([msg, _]) => msg!.timestamp))
     return resArray.length > 0 ? resArray[0] : [null, null]
   }
 }
 
+export function ChatAndMessageAsc(lhs: ChatAndMessage, rhs: ChatAndMessage): number {
+  // Messages from the same chat are ordered by their internal ID
+  let get: (msg: Message) => bigint =
+    lhs[0].id === rhs[0].id
+      ? (msg => msg.internalId)
+      : (msg => msg.timestamp)
+  return ObjAsc(get)(lhs[1], rhs[1])
+}
