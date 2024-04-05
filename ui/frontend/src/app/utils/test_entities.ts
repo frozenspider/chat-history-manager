@@ -915,7 +915,7 @@ export const TestChatState: ChatState = {
 }
 
 /** 250 ms of silence MP3 file taken from https://github.com/anars/blank-audio */
-export const TestMp3Base64Data = "data:audio/mp3;base64," +
+export const TestMp3Base64Data = "data:audio/mpeg;base64," +
   "SUQzAwAAAAAAWFRBTEIAAAAMAAAAQmxhbmsgQXVkaW9USVQyAAAAHAAAADI1MCBN" +
   "aWxsaXNlY29uZHMgb2YgU2lsZW5jZVRQRTEAAAASAAAAQW5hciBTb2Z0d2FyZSBM" +
   "TEP/4xjEAAkzUfwIAE1NDwAzHwL+Y8gLIC/G5v+BEBSX///8bmN4Bjze/xjEAAg0" +

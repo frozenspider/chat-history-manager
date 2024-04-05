@@ -7,14 +7,15 @@
   ],
   "permissions": [
     "app:default",
-    "path:default",
+    "dialog:default",
     "event:default",
-    "window:default",
-    "image:default",
-    "resources:default",
-    "menu:default",
-    "tray:default",
     "fs:allow-open",
-    "dialog:default"
+    "image:default",
+    "menu:default",
+    "path:default",
+    "resources:default",
+    "tray:default",
+    "webview:default",
+    "window:default"
   ]
 }

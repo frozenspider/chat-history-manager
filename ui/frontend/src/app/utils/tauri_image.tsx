@@ -46,8 +46,8 @@ export default function TauriImage(args: {
     args.dsRoot,
     mimeType,
     (lazyData) => {
-      let isPlaceholder = lazyData.data == null
-      let srcToUse = lazyData.data ?? PlaceholderImageSvg
+      let isPlaceholder = lazyData.dataUri == null
+      let srcToUse = lazyData.dataUri ?? PlaceholderImageSvg
       if (args.width > 0 && args.height > 0) {
         // TODO: Allow clicking to show full-size image
         let width = args.width

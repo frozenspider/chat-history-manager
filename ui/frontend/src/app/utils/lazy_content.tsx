@@ -1,7 +1,10 @@
 'use client'
 
 import React from "react";
-import { InvokeTauri, IsTauriAvailable } from "@/app/utils/utils";
+
+import { convertFileSrc } from "@tauri-apps/api/core";
+
+import { IsTauriAvailable } from "@/app/utils/utils";
 import SystemMessage from "@/app/message/system_message";
 
 export enum LazyDataState {
@@ -14,7 +17,8 @@ export enum LazyDataState {
 
 export interface LazyData {
   state: LazyDataState,
-  data: string | null
+  // Could be a base64-encoded URI (i.e. "data:xxx/xxx;base64,xxxx") as well
+  dataUri: string | null
 }
 
 /**
@@ -30,14 +34,14 @@ export default function LazyContent(
   proceedWithNullPath = false
 ): React.JSX.Element {
   let [content, setContent] =
-    React.useState<LazyData>({ state: LazyDataState.NotStarted, data: null })
+    React.useState<LazyData>({ state: LazyDataState.NotStarted, dataUri: null })
 
   React.useEffect(() => {
     if (content.state == LazyDataState.NotStarted) {
       if (relativePath) {
         LoadRealData(elementName, relativePath, dsRoot, mimeType, setContent)
       } else if (proceedWithNullPath) {
-        setContent({ state: LazyDataState.Success, data: null })
+        setContent({ state: LazyDataState.Success, dataUri: null })
       }
     }
   }, [content.state, elementName, relativePath, dsRoot, mimeType, proceedWithNullPath])
@@ -56,23 +60,13 @@ function LoadRealData(
   mimeType: string | null,
   setter: (data: LazyData) => void
 ) {
-  setter({ state: LazyDataState.InProgress, data: null })
-
   if (!IsTauriAvailable()) {
-    setter({ state: LazyDataState.TauriNotAvailable, data: null })
+    setter({ state: LazyDataState.TauriNotAvailable, dataUri: null })
     return
   }
 
-  InvokeTauri<string>(
-    "read_file_base64",
-    { relativePath: relativePath, dsRoot: dsRoot },
-    data => {
-      let base64data = "data:" + mimeType + ";base64," + data
-      setter({ state: LazyDataState.Success, data: base64data })
-    },
-    error => {
-      console.log("Failed to load real data for " + elementName.toLowerCase() + ": " + error)
-      setter({ state: LazyDataState.Failure, data: null })
-    }
-  )
+  let path = dsRoot + "/" + relativePath
+  let assertUri = convertFileSrc(path)
+
+  setter({ state: LazyDataState.Success, dataUri: assertUri })
 }

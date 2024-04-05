@@ -10,6 +10,13 @@ frontendDist = "./frontend/out"
 # Injects window.__TAURI__ global variable
 withGlobalTauri = true
 
+[app.security]
+csp = "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost"
+
+[app.security.assetProtocol]
+enable = true
+scope = ["**"]
+
 [[app.windows]]
 title = "Chat History Manager"
 fullscreen = false
@@ -20,7 +27,7 @@ resizable = true
 [bundle]
 # Can't find a way to get rid of these icons
 icon = [
-  "frontend/src/app/32x32.png",
-  "frontend/src/app/icon.icns",
-  "frontend/out/favicon.ico",
+    "frontend/src/app/32x32.png",
+    "frontend/src/app/icon.icns",
+    "frontend/out/favicon.ico",
 ]

@@ -172,16 +172,16 @@ function AudioComponent(
     (lazyData) => {
       if (lazyData.state == LazyDataState.Failure) {
         return <SystemMessage>Voice message loading failed</SystemMessage>
-      } else if (lazyData.data || lazyData.state == LazyDataState.TauriNotAvailable) {
-        let data = lazyData.data
+      } else if (lazyData.dataUri || lazyData.state == LazyDataState.TauriNotAvailable) {
+        let dataUri = lazyData.dataUri
         if (lazyData.state == LazyDataState.TauriNotAvailable) {
           // If not using Tauri, use test data
-          data = TestMp3Base64Data
+          dataUri = TestMp3Base64Data
         }
         // FIXME: Doesn't work in Tauri window!
         return (
           <audio className="block w-full max-w-md mr-auto" controls>
-            <source src={data!}/>
+            <source src={dataUri!}/>
           </audio>
         )
       } else {

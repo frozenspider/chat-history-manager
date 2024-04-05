@@ -16,9 +16,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Tauri
-tauri = { version = "2.0.0-beta.13", features = [ "config-toml" ] }
-tauri-plugin-dialog = "2.0.0-beta.3"
-tauri-plugin-fs = "2.0.0-beta.3"
+tauri = { version = "2.0.0-beta.14", features = [ "config-toml", "protocol-asset" ] }
+tauri-plugin-dialog = "2.0.0-beta.4"
+tauri-plugin-fs = "2.0.0-beta.4"
 log = "0.4.21"
 
 [build-dependencies]
