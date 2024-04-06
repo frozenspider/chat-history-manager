@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
+    "target": "ES2019",
+    "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,

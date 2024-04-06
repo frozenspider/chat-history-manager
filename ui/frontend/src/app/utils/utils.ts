@@ -132,6 +132,22 @@ export function Deduplicate<T, By = T>(arr: T[], by?: (t: T) => By): T[] {
   })
 }
 
+export function CreateMapFromKeys<K, V>(keys: K[], getValue: (k: K) => V): Map<K, V> {
+  let result = new Map<K, V>()
+  for (let k of keys) {
+    result.set(k, getValue(k))
+  }
+  return result
+}
+
+// Can't believe I have to write this myself
+export function ForAll<T>(iter: IterableIterator<T>, pred: (t: T) => boolean): boolean {
+  for (let item of iter) {
+    if (!pred(item)) return false
+  }
+  return true
+}
+
 //
 // Ordering
 //

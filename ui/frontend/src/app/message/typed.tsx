@@ -261,11 +261,7 @@ function LazyMessageComponent(args: {
 
       let msg: Message | string | null = GetNonDefaultOrNull(response.message)
       if (msg) {
-        let msgsMap = GetOrInsertDefault(
-          args.chatState.resolvedMessages,
-          args.chat.id,
-          () => new Map<MsgSourceId, Message>()
-        )
+        let msgsMap = args.chatState.resolvedMessages.get(args.chat.id)!
         msgsMap.set(args.sourceId, msg)
         setMessage(msg)
       } else {

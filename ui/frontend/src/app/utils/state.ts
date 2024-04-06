@@ -105,11 +105,45 @@ export interface DatasetState {
   cwds: ChatWithDetailsPB[]
 }
 
+export type ChatLoadStateLoaded = {
+  $case: "loaded"
+
+  lowestInternalId: bigint,
+  highestInternalId: bigint,
+
+  beginReached: boolean,
+  endReached: boolean,
+}
+
+export interface ChatLoadStateNotLoaded {
+  $case: "not_loaded",
+  beginReached: false,
+  endReached: false,
+}
+
+export const ChatLoadStateNotLoaded: ChatLoadStateNotLoaded = {
+  $case: "not_loaded",
+  beginReached: false,
+  endReached: false,
+}
+
+export interface ChatLoadStateNoMessages {
+  $case: "no_messages",
+  beginReached: true,
+  endReached: true,
+}
+
+export const ChatLoadStateNoMessages: ChatLoadStateNoMessages = {
+  $case: "no_messages",
+  beginReached: true,
+  endReached: true,
+}
+
+export type ChatLoadState = ChatLoadStateLoaded | ChatLoadStateNotLoaded | ChatLoadStateNoMessages
+
 export interface ChatViewState {
   /** Messages loaded from server */
   chatMessages: ChatAndMessage[],
-  beginReached: boolean,
-  endReached: boolean,
 
   scrollTop: number,
   scrollHeight: number,
@@ -125,8 +159,14 @@ export interface ChatState {
   viewState: ChatViewState | null,
 
   /**
+   * Should ALWAYS contain an entry for each chat.
+   */
+  loadState: Map<ChatId, ChatLoadState>
+
+  /**
    * Individual messages fetched to render replies, pinned messages, etc.
    * Used for eager render when restoring chat view.
+   * Should ALWAYS contain an entry for each chat.
    */
   resolvedMessages: Map<ChatId, Map<MsgSourceId, Message>>
 }

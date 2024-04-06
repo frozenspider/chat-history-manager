@@ -4,6 +4,7 @@ import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/c
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { CombinedChat, GetUserPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, LoadedFileState } from "@/app/utils/state";
+import { CreateMapFromKeys } from "@/app/utils/utils";
 
 export const TestDataset: Dataset = {
   uuid: { value: "00000000-0000-0000-0000-000000000000" },
@@ -905,13 +906,20 @@ export const TestChatState: ChatState = {
   dsState: TestLoadedFiles[0].datasets[0],
   viewState: {
     chatMessages: TestMessages.map(m => [TestCwds[0].chat!, m]),
-    beginReached: true,
-    endReached: true,
     scrollHeight: 0,
     scrollTop: Number.MAX_SAFE_INTEGER,
     lastScrollDirectionUp: false
   },
-  resolvedMessages: new Map()
+  loadState: CreateMapFromKeys([TestCwds[0].chat!.id], _ => ({
+    $case: "loaded",
+
+    lowestInternalId: TestMessages[0].internalId,
+    highestInternalId: TestMessages[TestMessages.length - 1].internalId,
+
+    beginReached: true,
+    endReached: true
+  })),
+  resolvedMessages: CreateMapFromKeys([TestCwds[0].chat!.id], _ => new Map())
 }
 
 /** 250 ms of silence MP3 file taken from https://github.com/anars/blank-audio */

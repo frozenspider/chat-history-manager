@@ -3,8 +3,14 @@
 import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
-import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { ChatState, DatasetState, GetCachedChatState, LoadedFileState } from "@/app/utils/state";
+import { AssertDefined, CreateMapFromKeys, GetNonDefaultOrNull } from "@/app/utils/utils";
+import {
+  ChatLoadStateNotLoaded,
+  ChatState,
+  DatasetState,
+  GetCachedChatState,
+  LoadedFileState
+} from "@/app/utils/state";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -94,11 +100,15 @@ function LoadChat(
   setChatState: (state: ChatState) => void,
 ) {
   let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
-    () => ({
-      cc: cc,
-      dsState: dsState,
-      viewState: null,
-      resolvedMessages: new Map()
-    }))
+    () => {
+      let keys = cc.cwds.map(cwd => cwd.chat!.id)
+      return {
+        cc: cc,
+        dsState: dsState,
+        viewState: null,
+        loadState: CreateMapFromKeys(keys, _ => ChatLoadStateNotLoaded),
+        resolvedMessages: CreateMapFromKeys(keys, _ => new Map())
+      }
+    })
   setChatState(cvState)
 }
