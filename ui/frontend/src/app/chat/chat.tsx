@@ -2,7 +2,7 @@ import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
 import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
-import { ChatState, DatasetState } from "@/app/utils/state";
+import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
@@ -15,6 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { ChatState } from "@/app/utils/chat_state";
 
 export default function ChatComponent(args: {
   cc: CombinedChat,

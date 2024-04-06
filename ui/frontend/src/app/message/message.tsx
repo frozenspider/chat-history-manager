@@ -8,7 +8,7 @@ import MessageRichText from "@/app/message/rich_text";
 import { Chat, Message } from "@/protobuf/core/protobuf/entities";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import { NameColorClassFromMembers } from "@/app/utils/entity_utils";
-import { ChatState } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/chat_state";
 
 export function MessageComponent(args: {
   msg: Message,

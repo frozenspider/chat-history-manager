@@ -3,7 +3,8 @@
 import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { CombinedChat, GetUserPrettyName } from "@/app/utils/entity_utils";
-import { ChatState, LoadedFileState } from "@/app/utils/state";
+import { LoadedFileState } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/chat_state";
 import { CreateMapFromKeys } from "@/app/utils/utils";
 
 export const TestDataset: Dataset = {
@@ -901,16 +902,16 @@ export const TestLoadedFiles: LoadedFileState[] = [{
   ],
 }]
 
-export const TestChatState: ChatState = {
-  cc: new CombinedChat(TestCwds[0], []),
-  dsState: TestLoadedFiles[0].datasets[0],
-  viewState: {
+export const TestChatState: ChatState = new ChatState(
+  new CombinedChat(TestCwds[0], []),
+  TestLoadedFiles[0].datasets[0],
+  {
     chatMessages: TestMessages.map(m => [TestCwds[0].chat!, m]),
     scrollHeight: 0,
     scrollTop: Number.MAX_SAFE_INTEGER,
     lastScrollDirectionUp: false
   },
-  loadState: CreateMapFromKeys([TestCwds[0].chat!.id], _ => ({
+  CreateMapFromKeys([TestCwds[0].chat!.id], _ => ({
     $case: "loaded",
 
     lowestInternalId: TestMessages[0].internalId,
@@ -919,8 +920,8 @@ export const TestChatState: ChatState = {
     beginReached: true,
     endReached: true
   })),
-  resolvedMessages: CreateMapFromKeys([TestCwds[0].chat!.id], _ => new Map())
-}
+  CreateMapFromKeys([TestCwds[0].chat!.id], _ => new Map())
+)
 
 /** 250 ms of silence MP3 file taken from https://github.com/anars/blank-audio */
 export const TestMp3Base64Data = "data:audio/mpeg;base64," +

@@ -5,14 +5,16 @@ import React from "react";
 import 'react-day-picker/dist/style.css';
 
 import { ArrowDownToLineIcon, ArrowUpToLineIcon, CalendarIcon } from "lucide-react";
+import { SelectSingleEventHandler } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ChatState, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SelectSingleEventHandler } from "react-day-picker";
+
+import { NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { ObjAsc, ObjDesc } from "@/app/utils/utils";
+import { ChatState } from "@/app/utils/chat_state";
 
 export default function NavigationBar(args: {
   chatState: ChatState | null,

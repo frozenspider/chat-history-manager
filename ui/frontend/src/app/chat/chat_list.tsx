@@ -3,14 +3,8 @@
 import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
-import { AssertDefined, CreateMapFromKeys, GetNonDefaultOrNull } from "@/app/utils/utils";
-import {
-  ChatLoadStateNotLoaded,
-  ChatState,
-  DatasetState,
-  GetCachedChatState,
-  LoadedFileState
-} from "@/app/utils/state";
+import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +13,7 @@ import {
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import { CombinedChat } from "@/app/utils/entity_utils";
+import { ChatState, GetCachedChatState } from "@/app/utils/chat_state";
 
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
@@ -100,15 +95,6 @@ function LoadChat(
   setChatState: (state: ChatState) => void,
 ) {
   let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
-    () => {
-      let keys = cc.cwds.map(cwd => cwd.chat!.id)
-      return {
-        cc: cc,
-        dsState: dsState,
-        viewState: null,
-        loadState: CreateMapFromKeys(keys, _ => ChatLoadStateNotLoaded),
-        resolvedMessages: CreateMapFromKeys(keys, _ => new Map())
-      }
-    })
+    () => new ChatState(cc, dsState))
   setChatState(cvState)
 }

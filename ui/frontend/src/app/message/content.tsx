@@ -18,7 +18,7 @@ import {
 } from "@/protobuf/core/protobuf/entities";
 
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
-import { ChatState } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/chat_state";
 import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
 import MessagesLoadSpinner from "@/app/utils/load_spinner";

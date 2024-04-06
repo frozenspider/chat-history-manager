@@ -6,14 +6,13 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import { Assert, PromiseCatchReportError } from "@/app/utils/utils";
 import {
-  ChatState,
-  ClearCachedChatState,
   DatasetState,
   LoadedFileState,
   NavigationCallbacks,
   ServicesContext,
   ServicesContextType
 } from "@/app/utils/state";
+import { ChatState, ClearCachedChatState } from "@/app/utils/chat_state";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"

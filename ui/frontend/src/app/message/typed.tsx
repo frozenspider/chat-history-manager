@@ -15,7 +15,8 @@ import {
   NameColorClassFromPrettyName,
   RepliesMaxDepth
 } from "@/app/utils/entity_utils";
-import { ChatState, ServicesContext } from "@/app/utils/state";
+import { ServicesContext } from "@/app/utils/state";
+import { ChatState } from "@/app/utils/chat_state";
 
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import MessageContent, { MessageContentPhoto } from "@/app/message/content";

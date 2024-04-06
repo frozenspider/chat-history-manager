@@ -1,27 +1,15 @@
 import React from "react";
 
-import {
-  Assert,
-  AssertDefined,
-  AssertUnreachable,
-  ForAll,
-  GetNonDefaultOrNull,
-  PromiseCatchReportError
-} from "@/app/utils/utils";
-import { MessageComponent } from "@/app/message/message";
-import {
-  ChatLoadState,
-  ChatLoadStateNoMessages,
-  ChatState,
-  ChatViewState,
-  NavigationCallbacks,
-  ServicesContext,
-  ServicesContextType,
-  SetCachedChatState
-} from "@/app/utils/state";
-import { ChatAndMessage, GetChatPrettyName, MessagesBatchSize } from "@/app/utils/entity_utils";
 import { InView } from "react-intersection-observer";
-import { Chat, Message } from "@/protobuf/core/protobuf/entities";
+
+import { Chat } from "@/protobuf/core/protobuf/entities";
+
+import { MessageComponent } from "@/app/message/message";
+
+import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
+import { GetChatPrettyName } from "@/app/utils/entity_utils";
+import { ChatState, FetchType, SetCachedChatState } from "@/app/utils/chat_state";
 
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
@@ -194,10 +182,6 @@ function ApplyScroll(scrollOwner: HTMLElement, scrollTop: number, scrollHeight: 
   scrollOwner.scrollTo({ left: 0, top: newScrollTop, behavior: "instant" })
 }
 
-enum FetchType {
-  Beginning, End, Previous, Next
-}
-
 /**
  * Attempts to (asynchronously) fetch more messages and updates the chat state (both current and cached),
  * displaying an error popup on failure.
@@ -211,148 +195,18 @@ function TryFetchMoreMessages(
   services: ServicesContextType,
   scrollOwner: HTMLElement | null
 ) {
-  let viewState = chatState.viewState
-  let loadStates = chatState.loadState
-
-  function AmendWithChat(chat: Chat, msgs: Message[]): ChatAndMessage[] {
-    return msgs.map(msg => [chat, msg] as const)
+  if (!isFetching.current) {
+    console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + FetchType[fetchType])
   }
-
-  // FIXME: Merged chat support
-  Assert(!isFetching.current, "Fetching is already in progress")
-  isFetching.current = true
-  console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + FetchType[fetchType])
-  let newChatPartialStatePromise: Promise<[ChatViewState, ChatLoadState]> = (async () => {
-    switch (fetchType) {
-      case FetchType.Beginning: {
-        let chat = chatState.cc.mainCwd.chat!
-        let response = await services.daoClient.scrollMessages({
-          key: chatState.dsState.fileKey,
-          chat: chat,
-          offset: BigInt(0),
-          limit: MessagesBatchSize
-        })
-        let hasMessages = response.messages.length > 0
-        return [{
-          chatMessages: AmendWithChat(chat, response.messages),
-          scrollTop: 0,
-          scrollHeight: Number.MAX_SAFE_INTEGER,
-          lastScrollDirectionUp: true
-        } as ChatViewState, hasMessages ? {
-          $case: "loaded",
-
-          lowestInternalId: response.messages[0].internalId,
-          highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-          beginReached: true,
-          endReached: response.messages.length < MessagesBatchSize,
-        } : ChatLoadStateNoMessages]
+  chatState.FetchMore(fetchType, isFetching, services, scrollOwner)
+    .then(newChatState => {
+      if (newChatState != null) {
+        console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
+          + "View state:", newChatState.viewState)
+        console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
+          + "Load state:", newChatState.loadState)
+        SetCachedChatState(newChatState)
+        setChatState(newChatState)
       }
-      case FetchType.End: {
-        let chat = chatState.cc.mainCwd.chat!
-        let response = await services.daoClient.lastMessages({
-          key: chatState.dsState.fileKey,
-          chat: chatState.cc.mainCwd.chat!,
-          limit: MessagesBatchSize
-        })
-        let hasMessages = response.messages.length > 0
-        return [{
-          chatMessages: AmendWithChat(chat, response.messages),
-          scrollTop: Number.MAX_SAFE_INTEGER,
-          scrollHeight: 0,
-          lastScrollDirectionUp: false
-        } as ChatViewState, hasMessages ? {
-          $case: "loaded",
-
-          lowestInternalId: response.messages[0].internalId,
-          highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-          beginReached: response.messages.length < MessagesBatchSize,
-          endReached: true,
-        } : ChatLoadStateNoMessages]
-      }
-      case FetchType.Previous: {
-        Assert(viewState != null, "Chat view state was null")
-        let chat = chatState.cc.mainCwd.chat!
-        let loadState = loadStates.get(chat.id)!
-        let firstMessage = viewState.chatMessages[0][1]
-        AssertDefined(firstMessage.internalId, "firstMessage.internalId")
-        let response = await services.daoClient.messagesBefore({
-          key: chatState.dsState.fileKey,
-          chat: chatState.cc.mainCwd.chat!,
-          messageInternalId: firstMessage.internalId,
-          limit: MessagesBatchSize
-        })
-        let hasMessages = response.messages.length > 0
-        return [{
-          ...viewState,
-          chatMessages: [...AmendWithChat(chat, response.messages), ...viewState!.chatMessages],
-          scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-          scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-          lastScrollDirectionUp: true
-        } as ChatViewState, hasMessages ? {
-          $case: "loaded",
-
-          lowestInternalId: response.messages[0].internalId,
-          highestInternalId: loadState.$case == "loaded" ? loadState.highestInternalId : response.messages[response.messages.length - 1].internalId,
-
-          beginReached: response.messages.length < MessagesBatchSize,
-          endReached: loadState.endReached,
-        } : ChatLoadStateNoMessages]
-      }
-      case FetchType.Next: {
-        Assert(viewState != null, "Chat view state was null")
-        let chat = chatState.cc.mainCwd.chat!
-        let loadState = loadStates.get(chat.id)!
-        let lastMessage = viewState.chatMessages[viewState.chatMessages.length - 1][1]
-        AssertDefined(lastMessage.internalId, "lastMessage.internalId")
-        let response = await services.daoClient.messagesAfter({
-          key: chatState.dsState.fileKey,
-          chat: chatState.cc.mainCwd.chat!,
-          messageInternalId: lastMessage.internalId,
-          limit: MessagesBatchSize
-        })
-        let hasMessages = response.messages.length > 0
-        return [{
-          ...viewState,
-          chatMessages: [...viewState.chatMessages, ...AmendWithChat(chat, response.messages)],
-          scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-          scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-          lastScrollDirectionUp: false
-        } as ChatViewState, hasMessages ? {
-          $case: "loaded",
-
-          lowestInternalId: loadState.$case == "loaded" ? loadState.lowestInternalId : response.messages[0].internalId,
-          highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-          beginReached: loadState.beginReached,
-          endReached: response.messages.length < MessagesBatchSize,
-        } : ChatLoadStateNoMessages]
-      }
-      default:
-        AssertUnreachable(fetchType)
-    }
-  })()
-
-  PromiseCatchReportError(newChatPartialStatePromise
-    .then(([newViewState, newLoadState]) => {
-      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
-        + "Fetched " + newViewState.chatMessages.length + " messages. Updating chat view state.")
-      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
-        + "Scroll owner:", scrollOwner)
-      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
-        + "View state:", newViewState)
-      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
-        + "Load state:", newLoadState)
-      let newChatState: ChatState = {
-        ...chatState,
-        viewState: newViewState,
-      }
-      newChatState.loadState.set(chatState.cc.mainCwd.chat!.id, newLoadState)
-      SetCachedChatState(newChatState)
-      setChatState(newChatState)
-    }))
-    .finally(() => {
-      isFetching.current = false
     })
 }
