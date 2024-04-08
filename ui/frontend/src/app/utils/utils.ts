@@ -2,8 +2,8 @@
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
 
-export function Assert(cond: boolean, message: string): asserts cond {
-  if (!cond) throw new Error(message)
+export function Assert(cond: boolean, message?: string): asserts cond {
+  if (!cond) throw new Error(message ?? "Assertion failed")
 }
 
 export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts v is T {

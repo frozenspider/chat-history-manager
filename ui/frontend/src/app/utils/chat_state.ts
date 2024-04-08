@@ -2,6 +2,7 @@ import React from "react";
 
 import {
   ChatAndMessage,
+  ChatAndMessageAsc,
   ChatId,
   CombinedChat,
   FileKey,
@@ -11,19 +12,7 @@ import {
 } from "@/app/utils/entity_utils";
 import { Chat, Message } from "@/protobuf/core/protobuf/entities";
 import { DatasetState, ServicesContextType } from "@/app/utils/state";
-import {
-  Assert,
-  AssertDefined,
-  AssertUnreachable,
-  CreateMapFromKeys,
-  GetOrInsertDefault,
-  PromiseCatchReportError
-} from "@/app/utils/utils";
-
-
-export enum FetchType {
-  Beginning, End, Previous, Next
-}
+import { Assert, CreateMapFromKeys, ForAll, GetOrInsertDefault, PromiseCatchReportError } from "@/app/utils/utils";
 
 type ChatLoadStateLoaded = {
   $case: "loaded"
@@ -37,14 +26,8 @@ type ChatLoadStateLoaded = {
 
 interface ChatLoadStateNotLoaded {
   $case: "not_loaded",
-  beginReached: false,
-  endReached: false,
-}
-
-const ChatLoadStateNotLoaded: ChatLoadStateNotLoaded = {
-  $case: "not_loaded",
-  beginReached: false,
-  endReached: false,
+  beginReached: boolean,
+  endReached: boolean,
 }
 
 interface ChatLoadStateNoMessages {
@@ -102,16 +85,27 @@ export class ChatState {
     this.viewState = viewState ?? null
 
     let keys = cc.cwds.map(cwd => cwd.chat!.id)
-    this.loadState = loadState ?? CreateMapFromKeys(keys, _ => ChatLoadStateNotLoaded)
+    this.loadState = loadState ?? CreateMapFromKeys(keys, _ => ({
+      $case: "not_loaded",
+      beginReached: false,
+      endReached: false
+    }))
     this.resolvedMessages = resolvedMessages ?? CreateMapFromKeys(keys, _ => new Map())
+  }
+
+  /** Return a clean state of this chat */
+  Reset(): ChatState {
+    return new ChatState(this.cc, this.dsState)
   }
 
   /**
    * Attempts to (asynchronously) fetch more messages and return the new chat state.
    * Errors are reported and cause this to return null.
+   *
+   * Note: last messages are exteme case of loading previous messages, same with first and next
    */
   async FetchMore(
-    fetchType: FetchType,
+    fetchPrevious: boolean,
     isFetching: React.MutableRefObject<boolean>,
     services: ServicesContextType,
     scrollOwner: HTMLElement | null
@@ -123,128 +117,158 @@ export class ChatState {
       return msgs.map(msg => [chat, msg] as const)
     }
 
-    // FIXME: Merged chat support
     Assert(!isFetching.current, "Fetching is already in progress")
     isFetching.current = true
-    let newChatPartialStatePromise: Promise<[ChatViewState, ChatLoadState]> = (async () => {
-      switch (fetchType) {
-        case FetchType.Beginning: {
-          let chat = this.cc.mainCwd.chat!
-          let response = await services.daoClient.scrollMessages({
+
+    let FetchMoreMessages = async (
+      chat: Chat,
+      prevLoadState: ChatLoadState
+    ) => {
+      if (fetchPrevious) {
+        if (prevLoadState.beginReached) {
+          return [] as Message[]
+        }
+        return (prevLoadState.$case == "loaded" ?
+          await services.daoClient.messagesBefore({
+            key: this.dsState.fileKey,
+            chat: chat,
+            messageInternalId: prevLoadState.lowestInternalId,
+            limit: MessagesBatchSize
+          }) :
+          await services.daoClient.lastMessages({
+            key: this.dsState.fileKey,
+            chat: chat,
+            limit: MessagesBatchSize
+          })).messages
+      } else {
+        if (prevLoadState.endReached) {
+          return [] as Message[]
+        }
+        return (prevLoadState.$case == "loaded" ?
+          await services.daoClient.messagesAfter({
+            key: this.dsState.fileKey,
+            chat: chat,
+            messageInternalId: prevLoadState.highestInternalId,
+            limit: MessagesBatchSize
+          }) :
+          await services.daoClient.scrollMessages({
             key: this.dsState.fileKey,
             chat: chat,
             offset: BigInt(0),
             limit: MessagesBatchSize
-          })
-          let hasMessages = response.messages.length > 0
-          return [{
-            chatMessages: AmendWithChat(chat, response.messages),
-            scrollTop: 0,
-            scrollHeight: Number.MAX_SAFE_INTEGER,
-            lastScrollDirectionUp: true
-          } as ChatViewState, hasMessages ? {
-            $case: "loaded",
-
-            lowestInternalId: response.messages[0].internalId,
-            highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-            beginReached: true,
-            endReached: response.messages.length < MessagesBatchSize,
-          } : ChatLoadStateNoMessages]
-        }
-        case FetchType.End: {
-          let chat = this.cc.mainCwd.chat!
-          let response = await services.daoClient.lastMessages({
-            key: this.dsState.fileKey,
-            chat: this.cc.mainCwd.chat!,
-            limit: MessagesBatchSize
-          })
-          let hasMessages = response.messages.length > 0
-          return [{
-            chatMessages: AmendWithChat(chat, response.messages),
-            scrollTop: Number.MAX_SAFE_INTEGER,
-            scrollHeight: 0,
-            lastScrollDirectionUp: false
-          } as ChatViewState, hasMessages ? {
-            $case: "loaded",
-
-            lowestInternalId: response.messages[0].internalId,
-            highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-            beginReached: response.messages.length < MessagesBatchSize,
-            endReached: true,
-          } : ChatLoadStateNoMessages]
-        }
-        case FetchType.Previous: {
-          Assert(viewState != null, "Chat view state was null")
-          let chat = this.cc.mainCwd.chat!
-          let loadState = loadStates.get(chat.id)!
-          let firstMessage = viewState.chatMessages[0][1]
-          AssertDefined(firstMessage.internalId, "firstMessage.internalId")
-          let response = await services.daoClient.messagesBefore({
-            key: this.dsState.fileKey,
-            chat: this.cc.mainCwd.chat!,
-            messageInternalId: firstMessage.internalId,
-            limit: MessagesBatchSize
-          })
-          let hasMessages = response.messages.length > 0
-          return [{
-            ...viewState,
-            chatMessages: [...AmendWithChat(chat, response.messages), ...viewState!.chatMessages],
-            scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-            scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-            lastScrollDirectionUp: true
-          } as ChatViewState, hasMessages ? {
-            $case: "loaded",
-
-            lowestInternalId: response.messages[0].internalId,
-            highestInternalId: loadState.$case == "loaded" ? loadState.highestInternalId : response.messages[response.messages.length - 1].internalId,
-
-            beginReached: response.messages.length < MessagesBatchSize,
-            endReached: loadState.endReached,
-          } : ChatLoadStateNoMessages]
-        }
-        case FetchType.Next: {
-          Assert(viewState != null, "Chat view state was null")
-          let chat = this.cc.mainCwd.chat!
-          let loadState = loadStates.get(chat.id)!
-          let lastMessage = viewState.chatMessages[viewState.chatMessages.length - 1][1]
-          AssertDefined(lastMessage.internalId, "lastMessage.internalId")
-          let response = await services.daoClient.messagesAfter({
-            key: this.dsState.fileKey,
-            chat: this.cc.mainCwd.chat!,
-            messageInternalId: lastMessage.internalId,
-            limit: MessagesBatchSize
-          })
-          let hasMessages = response.messages.length > 0
-          return [{
-            ...viewState,
-            chatMessages: [...viewState.chatMessages, ...AmendWithChat(chat, response.messages)],
-            scrollTop: scrollOwner ? scrollOwner.scrollTop : viewState!.scrollTop,
-            scrollHeight: scrollOwner ? scrollOwner.scrollHeight : viewState!.scrollHeight,
-            lastScrollDirectionUp: false
-          } as ChatViewState, hasMessages ? {
-            $case: "loaded",
-
-            lowestInternalId: loadState.$case == "loaded" ? loadState.lowestInternalId : response.messages[0].internalId,
-            highestInternalId: response.messages[response.messages.length - 1].internalId,
-
-            beginReached: loadState.beginReached,
-            endReached: response.messages.length < MessagesBatchSize,
-          } : ChatLoadStateNoMessages]
-        }
-        default:
-          AssertUnreachable(fetchType)
+          })).messages
       }
-    })()
+    }
 
-    return PromiseCatchReportError(newChatPartialStatePromise
-      .then(([newViewState, newLoadState]) => {
-        let newChatState: ChatState =
-          new ChatState(this.cc, this.dsState, newViewState, this.loadState, this.resolvedMessages)
-        newChatState.loadState.set(this.cc.mainCwd.chat!.id, newLoadState)
-        return newChatState
-      }))
+    let newChatStatePromise: Promise<[ChatViewState, Map<ChatId, ChatLoadState>]> = (async () => {
+        let allChatMessagesPromise =
+          Promise.all(this.cc.cwds.map(async cwd => {
+            let chat = cwd.chat!
+            let loadState = loadStates.get(chat.id)!
+            let msgs = await FetchMoreMessages(chat, loadState);
+            return AmendWithChat(chat, msgs);
+          }))
+        let allChatMessages = (await allChatMessagesPromise).flat().sort(ChatAndMessageAsc)
+        let chatMessages = (fetchPrevious ?
+          allChatMessages.slice(-Number(MessagesBatchSize)) :
+          allChatMessages.slice(0, Number(MessagesBatchSize)))
+
+        function MakeNewLoadState(chat: Chat): ChatLoadState {
+          let prevLoadState = loadStates.get(chat.id)!
+
+          let sameChatCond = (cm: ChatAndMessage, _1: number, _2: ChatAndMessage[]) => cm[0].id == chat.id
+          let loadingMore = prevLoadState.$case == "loaded"
+
+          if (!allChatMessages.some(sameChatCond)) {
+            if (!loadingMore) {
+              // There were no messages fetched to begin with
+              return ChatLoadStateNoMessages
+            }
+
+            // We've hit the limit, either at the beginning or at the end
+            Assert(prevLoadState.$case == "loaded") // To keep typescript happy
+            return {
+              $case: "loaded",
+
+              lowestInternalId: prevLoadState.lowestInternalId,
+              highestInternalId: prevLoadState.highestInternalId,
+
+              beginReached: fetchPrevious ? true : prevLoadState.beginReached,
+              endReached: !fetchPrevious ? true : prevLoadState.endReached,
+            }
+          }
+
+          let firstKeptInternalId = chatMessages.find(sameChatCond)?.[1]?.internalId
+          let lastKeptInternalId = chatMessages.findLast(sameChatCond)?.[1].internalId
+
+          if (firstKeptInternalId === undefined || lastKeptInternalId === undefined) {
+            return {
+              $case: "not_loaded",
+              beginReached: !fetchPrevious ? true : prevLoadState.beginReached,
+              endReached: fetchPrevious ? true : prevLoadState.endReached,
+            }
+          }
+
+          // Suboptimal, but oh well
+          let fetchedBeforeFiltering = allChatMessages.filter(sameChatCond).length
+          let fetchedAfterFiltering = chatMessages.filter(sameChatCond).length
+          let hitTheLimit = fetchedBeforeFiltering < Number(MessagesBatchSize) && fetchedAfterFiltering == fetchedBeforeFiltering
+          if (fetchPrevious) {
+            return {
+              $case: "loaded",
+
+              lowestInternalId: firstKeptInternalId,
+              highestInternalId: prevLoadState.$case == "loaded" ? prevLoadState.highestInternalId : lastKeptInternalId,
+
+              beginReached: hitTheLimit,
+              endReached: loadingMore ? prevLoadState.endReached : true,
+            }
+          } else {
+            return {
+              $case: "loaded",
+
+              lowestInternalId: prevLoadState.$case == "loaded" ? prevLoadState.lowestInternalId : firstKeptInternalId,
+              highestInternalId: lastKeptInternalId,
+
+              beginReached: loadingMore ? prevLoadState.beginReached : true,
+              endReached: hitTheLimit,
+            }
+          }
+        }
+
+        let newLoadStates = new Map<ChatId, ChatLoadState>()
+        for (let cwd of this.cc.cwds) {
+          newLoadStates.set(cwd.chat!.id, MakeNewLoadState(cwd.chat!))
+        }
+
+        // If chat was entirely not loaded, we'll need to scroll to the absolute top/bottom
+        let wasNotLoaded = ForAll(loadStates.values(), state => state.$case == "not_loaded")
+
+        let prevScrollTop = scrollOwner?.scrollTop ?? viewState?.scrollTop
+        let prevScrollHeight = scrollOwner?.scrollHeight ?? viewState?.scrollHeight
+
+        let newViewState: ChatViewState = (fetchPrevious ?
+            {
+              chatMessages: [...chatMessages, ...(viewState?.chatMessages ?? [])],
+              scrollTop: wasNotLoaded ? (Number.MAX_SAFE_INTEGER / 2) : prevScrollTop!,
+              scrollHeight: wasNotLoaded ? 0 : prevScrollHeight!,
+              lastScrollDirectionUp: !wasNotLoaded
+            } : {
+              chatMessages: [...(viewState?.chatMessages ?? []), ...chatMessages],
+              scrollTop: wasNotLoaded ? 0 : prevScrollTop!,
+              scrollHeight: wasNotLoaded ? (Number.MAX_SAFE_INTEGER / 2) : prevScrollHeight!,
+              lastScrollDirectionUp: wasNotLoaded
+            }
+        )
+
+        return [newViewState, newLoadStates]
+      }
+    )()
+
+    return PromiseCatchReportError(newChatStatePromise
+      .then(([newViewState, newLoadState]) =>
+        new ChatState(this.cc, this.dsState, newViewState, newLoadState, this.resolvedMessages)
+      ))
       .then(x => x ?? null)
       .finally(() => {
         isFetching.current = false
@@ -256,8 +280,7 @@ export class ChatState {
 // Globally accessible cache of chat states
 //
 
-const ChatStateCache =
-  new Map<FileKey, Map<UuidString, Map<ChatId, ChatState>>>()
+const ChatStateCache = new Map<FileKey, Map<UuidString, Map<ChatId, ChatState>>>()
 
 /** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
 export function GetCachedChatState(

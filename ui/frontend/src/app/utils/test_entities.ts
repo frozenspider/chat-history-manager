@@ -908,7 +908,7 @@ export const TestChatState: ChatState = new ChatState(
   {
     chatMessages: TestMessages.map(m => [TestCwds[0].chat!, m]),
     scrollHeight: 0,
-    scrollTop: Number.MAX_SAFE_INTEGER,
+    scrollTop: Number.MAX_SAFE_INTEGER / 2,
     lastScrollDirectionUp: false
   },
   CreateMapFromKeys([TestCwds[0].chat!.id], _ => ({

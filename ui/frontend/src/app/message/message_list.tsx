@@ -9,7 +9,7 @@ import { MessageComponent } from "@/app/message/message";
 import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
-import { ChatState, FetchType, SetCachedChatState } from "@/app/utils/chat_state";
+import { ChatState, SetCachedChatState } from "@/app/utils/chat_state";
 
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
@@ -73,9 +73,9 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
           return
 
         TryFetchMoreMessages(
-          FetchType.Beginning,
+          false,
           isFetching,
-          chatState,
+          chatState.Reset(),
           setChatState,
           services,
           getScrollOwner()
@@ -87,9 +87,9 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
           return
 
         TryFetchMoreMessages(
-          FetchType.End,
+          true,
           isFetching,
-          chatState,
+          chatState.Reset(),
           setChatState,
           services,
           getScrollOwner()
@@ -115,17 +115,17 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
 
   AssertDefined(chatState.cc.mainCwd.chat)
 
-  function onSideMessagesView(inView: boolean, isTop: boolean) {
+  function onSideMessagesView(inView: boolean, previous: boolean) {
     if (!inView || !infiniteScrollActive || isFetching.current) return
     Assert(chatState != null, "Chat state was null")
     let viewState = chatState.viewState
     Assert(viewState != null, "Chat view state was null")
     let loadState = chatState.loadState
-    if (!isTop && ForAll(loadState.values(), state => state.endReached)) return
-    if (isTop && ForAll(loadState.values(), state => state.beginReached)) return
+    if (!previous && ForAll(loadState.values(), state => state.endReached)) return
+    if (previous && ForAll(loadState.values(), state => state.beginReached)) return
 
     TryFetchMoreMessages(
-      isTop ? FetchType.Previous : FetchType.Next,
+      previous,
       isFetching,
       chatState,
       setChatState,
@@ -188,7 +188,7 @@ function ApplyScroll(scrollOwner: HTMLElement, scrollTop: number, scrollHeight: 
  * This will trigger component re-render.
  */
 function TryFetchMoreMessages(
-  fetchType: FetchType,
+  fetchPrevious: boolean,
   isFetching: React.MutableRefObject<boolean>,
   chatState: ChatState,
   setChatState: (s: ChatState) => void,
@@ -196,9 +196,9 @@ function TryFetchMoreMessages(
   scrollOwner: HTMLElement | null
 ) {
   if (!isFetching.current) {
-    console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + FetchType[fetchType])
+    console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + (fetchPrevious ? "previous" : "next"))
   }
-  chatState.FetchMore(fetchType, isFetching, services, scrollOwner)
+  chatState.FetchMore(fetchPrevious, isFetching, services, scrollOwner)
     .then(newChatState => {
       if (newChatState != null) {
         console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
