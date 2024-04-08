@@ -38,7 +38,7 @@ impl HistoryLoaderService for Arc<Mutex<ChatHistoryManagerServer>> {
 
     async fn close(&self, req: Request<CloseRequest>) -> TonicResult<Empty> {
         self.process_request(&req, |req, self_lock| {
-            let dao = self_lock.loaded_daos.remove(&req.key);
+            let dao = self_lock.loaded_daos.shift_remove(&req.key);
             if dao.is_none() {
                 bail!("Database {} is not open!", req.key)
             }
