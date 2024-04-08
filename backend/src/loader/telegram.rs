@@ -911,13 +911,14 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None),
         "migrate_to_supergroup" =>
             (SealedValueOptional::GroupMigrateTo(MessageServiceGroupMigrateTo {}), None),
-        "invite_to_group_call" =>
+        "invite_to_group_call" => {
             // TODO: This should probably modify a previous group call if one is in progress
             (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: None,
                 discard_reason_option: None,
                 members: parse_members(message_json)?,
-            }), None),
+            }), None)
+        }
         "set_messages_ttl" => {
             let mut period = message_json.field_i64("period")?;
             let mut period_str = "second(s)";
@@ -1123,10 +1124,10 @@ fn simplify_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
     fn is_whitespaces(rte: &RichTextElement) -> bool {
         match rte.val.as_ref().unwrap() {
             Val::Plain(_) | Val::Bold(_) | Val::Italic(_) | Val::Underline(_) | Val::Strikethrough(_) |
-            Val::PrefmtInline(_) | Val::Blockquote(_) | Val::Spoiler(_) => {
+            Val::Blockquote(_) | Val::Spoiler(_) => {
                 rte.get_text().unwrap().chars().all(|c| c.is_whitespace())
             }
-            Val::Link(_) | Val::PrefmtBlock(_) => {
+            Val::Link(_) | Val::PrefmtInline(_) | Val::PrefmtBlock(_) => {
                 false
             }
         }
@@ -1136,7 +1137,7 @@ fn simplify_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
     let first_idx = (0..rtes.len()).find(|&idx| !is_whitespaces(&rtes[idx]));
     if first_idx.is_none() { return vec![]; }
     let first_idx = first_idx.unwrap();
-    if !matches!(rtes[first_idx].val, Some(Val::PrefmtBlock(_))) {
+    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
         if let Some(text) = rtes[first_idx].get_text_mut() {
             *text = text.trim_start().to_owned();
         }
@@ -1144,7 +1145,7 @@ fn simplify_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
 
     let last_idx = (0..rtes.len()).rfind(|&idx| !is_whitespaces(&rtes[idx]));
     let last_idx = last_idx.unwrap();
-    if !matches!(rtes[last_idx].val, Some(Val::PrefmtBlock(_))) {
+    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
         if let Some(text) = rtes[last_idx].get_text_mut() {
             *text = text.trim_end().to_owned();
         }

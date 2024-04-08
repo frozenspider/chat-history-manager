@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
 use std::sync::Arc;
+use indexmap::IndexMap;
 
 use tokio::runtime::Handle;
 use tonic::{Code, Request, Response, Status, transport::Server};
@@ -39,7 +40,7 @@ type ChmLock<'a> = MutexGuard<'a, ChatHistoryManagerServer>;
 pub struct ChatHistoryManagerServer {
     loader: Loader,
     myself_chooser: Box<dyn MyselfChooser>,
-    loaded_daos: HashMap<DaoKey, DaoRefCell>,
+    loaded_daos: IndexMap<DaoKey, DaoRefCell>,
 }
 
 impl ChatHistoryManagerServer {
@@ -47,7 +48,7 @@ impl ChatHistoryManagerServer {
         Arc::new(Mutex::new(ChatHistoryManagerServer {
             loader,
             myself_chooser,
-            loaded_daos: HashMap::new(),
+            loaded_daos: IndexMap::new(),
         }))
     }
 }
