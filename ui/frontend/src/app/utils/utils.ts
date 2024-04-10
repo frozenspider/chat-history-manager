@@ -82,17 +82,24 @@ export function TimestampToString(ts: bigint, includeSeconds: boolean): string {
     + (includeSeconds ? ":" + ZeroPadLeft(tsDate.getSeconds(), 2) : "")
 }
 
+/**
+ * If seconds is less than an hour, returns m:ss
+ * Otherwise, return `h:mm:ss`
+ */
 export function SecondsToHhMmSsString(seconds: number): string {
   let hours = Math.floor(seconds / 3600)
   let minutes = Math.floor((seconds % 3600) / 60)
   let remainingSeconds = seconds % 60
 
-  function dropWhile<T>(arr: T[], pred: (t: T) => boolean) {
-    while (arr.length > 0 && !pred(arr[0])) arr = arr.slice(1)
-    return arr
+  let ss = remainingSeconds.toString().padStart(2, "0")
+  if (hours > 0) {
+    let h = hours.toString()
+    let mm = minutes.toString().padStart(2, "0")
+    return h + ":" + mm + ":" + ss
+  } else {
+    let m = minutes.toString()
+    return m + ":" + ss
   }
-
-  return dropWhile([hours, minutes, remainingSeconds], x => x > 0).join(":")
 }
 
 function ZeroPadLeft(s: string | number, desiredWidth: number): string {

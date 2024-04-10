@@ -6,6 +6,7 @@
 
 # Generated
 /src/protobuf
+/public/js
 
 # Testing
 /coverage

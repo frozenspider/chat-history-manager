@@ -1,3 +1,5 @@
+import CopyWebpackPlugin from "copy-webpack-plugin";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     // Ensure Next.js uses SSG instead of SSR
@@ -7,6 +9,17 @@ const nextConfig = {
     images: {
         // Static export builds do not allow image optimization
         unoptimized: true
+    },
+    webpack: (config) => {
+        // Copy ogv.js files to be served as static assets
+        config.plugins.push(
+            new CopyWebpackPlugin({
+                patterns: [
+                    {from: "node_modules/ogv/dist", to: "../public/js/ogv"},
+                ]
+            }),
+        );
+        return config;
     }
 };
 

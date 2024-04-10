@@ -9,22 +9,21 @@ import SystemMessage from "@/app/message/system_message";
 
 export enum LazyDataState {
   NotStarted,
+  // (As of now, this is not really observable)
   InProgress,
   Success,
   Failure,
+  /** We're in a browser (playground environment) */
   TauriNotAvailable
 }
 
 export interface LazyData {
   state: LazyDataState,
-  // Could be a base64-encoded URI (i.e. "data:xxx/xxx;base64,xxxx") as well
+  /** Could be a base64-encoded URI (i.e. "data:xxx/xxx;base64,xxxx") as well */
   dataUri: string | null
 }
 
-/**
- * Lazily load a content from the Tauri backend, returning it as a base64 source string.
- * If Tauri is not available, returns the file URI instead.
- */
+/** Lazily load a content from the Tauri backend, returning it as a src string (could be URI or base64 source) */
 export default function LazyContent(
   elementName: string,
   relativePath: string | null,
@@ -38,8 +37,9 @@ export default function LazyContent(
 
   React.useEffect(() => {
     if (content.state == LazyDataState.NotStarted) {
+      setContent({ state: LazyDataState.InProgress, dataUri: null })
       if (relativePath) {
-        LoadRealData(elementName, relativePath, dsRoot, mimeType, setContent)
+        LoadRealData(relativePath, dsRoot, mimeType, setContent)
       } else if (proceedWithNullPath) {
         setContent({ state: LazyDataState.Success, dataUri: null })
       }
@@ -54,10 +54,10 @@ export default function LazyContent(
 }
 
 function LoadRealData(
-  elementName: string,
   relativePath: string,
   dsRoot: string,
-  mimeType: string | null,
+  // Unused as of now
+  _mimeType: string | null,
   setter: (data: LazyData) => void
 ) {
   if (!IsTauriAvailable()) {

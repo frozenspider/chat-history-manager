@@ -19,10 +19,8 @@ import {
 
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
-import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
-import { TestMp3Base64Data } from "@/app/utils/test_entities";
-import MessagesLoadSpinner from "@/app/utils/load_spinner";
 import { GetUserPrettyName, NameColorClassFromPrettyName, Unnamed } from "@/app/utils/entity_utils";
+import AudioComponent from "@/app/utils/audio_component";
 import TauriImage from "@/app/utils/tauri_image";
 
 import SystemMessage from "@/app/message/system_message";
@@ -113,13 +111,10 @@ export function MessageContentVoiceMsg(args: {
   content: ContentVoiceMsg,
   dsRoot: string
 }): React.JSX.Element {
-  let content = args.content
-  return AudioComponent(
-    "Voice message",
-    GetNonDefaultOrNull(content.pathOption),
-    args.dsRoot,
-    GetNonDefaultOrNull(content.mimeType)
-  )
+  return <AudioComponent elementName="Voice message"
+                         relativePath={GetNonDefaultOrNull(args.content.pathOption)}
+                         dsRoot={args.dsRoot}
+                         mimeType={GetNonDefaultOrNull(args.content.mimeType)}/>
 }
 
 export function MessageContentAudio(args: {
@@ -127,12 +122,12 @@ export function MessageContentAudio(args: {
   dsRoot: string
 }): React.JSX.Element {
   let content = args.content
-  let audio = AudioComponent(
-    "Audio",
-    GetNonDefaultOrNull(content.pathOption),
-    args.dsRoot,
-    GetNonDefaultOrNull(content.mimeType)
-  )
+  let audio =
+    <AudioComponent elementName="Audio"
+                    relativePath={GetNonDefaultOrNull(content.pathOption)}
+                    dsRoot={args.dsRoot}
+                    mimeType={GetNonDefaultOrNull(content.mimeType)}/>
+
   let title =
     GetNonDefaultOrNull([content.performerOption, content.titleOption]
       .map(GetNonDefaultOrNull)
@@ -142,53 +137,6 @@ export function MessageContentAudio(args: {
     {title && <blockquote><i>Audio:</i> <b>{title}</b></blockquote>}
     {audio}
   </>
-}
-
-function AudioComponent(
-  elementName: string,
-  relativePath: string | null,
-  dsRoot: string,
-  mimeType: string | null
-): React.JSX.Element {
-  if (!mimeType) {
-    // Handling some basic MIME types
-    if (!relativePath)
-      mimeType = "audio/mpeg" // Placeholder audio type
-    else if (relativePath.endsWith(".mp3"))
-      mimeType = "audio/mpeg"
-    else if (relativePath.endsWith(".ogg"))
-      mimeType = "audio/ogg"
-    else if (relativePath.endsWith(".wav"))
-      mimeType = "audio/wav"
-    else
-      mimeType = "audio/mpeg"
-  }
-
-  return LazyContent(
-    elementName,
-    relativePath,
-    dsRoot,
-    mimeType,
-    (lazyData) => {
-      if (lazyData.state == LazyDataState.Failure) {
-        return <SystemMessage>Voice message loading failed</SystemMessage>
-      } else if (lazyData.dataUri || lazyData.state == LazyDataState.TauriNotAvailable) {
-        let dataUri = lazyData.dataUri
-        if (lazyData.state == LazyDataState.TauriNotAvailable) {
-          // If not using Tauri, use test data
-          dataUri = TestMp3Base64Data
-        }
-        // FIXME: Doesn't work in Tauri window!
-        return (
-          <audio className="block w-full max-w-md mr-auto" controls>
-            <source src={dataUri!}/>
-          </audio>
-        )
-      } else {
-        return <MessagesLoadSpinner center={false} text="Voice message loading..."/>
-      }
-    }
-  )
 }
 
 export function MessageContentVideoMsg(args: {
