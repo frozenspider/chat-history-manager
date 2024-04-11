@@ -66,25 +66,38 @@ export function MessageContentSticker(args: {
   let content = args.content
   let path = GetNonDefaultOrNull(content.pathOption);
 
+  let w = content.width / 2
+  let h = content.height / 2
+
   if (path?.endsWith(".tgs")) {
-    // Telegram animated sticker, not supported
+    // Telegram-specific animated sticker, not supported
     return <>
       <SystemMessage>Animated sticker</SystemMessage>
       <TauriImage elementName="Sticker"
                   relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
-                  width={content.width / 2}
-                  height={content.width / 2}
+                  width={w}
+                  height={h}
                   mimeType={null /* unknown */}
                   dsRoot={args.dsRoot}
                   altText={content.emojiOption}/>
     </>
+  } else if (path?.endsWith(".webm")) {
+    return VideoComponent(
+      "Animated sticker",
+      GetNonDefaultOrNull(content.pathOption),
+      GetNonDefaultOrNull(content.thumbnailPathOption),
+      args.dsRoot,
+      w,
+      h,
+      null
+    )
   } else {
     return (
       <TauriImage elementName="Sticker"
                   relativePath={path}
                   dsRoot={args.dsRoot}
-                  width={content.width / 2}
-                  height={content.height / 2}
+                  width={w}
+                  height={h}
                   mimeType={null /* unknown */}
                   altText={content.emojiOption}/>
     )

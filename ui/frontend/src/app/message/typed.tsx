@@ -200,7 +200,7 @@ function MessageTypedRegular(args: {
   let fwdFrom = <></>
   if (fwdFromName) {
     let colorClass = NameColorClassFromPrettyName(fwdFromName, args.chatState.cc.members).text
-    fwdFrom = <p>Forwarded from <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
+    fwdFrom = <p><span className="text-gray-400">Forwarded from</span> <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
   }
 
   let replyToId = GetNonDefaultOrNull(args.msg.replyToMessageIdOption)

@@ -14,7 +14,7 @@ import { ChatState, SetCachedChatState } from "@/app/utils/chat_state";
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
  */
-const ScrollTriggeringMessageNumber = 5;
+const ScrollTriggeringMessageNumber = 15;
 
 export default function MessagesList({ chatState, setChatState, setNavigationCallbacks }: {
   // We're unrolling arguments like this to make hook dependencies more granular
