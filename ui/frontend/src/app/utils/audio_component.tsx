@@ -59,7 +59,7 @@ export default function AudioComponent(args: {
       setOgv(GetOrInitOgv())
   }, [setOgv])
 
-  // Setup the player. Use ogv.js if appropriate, otherwise use HTML5 <audio>.
+  // Set up the player. Use ogv.js if appropriate, otherwise use HTML5 <audio>.
   React.useEffect(() => {
     if (!srcUri) return
 

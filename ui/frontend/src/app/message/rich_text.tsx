@@ -16,11 +16,12 @@ export default function MessageRichText(args: {
       .flatMap(rte =>
         rte.val?.$case === "link" && rte.val.link.hidden ? [rte.val.link.href] : []))
 
+  let isSingular = args.rtes.length == 1
   return (
     <div>
       {
         args.rtes.map((rte, idx) => {
-          let rteJsx = MessageRichTextElement(rte, args.borderColorClass)
+          let rteJsx = MessageRichTextElement(rte, args.borderColorClass, isSingular)
           return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
             {rteJsx}
           </React.Fragment>
@@ -34,11 +35,26 @@ export default function MessageRichText(args: {
   )
 }
 
-function MessageRichTextElement(rte: RichTextElement, borderColorClass: string): React.JSX.Element | null {
+function MessageRichTextElement(
+  rte: RichTextElement,
+  borderColorClass: string,
+  isSingular: boolean
+): React.JSX.Element | null {
   AssertDefined(rte.val, "RichTextElement value")
   switch (rte.val.$case) {
-    case "plain":
-      return <span className="whitespace-pre-wrap">{rte.val.plain.text}</span>
+    case "plain": {
+      let text = rte.val.plain.text
+      // Emoji take more than one UTF-16 code unit, so string.length for them would be 2 or more.
+      // Special thanks goes to https://cestoliv.com/blog/how-to-count-emojis-with-javascript/
+      let isLoneEmoji = (
+        isSingular
+        && /\p{Emoji}/u.test(text)
+        // Intl.Segmenter is not available in Firefox (at least not in <=124), but as it's not a webview,
+        // we use simpler alternative despite it not working for complex emojis
+        && [...(Intl.Segmenter ? new Intl.Segmenter().segment(text) : text)].length == 1
+      )
+      return <span className={"whitespace-pre-wrap" + (isLoneEmoji ? " text-7xl" : "")}>{text}</span>
+    }
     case "bold":
       return <span className="whitespace-pre-wrap font-bold">{rte.val.bold.text}</span>
     case "italic":
