@@ -114,7 +114,8 @@ export function MessageContentVoiceMsg(args: {
   return <AudioComponent elementName="Voice message"
                          relativePath={GetNonDefaultOrNull(args.content.pathOption)}
                          dsRoot={args.dsRoot}
-                         mimeType={GetNonDefaultOrNull(args.content.mimeType)}/>
+                         mimeType={GetNonDefaultOrNull(args.content.mimeType)}
+                         duration={GetNonDefaultOrNull(args.content.durationSecOption)}/>
 }
 
 export function MessageContentAudio(args: {
@@ -126,7 +127,8 @@ export function MessageContentAudio(args: {
     <AudioComponent elementName="Audio"
                     relativePath={GetNonDefaultOrNull(content.pathOption)}
                     dsRoot={args.dsRoot}
-                    mimeType={GetNonDefaultOrNull(content.mimeType)}/>
+                    mimeType={GetNonDefaultOrNull(content.mimeType)}
+                    duration={GetNonDefaultOrNull(args.content.durationSecOption)}/>
 
   let title =
     GetNonDefaultOrNull([content.performerOption, content.titleOption]

@@ -6,7 +6,7 @@ import { Pause, Play } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
-import { GetNonDefaultOrNull, SecondsToHhMmSsString } from "@/app/utils/utils";
+import { SecondsToHhMmSsString } from "@/app/utils/utils";
 import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
 import MessagesLoadSpinner from "@/app/utils/load_spinner";
@@ -21,7 +21,8 @@ export default function AudioComponent(args: {
   elementName: string,
   relativePath: string | null,
   dsRoot: string,
-  mimeType: string | null
+  mimeType: string | null,
+  duration: number | null
 }): React.JSX.Element {
   let [ogv, setOgv] = React.useState<any | null>(null)
   let [player, setPlayer] = React.useState<HTMLMediaElement | null>(null)
@@ -30,7 +31,7 @@ export default function AudioComponent(args: {
 
   // Progress, 0 to 100
   let [progress, setProgress] = React.useState<number | null>(null)
-  let [duration, setDuration] = React.useState<number | null>(null)
+  let [duration, setDuration] = React.useState(args.duration)
 
   let audioRef = React.useRef<HTMLMediaElement | null>(null)
 
@@ -55,22 +56,17 @@ export default function AudioComponent(args: {
 
   // ogv.js cannot be initialized during prerender as it requires a document to work with
   React.useEffect(() => {
-    let inner = async () => {
-      let ogv = require("ogv")
-      // Path to ogv-demuxer-ogg.js, ogv-worker-audio.js, dynamicaudio.swf etc
-      ogv.OGVLoader.base = '/js/ogv';
-      setOgv(ogv)
-    }
-    inner()
+      setOgv(GetOrInitOgv())
   }, [setOgv])
 
-  // Initialize the player. Use ogv.js if appropriate, otherwise use HTML5 <audio>.
+  // Setup the player. Use ogv.js if appropriate, otherwise use HTML5 <audio>.
   React.useEffect(() => {
     if (!srcUri) return
 
     let player: HTMLMediaElement | null = null
     if (ogv) {
-      // FIXME: OGVPlayer only loads the first megabyte of asset source and doesn't load more for some reason
+      // TODO: OGVPlayer only loads the first megabyte of asset source and doesn't load more for some reason.
+      // As a temporary workaround, we're querying the audio asset as base64 uri.
       let ogvPlayer: OgvPlayer = new ogv.OGVPlayer()
       if (ogvPlayer.canPlayType(mimeType)) {
         ogvPlayer.type = mimeType!
@@ -83,24 +79,37 @@ export default function AudioComponent(args: {
     if (player) {
       player.src = srcUri
 
-      player.onplaying = (_ev) => setIsPlaying(true)
-      player.onpause = (_ev) => setIsPlaying(false)
-      player.onended = (_ev) => {
-        // Stream may not be seekable, se we need to reset the source to seek to start
+      function updateProgress() {
+        if (player && isFinite(player.currentTime) && duration && isFinite(duration)) {
+          setProgress(player.currentTime * 100 / duration)
+        }
+      }
+
+      player.onplaying = () => {
+        setIsPlaying(true)
+      }
+      player.onpause = () => {
+        setIsPlaying(false)
+        updateProgress()
+      }
+      player.onended = () => {
+        player.load() // Reset to start, even if source is not seekable
         setIsPlaying(false)
         setProgress(0)
       }
-      player.ondurationchange = (_ev) => setDuration(GetNonDefaultOrNull(player?.duration))
-      player.ontimeupdate = (_ev) => {
-        if (player && !isNaN(player.currentTime) && !isNaN(player.duration)) {
-          setProgress(player.currentTime * 100 / player.duration)
+      player.ondurationchange = () => {
+        if (isFinite(player.duration)) {
+          setDuration(player.duration)
         }
+      }
+      player.ontimeupdate = () => {
+        updateProgress()
       }
       player.load()
 
       setPlayer(player)
     }
-  }, [ogv, srcUri, mimeType, setPlayer, setIsPlaying, setProgress, setDuration])
+  }, [ogv, srcUri, mimeType, duration, setPlayer, setIsPlaying, setProgress, setDuration])
 
   let audio = <audio ref={audioRef} className="hidden"/>
   let progressBar = <Progress value={progress} max={100}/>
@@ -110,7 +119,7 @@ export default function AudioComponent(args: {
     args.elementName,
     args.relativePath,
     args.dsRoot,
-    mimeType!,
+    mimeType,
     (lazyData) => {
       if (lazyData.state == LazyDataState.Failure) {
         return <SystemMessage>Voice message loading failed</SystemMessage>
@@ -131,7 +140,7 @@ export default function AudioComponent(args: {
               <SystemMessage>Test audio</SystemMessage> :
               <></>}
             <div className="m-1 flex items-center gap-2">
-              <button onClick={() => isPlaying ? player?.pause() : player?.play()}>
+              <button onClick={() => isPlaying ? player.pause() : player.play()}>
                 {isPlaying ? <Pause/> : <Play/>}
               </button>
               {progressBar}
@@ -144,7 +153,9 @@ export default function AudioComponent(args: {
       } else {
         return <MessagesLoadSpinner center={false} text="Voice message loading..."/>
       }
-    }
+    },
+    false,
+    true
   )
 
   return (
@@ -171,4 +182,16 @@ function Time(args: {
   return <p>
     <span>{mainPart}</span><span className="text-xs">{decimals > 0 ? "." + decimals : ""}</span>
   </p>
+}
+
+let __globalOgv: any = null
+
+// Requires document to be present, so it can only be called from an async function inside React effect
+function GetOrInitOgv(): any {
+  if (!__globalOgv) {
+      __globalOgv = require("ogv")
+      // Path to ogv-demuxer-ogg.js, ogv-worker-audio.js, dynamicaudio.swf etc
+      __globalOgv.OGVLoader.base = '/js/ogv';
+  }
+  return __globalOgv
 }

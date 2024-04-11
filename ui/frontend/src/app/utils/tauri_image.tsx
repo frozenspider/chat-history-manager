@@ -5,7 +5,8 @@ import React from "react";
 import Image from "next/image";
 
 import { PlaceholderImageSvg } from "@/app/utils/entity_utils";
-import LazyContent from "@/app/utils/lazy_content";
+import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
+import SystemMessage from "@/app/message/system_message";
 
 const MaxWidth = 1024
 const MaxHeight = 768
@@ -46,6 +47,9 @@ export default function TauriImage(args: {
     args.dsRoot,
     mimeType,
     (lazyData) => {
+      if (lazyData.state == LazyDataState.Failure) {
+        return <SystemMessage>Image loading failed</SystemMessage>
+      }
       let isPlaceholder = lazyData.dataUri == null
       let srcToUse = lazyData.dataUri ?? PlaceholderImageSvg
       if (args.width > 0 && args.height > 0) {
@@ -88,6 +92,7 @@ export default function TauriImage(args: {
         )
       }
     },
-    args.keepPlaceholderOnNull
+    args.keepPlaceholderOnNull,
+    false
   )
 }
