@@ -25,7 +25,6 @@ export default function AudioComponent(args: {
   duration: number | null
 }): React.JSX.Element {
   let [ogv, setOgv] = React.useState<any | null>(null)
-  let [player, setPlayer] = React.useState<HTMLMediaElement | null>(null)
   let [isPlaying, setIsPlaying] = React.useState(false)
   let [srcUri, setSrcUri] = React.useState<string | null>(null)
 
@@ -60,56 +59,53 @@ export default function AudioComponent(args: {
   }, [setOgv])
 
   // Set up the player. Use ogv.js if appropriate, otherwise use HTML5 <audio>.
-  React.useEffect(() => {
-    if (!srcUri) return
+  let player = React.useMemo(() => {
+    if (!srcUri || !ogv) return null
 
     let player: HTMLMediaElement | null = null
-    if (ogv) {
-      // TODO: OGVPlayer only loads the first megabyte of asset source and doesn't load more for some reason.
-      // As a temporary workaround, we're querying the audio asset as base64 uri.
-      let ogvPlayer: OgvPlayer = new ogv.OGVPlayer()
-      if (ogvPlayer.canPlayType(mimeType)) {
-        ogvPlayer.type = mimeType!
-        player = ogvPlayer
-      } else {
-        player = audioRef.current
+    // TODO: OGVPlayer only loads the first megabyte of asset source and doesn't load more for some reason.
+    // As a temporary workaround, we're querying the audio asset as base64 uri.
+    let ogvPlayer: OgvPlayer = new ogv.OGVPlayer()
+    if (ogvPlayer.canPlayType(mimeType)) {
+      ogvPlayer.type = mimeType!
+      player = ogvPlayer
+    } else {
+      player = audioRef.current
+    }
+
+    if (!player) return null
+
+    player.src = srcUri
+
+    function updateProgress() {
+      if (player && isFinite(player.currentTime) && duration && isFinite(duration)) {
+        setProgress(player.currentTime * 100 / duration)
       }
     }
 
-    if (player) {
-      player.src = srcUri
-
-      function updateProgress() {
-        if (player && isFinite(player.currentTime) && duration && isFinite(duration)) {
-          setProgress(player.currentTime * 100 / duration)
-        }
-      }
-
-      player.onplaying = () => {
-        setIsPlaying(true)
-      }
-      player.onpause = () => {
-        setIsPlaying(false)
-        updateProgress()
-      }
-      player.onended = () => {
-        player.load() // Reset to start, even if source is not seekable
-        setIsPlaying(false)
-        setProgress(0)
-      }
-      player.ondurationchange = () => {
-        if (isFinite(player.duration)) {
-          setDuration(player.duration)
-        }
-      }
-      player.ontimeupdate = () => {
-        updateProgress()
-      }
-      player.load()
-
-      setPlayer(player)
+    player.onplaying = () => {
+      setIsPlaying(true)
     }
-  }, [ogv, srcUri, mimeType, duration, setPlayer, setIsPlaying, setProgress, setDuration])
+    player.onpause = () => {
+      setIsPlaying(false)
+      updateProgress()
+    }
+    player.onended = () => {
+      player.load() // Reset to start, even if source is not seekable
+      setIsPlaying(false)
+      setProgress(0)
+    }
+    player.ondurationchange = () => {
+      if (isFinite(player.duration)) {
+        setDuration(player.duration)
+      }
+    }
+    player.ontimeupdate = () => {
+      updateProgress()
+    }
+
+    return player
+  }, [ogv, srcUri, mimeType, duration, setIsPlaying, setDuration, setProgress])
 
   let audio = <audio ref={audioRef} className="hidden"/>
   let progressBar = <Progress value={progress} max={100}/>
