@@ -18,12 +18,14 @@ import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
 import { User } from "@/protobuf/core/protobuf/entities";
 
 import { createChannel, createClient } from 'nice-grpc-web';
 import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
 import NavigationBar from "@/app/navigation_bar";
+import { cn } from "@/lib/utils";
 
 let firstLoadComplete = false;
 
@@ -150,11 +152,17 @@ export default function Home() {
             <div className="h-full flex flex-col">
               <NavigationBar chatState={currentChatState}
                              navigationCallbacks={navigationCallbacks}/>
-              <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
+
+              <ScrollAreaPrimitive.Root className={cn(
+                "relative overflow-hidden",
+                "h-full w-full rounded-md border overflow-y-scroll"
+              )}>
                 <MessagesList chatState={currentChatState}
                               setChatState={setCurrentChatState}
                               setNavigationCallbacks={setNavigationCallbacks}/>
-              </ScrollArea>
+                <ScrollBar/>
+                <ScrollAreaPrimitive.Corner/>
+              </ScrollAreaPrimitive.Root>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>

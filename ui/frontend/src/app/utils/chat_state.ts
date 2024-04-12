@@ -106,7 +106,6 @@ export class ChatState {
    */
   async FetchMore(
     fetchPrevious: boolean,
-    isFetching: React.MutableRefObject<boolean>,
     services: ServicesContextType,
     scrollOwner: HTMLElement | null
   ): Promise<ChatState | null> {
@@ -116,9 +115,6 @@ export class ChatState {
     function AmendWithChat(chat: Chat, msgs: Message[]): ChatAndMessage[] {
       return msgs.map(msg => [chat, msg] as const)
     }
-
-    Assert(!isFetching.current, "Fetching is already in progress")
-    isFetching.current = true
 
     let FetchMoreMessages = async (
       chat: Chat,
@@ -270,9 +266,6 @@ export class ChatState {
         new ChatState(this.cc, this.dsState, newViewState, newLoadState, this.resolvedMessages)
       ))
       .then(x => x ?? null)
-      .finally(() => {
-        isFetching.current = false
-      })
   }
 }
 
