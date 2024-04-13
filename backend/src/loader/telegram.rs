@@ -15,6 +15,7 @@ use simd_json::prelude::*;
 use crate::dao::in_memory_dao::InMemoryDao;
 use crate::loader::DataLoader;
 use crate::prelude::*;
+use crate::grpc::client::MyselfChooser;
 // Reexporting JSON utils for simplicity.
 pub use crate::utils::json_utils::*;
 
@@ -461,7 +462,7 @@ impl<'lt> MessageJson<'lt> {
     fn field_opt_path(&mut self, name: &'lt str) -> Result<Option<String>> {
         let field_opt = self.field_opt_str(name)?;
 
-        Ok(field_opt.and_then(|s| (match s.as_str() {
+        Ok(field_opt.and_then(|s| match s.as_str() {
             "" => None,
             "(File not included. Change data exporting settings to download.)" => None,
             "(File exceeds maximum size. Change data exporting settings to download.)" => None,
@@ -470,7 +471,7 @@ impl<'lt> MessageJson<'lt> {
                 None
             }
             _ => Some(s)
-        })))
+        }))
     }
 }
 
@@ -507,7 +508,7 @@ fn parse_message(json_path: &str,
         expected_fields: None,
     };
 
-    // Determine message type an parse short user from it.
+    // Determine message type and parse short user from it.
     let mut short_user: ShortUser = ShortUser::default();
     let mut text: Vec<RichTextElement> = vec![];
     let tpe = message_json.field_str("type")?;

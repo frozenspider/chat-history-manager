@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::dao::in_memory_dao::InMemoryDao;
+use crate::grpc::client::MyselfChooser;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 

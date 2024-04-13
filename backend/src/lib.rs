@@ -8,7 +8,7 @@ use crate::loader::Loader;
 mod protobuf;
 mod loader;
 mod merge;
-mod server;
+mod grpc;
 mod dao;
 mod utils;
 
@@ -19,6 +19,7 @@ pub mod prelude {
 
     pub use crate::*;
     pub use crate::protobuf::history::*;
+    pub use crate::grpc::client::NoChooser;
     #[cfg(test)]
     pub use crate::test_utils::*;
     pub use crate::utils::*;
@@ -37,7 +38,7 @@ pub mod prelude {
 // Entry points
 //
 
-pub fn parse_file(path: &str, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+pub fn parse_file(path: &str, myself_chooser: &dyn grpc::client::MyselfChooser) -> Result<Box<InMemoryDao>> {
     thread_local! {
         static LOADER: Loader = Loader::new(&ReqwestHttpClient);
     }
@@ -48,11 +49,11 @@ pub fn parse_file(path: &str, myself_chooser: &dyn MyselfChooser) -> Result<Box<
 
 pub fn start_server(port: u16) -> EmptyRes {
     let loader = Loader::new(&ReqwestHttpClient);
-    server::start_server(port, loader)
+    grpc::server::start_server(port, loader)
 }
 
 pub fn debug_request_myself(port: u16) -> EmptyRes {
-    let chosen = server::debug_request_myself(port)?;
+    let chosen = grpc::client::debug_request_myself(port)?;
     log::info!("Picked: {}", chosen);
     Ok(())
 }
@@ -60,19 +61,6 @@ pub fn debug_request_myself(port: u16) -> EmptyRes {
 //
 // Other
 //
-
-pub trait MyselfChooser: Send {
-    fn choose_myself(&self, users: &[User]) -> Result<usize>;
-}
-
-#[derive(Clone, Copy)]
-pub struct NoChooser;
-
-impl MyselfChooser for NoChooser {
-    fn choose_myself(&self, _pretty_names: &[User]) -> Result<usize> {
-        err!("No way to choose myself!")
-    }
-}
 
 pub trait HttpClient: Send + Sync {
     fn get_bytes(&self, url: &str) -> Result<Vec<u8>>;
