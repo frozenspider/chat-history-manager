@@ -4,22 +4,19 @@ use std::net::SocketAddr;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
 use std::sync::Arc;
+
 use indexmap::IndexMap;
-
-use tokio::runtime::Handle;
 use tonic::{Code, Request, Response, Status, transport::Server};
-use tonic::transport::Endpoint;
 
-use myself_chooser::MyselfChooserImpl;
-
-use crate::prelude::*;
 use crate::dao::ChatHistoryDao;
 use crate::loader::Loader;
+use crate::prelude::*;
 use crate::protobuf::history::history_dao_service_server::HistoryDaoServiceServer;
 use crate::protobuf::history::history_loader_service_server::HistoryLoaderServiceServer;
 use crate::protobuf::history::merge_service_server::MergeServiceServer;
 
-mod myself_chooser;
+use super::client::{self, MyselfChooser};
+
 mod history_loader_service;
 mod history_dao_service;
 mod merge_service;
@@ -109,15 +106,12 @@ impl ChatHistoryManagerServerTrait for Arc<Mutex<ChatHistoryManagerServer>> {
 }
 
 // https://betterprogramming.pub/building-a-grpc-server-with-rust-be2c52f0860e
-#[tokio::main]
 pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
     let addr = format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap();
 
     let remote_port = port + 1;
-    let runtime_handle = Handle::current();
-    let lazy_channel = Endpoint::new(format!("http://127.0.0.1:{remote_port}"))?.connect_lazy();
 
-    let myself_chooser = Box::new(MyselfChooserImpl { runtime_handle, channel: lazy_channel });
+    let myself_chooser = client::create_myself_chooser(remote_port).await?;
     let chm_server = ChatHistoryManagerServer::new_wrapped(loader, myself_chooser);
 
     log::info!("Server listening on {}", addr);
@@ -140,38 +134,6 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
         .await?;
 
     Ok(())
-}
-
-#[tokio::main]
-pub async fn debug_request_myself(port: u16) -> Result<usize> {
-    let conn_port = port + 1;
-    let runtime_handle = Handle::current();
-    let lazy_channel = Endpoint::new(format!("http://127.0.0.1:{conn_port}"))?.connect_lazy();
-    let chooser = MyselfChooserImpl {
-        runtime_handle,
-        channel: lazy_channel,
-    };
-
-    let ds_uuid = PbUuid { value: "00000000-0000-0000-0000-000000000000".to_owned() };
-    let chosen = chooser.choose_myself(&[
-        User {
-            ds_uuid: ds_uuid.clone(),
-            id: 100,
-            first_name_option: Some("User 100 FN".to_owned()),
-            last_name_option: None,
-            username_option: None,
-            phone_number_option: None,
-        },
-        User {
-            ds_uuid,
-            id: 200,
-            first_name_option: None,
-            last_name_option: Some("User 200 LN".to_owned()),
-            username_option: None,
-            phone_number_option: None,
-        },
-    ])?;
-    Ok(chosen)
 }
 
 fn lock_or_status<T>(target: &Arc<Mutex<T>>) -> StatusResult<MutexGuard<'_, T>> {

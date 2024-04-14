@@ -9,6 +9,7 @@ use itertools::{Either, Itertools};
 use crate::prelude::*;
 use crate::dao::ChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
+use crate::grpc::client::MyselfChooser;
 use crate::loader::badoo_android::BadooAndroidDataLoader;
 use crate::loader::mra::MailRuAgentDataLoader;
 use crate::loader::telegram::TelegramDataLoader;

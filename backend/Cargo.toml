@@ -47,8 +47,8 @@ tonic-web = "0.11.0"
 tonic-reflection = { workspace = true }
 
 # Async processing
-futures = "0.3.30"
-tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true }
 
 # Logging
 log = { workspace = true }

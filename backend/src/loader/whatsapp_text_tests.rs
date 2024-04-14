@@ -4,12 +4,12 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use pretty_assertions::{assert_eq, assert_ne};
 
-use crate::{NoChooser, User};
 use crate::dao::ChatHistoryDao;
 use crate::entity_utils::*;
 use crate::protobuf::history::content::SealedValueOptional::*;
 use crate::protobuf::history::message::*;
 use crate::protobuf::history::message_service::SealedValueOptional::*;
+use crate::protobuf::history::User;
 
 use super::*;
 
@@ -24,7 +24,7 @@ fn loading_2023_10() -> EmptyRes {
     let res = resource("whatsapp-text_2023-10/WhatsApp Chat with +123 45 6789.txt");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

@@ -7,12 +7,12 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use pretty_assertions::{assert_eq, assert_ne};
 
-use crate::{NoChooser, User};
 use crate::dao::ChatHistoryDao;
 use crate::entity_utils::*;
 use crate::protobuf::history::content::SealedValueOptional::*;
 use crate::protobuf::history::message::*;
 use crate::protobuf::history::message_service::SealedValueOptional::*;
+use crate::protobuf::history::User;
 
 use super::*;
 
@@ -34,7 +34,7 @@ fn loading_2023_11() -> EmptyRes {
     let _media_dir = TmpDir::new_at(db_dir.path.parent().unwrap().join(MEDIA_DIR));
 
     LOADER.looks_about_right(&res)?;
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

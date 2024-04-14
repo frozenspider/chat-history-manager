@@ -6,11 +6,11 @@ use std::fs::File;
 use pretty_assertions::{assert_eq, assert_ne};
 use regex::Regex;
 
-use crate::NoChooser;
 use crate::dao::ChatHistoryDao;
 use crate::entity_utils::*;
 use crate::loader::Loader;
 use crate::protobuf::history::message::*;
+
 
 use super::*;
 
@@ -924,7 +924,7 @@ struct TestDaos {
 
 fn init() -> TestDaos {
     let src_dir = resource(TELEGRAM_DIR);
-    let src_dao = LOADER.with(|loader| loader.parse(&src_dir, &NoChooser).unwrap());
+    let src_dao = LOADER.with(|loader| loader.parse(&src_dir, &client::NoChooser).unwrap());
     init_from(src_dao, src_dir, None)
 }
 

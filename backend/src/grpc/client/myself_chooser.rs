@@ -3,7 +3,7 @@ use tonic::transport::Channel;
 
 use crate::choose_myself_service_client::ChooseMyselfServiceClient;
 
-use crate::prelude::*;
+use super::*;
 
 pub struct MyselfChooserImpl {
     pub runtime_handle: Handle,

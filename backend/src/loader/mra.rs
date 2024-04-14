@@ -16,6 +16,7 @@ use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
+use crate::grpc::client::MyselfChooser;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 
