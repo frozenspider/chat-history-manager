@@ -19,7 +19,7 @@ pub mod prelude {
 
     pub use crate::*;
     pub use crate::protobuf::history::*;
-    pub use crate::grpc::client::NoChooser;
+    pub use crate::grpc::client;
     #[cfg(test)]
     pub use crate::test_utils::*;
     pub use crate::utils::*;
@@ -47,15 +47,13 @@ pub fn parse_file(path: &str, myself_chooser: &dyn grpc::client::MyselfChooser) 
     })
 }
 
-pub fn start_server(port: u16) -> EmptyRes {
+pub async fn start_server(port: u16) -> EmptyRes {
     let loader = Loader::new(&ReqwestHttpClient);
-    grpc::server::start_server(port, loader)
+    grpc::server::start_server(port, loader).await
 }
 
-pub fn debug_request_myself(port: u16) -> EmptyRes {
-    let chosen = grpc::client::debug_request_myself(port)?;
-    log::info!("Picked: {}", chosen);
-    Ok(())
+pub async fn debug_request_myself(port: u16) -> Result<usize> {
+    grpc::client::debug_request_myself(port).await
 }
 
 //

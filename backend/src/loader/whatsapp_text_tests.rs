@@ -24,7 +24,7 @@ fn loading_2023_10() -> EmptyRes {
     let res = resource("whatsapp-text_2023-10/WhatsApp Chat with +123 45 6789.txt");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

@@ -9,8 +9,9 @@ pub trait MyselfChooser: Send {
     fn choose_myself(&self, users: &[User]) -> Result<usize>;
 }
 
-pub fn create_myself_chooser(remote_port: u16, runtime_handle: Handle) -> Result<Box<dyn MyselfChooser>> {
-    let lazy_channel = Endpoint::new(format!("http://127.0.0.1:{remote_port}"))?.connect_lazy();
+pub async fn create_myself_chooser(remote_port: u16) -> Result<Box<dyn MyselfChooser>> {
+    let runtime_handle = Handle::current();
+    let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
     Ok(Box::new(myself_chooser::MyselfChooserImpl { runtime_handle, channel: lazy_channel }))
 }
 
@@ -23,10 +24,9 @@ impl MyselfChooser for NoChooser {
     }
 }
 
-#[tokio::main]
 pub async fn debug_request_myself(port: u16) -> Result<usize> {
     let conn_port = port + 1;
-    let chooser = create_myself_chooser(conn_port, Handle::current())?;
+    let chooser = create_myself_chooser(conn_port).await?;
 
     let ds_uuid = PbUuid { value: "00000000-0000-0000-0000-000000000000".to_owned() };
     let chosen = chooser.choose_myself(&[

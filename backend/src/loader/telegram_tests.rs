@@ -23,7 +23,7 @@ fn loading_2020_01() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -125,7 +125,7 @@ fn loading_2021_05() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -194,7 +194,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -324,7 +324,7 @@ fn loading_2021_07() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -401,7 +401,7 @@ fn loading_2023_01() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     // Parsing as UTC+5.
     let offset = FixedOffset::east_opt(5 * 3600).unwrap();
@@ -557,7 +557,7 @@ fn loading_2023_08() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -642,7 +642,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -795,7 +795,7 @@ fn loading_2023_11_diff() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -815,7 +815,7 @@ fn loading_2024_01() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -841,7 +841,7 @@ fn loading_2024_02() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -877,7 +877,7 @@ fn inline_bot_buttons() -> EmptyRes {
     LOADER.looks_about_right(&res)?;
 
     let dao =
-        LOADER.load(&res, &NoChooser)?;
+        LOADER.load(&res, &client::NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;

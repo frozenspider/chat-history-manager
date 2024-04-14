@@ -6,7 +6,6 @@ use std::sync::{Mutex, MutexGuard};
 use std::sync::Arc;
 
 use indexmap::IndexMap;
-use tokio::runtime::Handle;
 use tonic::{Code, Request, Response, Status, transport::Server};
 
 use crate::dao::ChatHistoryDao;
@@ -107,13 +106,12 @@ impl ChatHistoryManagerServerTrait for Arc<Mutex<ChatHistoryManagerServer>> {
 }
 
 // https://betterprogramming.pub/building-a-grpc-server-with-rust-be2c52f0860e
-#[tokio::main]
 pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
     let addr = format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap();
 
     let remote_port = port + 1;
 
-    let myself_chooser = client::create_myself_chooser(remote_port, Handle::current())?;
+    let myself_chooser = client::create_myself_chooser(remote_port).await?;
     let chm_server = ChatHistoryManagerServer::new_wrapped(loader, myself_chooser);
 
     log::info!("Server listening on {}", addr);

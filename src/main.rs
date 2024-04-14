@@ -31,11 +31,12 @@ enum Command {
 }
 
 /** Starts a server by default. */
-fn main() {
+#[tokio::main]
+async fn main() {
     init_logger();
 
     let args = Args::parse();
-    if let Err(e) = execute_command(args.command) {
+    if let Err(e) = execute_command(args.command).await {
         eprintln!("Error: {}", error_to_string(&e));
         let backtrace = e.backtrace();
         // Backtrace is defined as just "&impl Debug + Display", so to make sure we actually have a backtrace
@@ -51,20 +52,21 @@ fn main() {
     }
 }
 
-fn execute_command(command: Command) -> EmptyRes {
+async fn execute_command(command: Command) -> EmptyRes {
     match command {
         Command::StartServer { server_port } => {
             let server_port = server_port.unwrap_or(DEFAULT_SERVER_PORT);
-            start_server(server_port)?;
+            start_server(server_port).await?;
         }
         Command::Parse { path } => {
-            let parsed = parse_file(&path, &NoChooser).with_context(|| format!("Failed to parse {path}"))?;
+            let parsed = parse_file(&path, &client::NoChooser).with_context(|| format!("Failed to parse {path}"))?;
             let size: usize = parsed.deep_size_of();
             log::info!("Size of parsed in-memory DB: {} MB ({} B)", size / 1024 / 1024, size);
         }
         Command::RequestMyself { port } => {
             let port = port.unwrap_or(DEFAULT_SERVER_PORT + 1);
-            debug_request_myself(port)?;
+            let chosen = debug_request_myself(port).await?;
+            log::info!("Picked: {}", chosen);
         }
     }
     Ok(())

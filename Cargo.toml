@@ -11,6 +11,9 @@ chat-history-manager-backend = { workspace = true }
 mimalloc = "0.1.39" # As advise by SIMD Json docs
 deepsize = { workspace = true }
 
+# Async processing
+tokio = { workspace = true }
+
 # Logging
 log = { workspace = true }
 env_logger = { workspace = true }
@@ -43,6 +46,10 @@ lazy_static = "1.4.0"
 derive_deref = "1.1.1"
 anyhow = { version = "1.0.81", features = ["backtrace"] }
 deepsize = "0.2.0"
+
+# Async processing
+futures = "0.3.30"
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
 
 # Text processing
 regex = "1.10.3"
