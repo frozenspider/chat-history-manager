@@ -1,6 +1,7 @@
 'use client'
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
+import { listen, EventCallback, UnlistenFn, EventName } from "@tauri-apps/api/event";
 
 export function Assert(cond: boolean, message?: string): asserts cond {
   if (!cond) throw new Error(message ?? "Assertion failed")
@@ -66,6 +67,17 @@ export async function InvokeTauriAsync<T>(
     console.warn(msg)
     window.alert(msg)
     return Promise.resolve()
+  }
+}
+
+export async function Listen(event: EventName, cb: EventCallback<void>): Promise<UnlistenFn> {
+  if (IsTauriAvailable()) {
+    return listen(event, cb)
+  } else {
+    console.warn("Listening to " + event + " but Tauri is not available")
+    return () => {
+      // NOOP
+    }
   }
 }
 

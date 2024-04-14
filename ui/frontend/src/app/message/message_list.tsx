@@ -11,7 +11,7 @@ import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull } from "@/app/utils/
 import { NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, SetCachedChatState } from "@/app/utils/chat_state";
-import MessagesLoadSpinner from "@/app/utils/load_spinner";
+import LoadSpinner from "@/app/utils/load_spinner";
 
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
@@ -115,7 +115,7 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
     return <></>
 
   if (!chatState.viewState)
-    return <MessagesLoadSpinner center={true} text="Fetching..."/>
+    return <LoadSpinner center={true} text="Fetching..."/>
 
   AssertDefined(chatState.cc.mainCwd.chat)
 

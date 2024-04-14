@@ -55,7 +55,9 @@ async fn main() {
 async fn execute_command(command: Option<Command>) -> EmptyRes {
     match command {
         None => {
-            chat_history_manager_ui::start();
+            let server_port = DEFAULT_SERVER_PORT; // TODO
+            let clients = client::create_clients(server_port).await?;
+            chat_history_manager_ui::start(clients).await;
         }
         Some(Command::StartServer { server_port }) => {
             let server_port = server_port.unwrap_or(DEFAULT_SERVER_PORT);

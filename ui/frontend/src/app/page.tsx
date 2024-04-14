@@ -2,9 +2,12 @@
 
 import React from "react";
 
+import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
-import { Assert, PromiseCatchReportError } from "@/app/utils/utils";
+import LoadSpinner from "@/app/utils/load_spinner";
+
+import { Assert, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   DatasetState,
   LoadedFileState,
@@ -14,6 +17,7 @@ import {
 } from "@/app/utils/state";
 import { ChatState, ClearCachedChatState } from "@/app/utils/chat_state";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
+import { cn } from "@/lib/utils";
 
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -21,21 +25,23 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
 import { User } from "@/protobuf/core/protobuf/entities";
-
-import { createChannel, createClient } from 'nice-grpc-web';
 import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
-import NavigationBar from "@/app/navigation_bar";
-import { cn } from "@/lib/utils";
+import { createChannel, createClient } from 'nice-grpc-web';
 
-let firstLoadComplete = false;
+const USE_TEST_DATA = false;
+
+let firstLoadCalled = USE_TEST_DATA;
 
 export default function Home() {
+  // In test mode, use test data instead of fetching
+  let [loaded, setLoaded] =
+    React.useState<boolean>(USE_TEST_DATA)
   let [openFiles, setOpenFiles] =
-    React.useState<LoadedFileState[]>(TestLoadedFiles)
+    React.useState<LoadedFileState[]>(USE_TEST_DATA ? TestLoadedFiles : [])
   let [currentFileState, setCurrentFileState] =
     React.useState<LoadedFileState | null>(openFiles[0] ?? null)
   let [currentChatState, setCurrentChatState] =
-    React.useState<ChatState | null>(() => TestChatState)
+    React.useState<ChatState | null>(() => USE_TEST_DATA ? TestChatState : null)
   let [navigationCallbacks, setNavigationCallbacks] =
     React.useState<NavigationCallbacks | null>(null)
 
@@ -48,70 +54,24 @@ export default function Home() {
     }
   }, [])
 
-  async function LoadExistingData() {
-    // Reset open files
-    openFiles.forEach(f => ClearCachedChatState(f.key))
-    setOpenFiles([])
-    // setCurrentChatState(null)
-    setCurrentFileState(null)
-
-    let loadedFilesResponse = await services.loadClient.getLoadedFiles({});
-    if (loadedFilesResponse.files.length == 0) {
-      console.log("No files open")
-      return
-    }
-    let firstFile = true
-    for (let file of loadedFilesResponse.files) {
-      let fileState: LoadedFileState = {
-        key: file.key,
-        name: file.name,
-        datasets: [],
-      }
-
-      let datasetsResponse = await services.daoClient.datasets({ key: file.key })
-      for (let ds of datasetsResponse.datasets) {
-        let dsRootResponse =
-          await services.daoClient.datasetRoot({ key: file.key, dsUuid: ds.uuid })
-        let datasetState: DatasetState = {
-          fileKey: file.key,
-          ds: ds,
-          dsRoot: dsRootResponse.path,
-          users: new Map<bigint, User>,
-          myselfId: BigInt(-1),
-          cwds: []
-        }
-
-        let usersResponse = await services.daoClient.users({ key: file.key, dsUuid: ds.uuid })
-        Assert(usersResponse.users.length > 0, "Dataset " + ds.uuid?.value + "contains no users!")
-        datasetState.myselfId = usersResponse.users[0].id
-
-        // Construct a map of users by id
-        usersResponse.users.forEach((user) => {
-          datasetState.users.set(user.id, user)
-        })
-
-        let chatsResponse = await services.daoClient.chats({ key: file.key, dsUuid: ds.uuid })
-        datasetState.cwds = chatsResponse.cwds
-
-        fileState.datasets.push(datasetState)
-      }
-
-      setOpenFiles((oldState) => [...oldState, fileState])
-      if (firstFile) {
-        console.log("Setting current file to ", fileState)
-        setCurrentFileState(fileState)
-        firstFile = false
-      }
-    }
-    console.log("Done fetching initial data")
-  }
-
+  // This cannot be called during prerender as it relies on window object
   React.useEffect(() => {
-    if (!firstLoadComplete) {
-      firstLoadComplete = true
-      PromiseCatchReportError(LoadExistingData())
+    if (!firstLoadCalled) {
+      let load = async () =>
+        LoadExistingData(services, setOpenFiles, setCurrentFileState, setCurrentChatState)
+
+      PromiseCatchReportError(load())
+        .then(() => setLoaded(true))
+
+      // Note: we cannot unmount the returned listener because it's a promise!
+      Listen("open-files-changed", () => {
+        setLoaded(false)
+        PromiseCatchReportError(load())
+          .then(() => setLoaded(true))
+      })
+      firstLoadCalled = true
     }
-  }, [LoadExistingData])
+  }, [services])
 
   let tabs = openFiles.length > 1 ? (
     <Tabs defaultValue={currentFileState?.key}
@@ -136,18 +96,21 @@ export default function Home() {
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={33} minSize={10}>
             <div className="border-r h-full relative flex flex-col">
-              <ScrollArea className="w-full rounded-md border overflow-y-scroll">
+              <ScrollArea className="w-full rounded-md border">
                 {tabs}
                 <ScrollBar orientation="horizontal"/>
               </ScrollArea>
 
-              <ScrollArea className="h-full w-full rounded-md border overflow-y-scroll">
-                <ChatList fileState={currentFileState}
-                          setChatState={setCurrentChatState}/>
+              <ScrollArea className="h-full w-full rounded-md border">
+                {loaded ?
+                  <ChatList fileState={currentFileState}
+                            setChatState={setCurrentChatState}/> :
+                  <LoadSpinner center={true} text="Loading..."/>}
+
               </ScrollArea>
             </div>
           </ResizablePanel>
-          <ResizableHandle className="w-1 bg-stone-400"/>
+          <ResizableHandle className="w-2 bg-background"/>
           <ResizablePanel defaultSize={67}>
             <div className="h-full flex flex-col">
               <NavigationBar chatState={currentChatState}
@@ -155,7 +118,7 @@ export default function Home() {
 
               <ScrollAreaPrimitive.Root className={cn(
                 "relative overflow-hidden",
-                "h-full w-full rounded-md border overflow-y-scroll"
+                "h-full w-full rounded-md border"
               )}>
                 <MessagesList chatState={currentChatState}
                               setChatState={setCurrentChatState}
@@ -169,4 +132,73 @@ export default function Home() {
       </div>
     </ServicesContext.Provider>
   )
+}
+
+async function LoadExistingData(
+  services: ServicesContextType,
+  setOpenFiles: (change: (v: LoadedFileState[]) => LoadedFileState[]) => void,
+  setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
+  setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
+) {
+  let loadedFilesResponse = await services.loadClient.getLoadedFiles({});
+  let newOpenFiles: Array<LoadedFileState> = []
+  for (let file of loadedFilesResponse.files) {
+    let fileState: LoadedFileState = {
+      key: file.key,
+      name: file.name,
+      datasets: [],
+    }
+
+    let datasetsResponse = await services.daoClient.datasets({ key: file.key })
+    for (let ds of datasetsResponse.datasets) {
+      let dsRootResponse =
+        await services.daoClient.datasetRoot({ key: file.key, dsUuid: ds.uuid })
+      let datasetState: DatasetState = {
+        fileKey: file.key,
+        ds: ds,
+        dsRoot: dsRootResponse.path,
+        users: new Map<bigint, User>,
+        myselfId: BigInt(-1),
+        cwds: []
+      }
+
+      let usersResponse = await services.daoClient.users({ key: file.key, dsUuid: ds.uuid })
+      Assert(usersResponse.users.length > 0, "Dataset " + ds.uuid?.value + "contains no users!")
+      datasetState.myselfId = usersResponse.users[0].id
+
+      // Construct a map of users by id
+      usersResponse.users.forEach((user) => {
+        datasetState.users.set(user.id, user)
+      })
+
+      let chatsResponse = await services.daoClient.chats({ key: file.key, dsUuid: ds.uuid })
+      datasetState.cwds = chatsResponse.cwds
+
+      fileState.datasets.push(datasetState)
+    }
+    newOpenFiles.push(fileState)
+  }
+
+  // We have to use this chain to avoid passing stale values captured by the closure
+  setOpenFiles(openFiles => {
+    setCurrentFileState(currentFileState => {
+      // Close files no longer in scope
+      openFiles
+        .filter(f => !newOpenFiles.some(f2 => f2.key == f.key))
+        .forEach(closed => {
+          ClearCachedChatState(closed.key)
+          if (currentFileState?.key == closed.key)
+            currentFileState = null
+          setCurrentChatState(chatState =>
+            chatState?.dsState?.fileKey == closed.key ? null : chatState)
+        })
+
+      // Reset open files
+      if (currentFileState == null && newOpenFiles.length > 0) {
+        currentFileState = newOpenFiles[0]
+      }
+      return currentFileState
+    })
+    return newOpenFiles
+  })
 }

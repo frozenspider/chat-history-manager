@@ -1,6 +1,6 @@
 import React, { JSX, SVGProps } from "react";
 
-export default function MessagesLoadSpinner(args: {
+export default function LoadSpinner(args: {
   center: boolean,
   text?: string
 }): React.JSX.Element {

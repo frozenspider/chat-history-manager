@@ -18,7 +18,7 @@ import {
 import { ServicesContext } from "@/app/utils/state";
 import { ChatState } from "@/app/utils/chat_state";
 
-import MessagesLoadSpinner from "@/app/utils/load_spinner";
+import LoadSpinner from "@/app/utils/load_spinner";
 import MessageContent, { MessageContentPhoto } from "@/app/message/content";
 
 import {
@@ -276,7 +276,7 @@ function LazyMessageComponent(args: {
 
   if (!message) {
     // Still loading
-    return <MessagesLoadSpinner center={false}/>
+    return <LoadSpinner center={false}/>
   }
 
   if (typeof message === "string") {

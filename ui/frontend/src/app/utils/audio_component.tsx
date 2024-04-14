@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { SecondsToHhMmSsString } from "@/app/utils/utils";
 import LazyContent, { LazyDataState } from "@/app/utils/lazy_content";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
-import MessagesLoadSpinner from "@/app/utils/load_spinner";
+import LoadSpinner from "@/app/utils/load_spinner";
 
 import SystemMessage from "@/app/message/system_message";
 
@@ -147,7 +147,7 @@ export default function AudioComponent(args: {
           return <SystemMessage>Audio player did not load</SystemMessage>
         }
       } else {
-        return <MessagesLoadSpinner center={false} text="Voice message loading..."/>
+        return <LoadSpinner center={false} text="Voice message loading..."/>
       }
     },
     false,

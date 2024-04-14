@@ -1,7 +1,9 @@
 use tokio::runtime::Handle;
-use tonic::transport::Endpoint;
+use tonic::transport::{Channel, Endpoint};
 
 use crate::prelude::*;
+use crate::prelude::history_dao_service_client::HistoryDaoServiceClient;
+use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
 
 mod myself_chooser;
 
@@ -13,6 +15,21 @@ pub async fn create_myself_chooser(remote_port: u16) -> Result<Box<dyn MyselfCho
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
     Ok(Box::new(myself_chooser::MyselfChooserImpl { runtime_handle, channel: lazy_channel }))
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatHistoryManagerGrpcClients {
+    pub loader: HistoryLoaderServiceClient<Channel>,
+    pub dao: HistoryDaoServiceClient<Channel>,
+}
+
+pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcClients> {
+    let uri = format!("http://localhost:{remote_port}");
+    log::info!("Connecting to clients at URI {uri}");
+    let channel = Endpoint::new(uri)?.connect_lazy();
+    let loader = HistoryLoaderServiceClient::new(channel.clone());
+    let dao = HistoryDaoServiceClient::new(channel);
+    Ok(ChatHistoryManagerGrpcClients { loader, dao })
 }
 
 #[derive(Clone, Copy)]
