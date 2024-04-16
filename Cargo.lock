@@ -754,6 +754,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
+ "tokio",
 ]
 
 [[package]]

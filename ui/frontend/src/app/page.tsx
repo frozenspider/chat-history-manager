@@ -57,6 +57,7 @@ export default function Home() {
     React.useState<NavigationCallbacks | null>(null)
 
   let [saveAsState, setSaveAsState] = React.useState<SaveAs | null>(null)
+  let [busyState, setBusyState] = React.useState<string | null>(null)
 
   // No-dependency useMemo ensures that the services are created only once
   const services = React.useMemo<ServicesContextType>(() => {
@@ -85,6 +86,9 @@ export default function Home() {
       Listen<[string, string]>("save-as-clicked", (ev) => {
         let [key, oldName] = ev.payload
         setSaveAsState({ key: key, oldName: oldName })
+      })
+      Listen<string | null>("busy", (ev) => {
+        setBusyState(ev.payload)
       })
       firstLoadCalled = true
     }
@@ -125,6 +129,8 @@ export default function Home() {
                   <LoadSpinner center={true} text="Loading..."/>}
 
               </ScrollArea>
+
+              <div>{busyState ? <LoadSpinner center={true} text={busyState}/> : <></>}</div>
             </div>
           </ResizablePanel>
           <ResizableHandle className="w-2 bg-background"/>

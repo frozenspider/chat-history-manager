@@ -1,19 +1,22 @@
 // Disables the command prompt window that would normally pop up on Windows if run as a bundled app
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::borrow::Cow;
 use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use chat_history_manager_backend::prelude::*;
+use chat_history_manager_backend::prelude::client;
 
 /// Proceed with the result value, or report UI error and return
 macro_rules! handle_result {
@@ -46,8 +49,7 @@ static MENU_POST_DB_SEPARATOR: OnceLock<MenuId> = OnceLock::new();
 
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
-
-type GrpcClients = Arc<Mutex<client::ChatHistoryManagerGrpcClients>>;
+static EVENT_BUSY: &str = "busy";
 
 pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
     let clients: GrpcClients = Arc::new(Mutex::new(clients));
@@ -55,6 +57,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(clients.clone())
+        .manage(Arc::new(Mutex::new(BusyStateValue::NotBusy)))
         .setup(move |app| {
             let app_handle = app.handle();
 
@@ -62,7 +65,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
             app_handle.set_menu(menu)?;
 
             {
-                let clients = clients.lock().expect("lock clients").clone();
+                let clients = lock_mutex(&clients).clone();
                 run_async_callback(
                     app_handle.clone(),
                     move |app_handle| refresh_opened_files_list(app_handle, clients, false),
@@ -71,9 +74,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
 
             app_handle.on_menu_event(move |app_handle, event| {
                 let app_handle = app_handle.clone();
-                let clients =
-                    handle_result!(clients.lock().map_err(|_| anyhow!("gRPC clients mutex is poisoned!")), app_handle)
-                        .clone();
+                let clients = lock_mutex(&clients).clone();
                 run_async_callback(
                     app_handle,
                     move |app_handle| on_menu_event(event, app_handle, clients),
@@ -191,7 +192,7 @@ async fn refresh_opened_files_list(
             &app_handle, &loaded_file.key, &loaded_file.name, true,
             &[
                 &MenuItem::with_id(&app_handle, format!("{MENU_PREFIX_SAVE_AS}_{}", loaded_file.key),
-                                   "Save As [NYI]", true, None::<&str>)?,
+                                   "Save As", true, None::<&str>)?,
                 &PredefinedMenuItem::separator(&app_handle)?,
                 &MenuItem::with_id(&app_handle, format!("{MENU_PREFIX_CLOSE}_{}", loaded_file.key),
                                    "Close", true, None::<&str>)?,
@@ -270,10 +271,13 @@ fn save_as(
     new_name: String,
     app_handle: AppHandle,
     clients: State<GrpcClients>,
+    busy_state: State<BusyState>,
 ) -> tauri::Result<()> {
-    let mut clients = clients.lock().map_err(|_| anyhow!("gRPC clients mutex is poisoned"))?.clone();
+    let mut clients = lock_mutex(&clients).clone();
+    let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Saving..."))?;
     run_async_callback(app_handle, move |app_handle| {
         let inner = async move {
+            let _wip = wip; // Move the WIP RAII inside async closure
             clients.grpc(|_, dao| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
             refresh_opened_files_list(app_handle, clients.clone(), true).await
         };
@@ -285,6 +289,44 @@ fn save_as(
 //
 // Helpers
 //
+
+type GrpcClients = Arc<Mutex<client::ChatHistoryManagerGrpcClients>>;
+
+// Should be used through the `WorkInProgress` RAII
+#[derive(Debug, PartialEq, Eq, Deserialize)]
+enum BusyStateValue {
+    Busy(Cow<'static, str>),
+    NotBusy,
+}
+
+// Should be used through the `WorkInProgress` RAII
+type BusyState = Arc<Mutex<BusyStateValue>>;
+
+/// RAII primitive, constructed as a try-finally block for a busy state
+struct WorkInProgress {
+    app_handle: AppHandle,
+    state: BusyState,
+}
+
+impl WorkInProgress {
+    fn start(app_handle: AppHandle, state: BusyState, message: Cow<'static, str>) -> tauri::Result<Self> {
+        let mut locked = lock_mutex(&state);
+        if !matches!(*locked, BusyStateValue::NotBusy) {
+            return Err(tauri::Error::Anyhow(anyhow!("Work in progress!")));
+        }
+        app_handle.emit(EVENT_BUSY, message.to_owned()).expect("send busy event");
+        *locked = BusyStateValue::Busy(message);
+        drop(locked);
+        Ok(Self { app_handle, state })
+    }
+}
+
+impl Drop for WorkInProgress {
+    fn drop(&mut self) {
+        *lock_mutex(&self.state) = BusyStateValue::NotBusy;
+        self.app_handle.emit(EVENT_BUSY, None::<String>).expect("send busy event");
+    }
+}
 
 /// Runs an async callback, not waiting for it to finish
 fn run_async_callback<C, F>(app_handle: AppHandle, cb: C)
@@ -298,4 +340,9 @@ fn run_async_callback<C, F>(app_handle: AppHandle, cb: C)
 
 fn as_dyn_menu_items<'a, R: Runtime>(v: &'a [impl IsMenuItem<R> + 'a]) -> Vec<&'a dyn IsMenuItem<R>> {
     v.iter().map(|item| item as &dyn IsMenuItem<_>).collect_vec()
+}
+
+// We cannot recover from a poisoned mutex, so we just panic
+fn lock_mutex<T>(m: &Arc<Mutex<T>>) -> MutexGuard<'_, T> {
+    m.lock().expect("Mutex is poisoned")
 }
