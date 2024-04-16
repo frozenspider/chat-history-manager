@@ -18,6 +18,7 @@ enable = true
 scope = ["**"]
 
 [[app.windows]]
+label = "main"
 title = "Chat History Manager"
 fullscreen = false
 width = 800

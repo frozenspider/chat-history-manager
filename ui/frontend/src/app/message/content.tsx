@@ -33,6 +33,7 @@ export default function MessageContent(args: {
   let sealed = GetNonDefaultOrNull(args.content?.sealedValueOptional)
   if (sealed === null) return null
   let dsRoot = args.chatState.dsState.dsRoot
+  // TODO: Right-click -> Reveal in System Explorer
   switch (sealed?.$case) {
     case "sticker":
       return <MessageContentSticker content={sealed.sticker} dsRoot={dsRoot}/>
@@ -283,7 +284,7 @@ export function MessageContentSharedContact(args: {
 
   return (
     <blockquote>
-      <p><i>Shared contact: </i></p>
+      <SystemMessage>Shared contact</SystemMessage>
       <ColoredName name={contactPrettyName} colorClass={colorClass}/>&nbsp;
       ({content.phoneNumberOption ? "phone: " + content.phoneNumberOption : "no phone number"})
     </blockquote>

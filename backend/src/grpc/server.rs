@@ -99,8 +99,9 @@ impl ChatHistoryManagerServerTrait for Arc<Mutex<ChatHistoryManagerServer>> {
             .map(Response::new);
         log::debug!("<<< Response: {}", truncate_to(format!("{:?}", response_result), 150));
         response_result.map_err(|err| {
-            eprintln!("Request failed! Error was:\n{:?}", err);
-            Status::new(Code::Internal, error_to_string(&err))
+            let msg = error_message(&err);
+            eprintln!("Request failed! Error was:\n{msg}");
+            Status::new(Code::Internal, msg)
         })
     }
 }

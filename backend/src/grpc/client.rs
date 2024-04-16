@@ -1,3 +1,4 @@
+use std::future::Future;
 use tokio::runtime::Handle;
 use tonic::transport::{Channel, Endpoint};
 
@@ -19,8 +20,22 @@ pub async fn create_myself_chooser(remote_port: u16) -> Result<Box<dyn MyselfCho
 
 #[derive(Debug, Clone)]
 pub struct ChatHistoryManagerGrpcClients {
-    pub loader: HistoryLoaderServiceClient<Channel>,
-    pub dao: HistoryDaoServiceClient<Channel>,
+    loader: HistoryLoaderServiceClient<Channel>,
+    dao: HistoryDaoServiceClient<Channel>,
+}
+
+impl ChatHistoryManagerGrpcClients {
+    pub async fn grpc<'a, F, T>(
+        &'a mut self,
+        cb: impl FnOnce(&'a mut HistoryLoaderServiceClient<Channel>, &'a mut HistoryDaoServiceClient<Channel>) -> F + 'a,
+    ) -> Result<T>
+        where F: Future<Output=StdResult<tonic::Response<T>, tonic::Status>>
+    {
+        match cb(&mut self.loader, &mut self.dao).await {
+            Ok(response) => Ok(response.into_inner()),
+            Err(status) => Err(anyhow!("{}", status.message()))
+        }
+    }
 }
 
 pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcClients> {

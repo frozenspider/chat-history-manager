@@ -3,13 +3,13 @@
 
 use std::fs;
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock};
-use itertools::Itertools;
 
+use itertools::Itertools;
 use lazy_static::lazy_static;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -20,8 +20,8 @@ macro_rules! handle_result {
     ($res:expr, $app_handle:ident) => {
         match $res {
             Ok(v) => v,
-            Err(e) => {
-                report_error_string($app_handle.clone(), e.to_string());
+            Err(e @ anyhow::Error { .. }) => {
+                report_error_string($app_handle.clone(), error_message(&e));
                 return;
             }
         }
@@ -45,21 +45,35 @@ static MENU_PRE_DB_SEPARATOR: OnceLock<MenuId> = OnceLock::new();
 static MENU_POST_DB_SEPARATOR: OnceLock<MenuId> = OnceLock::new();
 
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
+static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
+
+type GrpcClients = Arc<Mutex<client::ChatHistoryManagerGrpcClients>>;
 
 pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
-    let clients = Arc::new(Mutex::new(clients));
+    let clients: GrpcClients = Arc::new(Mutex::new(clients));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(clients.clone())
         .setup(move |app| {
             let app_handle = app.handle();
 
             let menu = create_menu_once(app_handle)?;
             app_handle.set_menu(menu)?;
 
+            {
+                let clients = clients.lock().expect("lock clients").clone();
+                run_async_callback(
+                    app_handle.clone(),
+                    move |app_handle| refresh_opened_files_list(app_handle, clients, false),
+                );
+            }
+
             app_handle.on_menu_event(move |app_handle, event| {
                 let app_handle = app_handle.clone();
-                let clients = handle_result!(clients.lock(), app_handle).clone();
+                let clients =
+                    handle_result!(clients.lock().map_err(|_| anyhow!("gRPC clients mutex is poisoned!")), app_handle)
+                        .clone();
                 run_async_callback(
                     app_handle,
                     move |app_handle| on_menu_event(event, app_handle, clients),
@@ -68,7 +82,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64])
+        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64, save_as])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -116,8 +130,16 @@ async fn on_menu_event(
         }
         menu_id if menu_id.0.starts_with(MENU_PREFIX_CLOSE) => {
             let key = menu_id.0[(MENU_PREFIX_CLOSE.len() + 1)..].to_owned();
-            clients.loader.close(CloseRequest { key }).await?;
-            refresh_opened_files_list(app_handle, clients).await?;
+            clients.grpc(|loader, _| loader.close(CloseRequest { key })).await?;
+            refresh_opened_files_list(app_handle, clients, true).await?;
+        }
+        menu_id if menu_id.0.starts_with(MENU_PREFIX_SAVE_AS) => {
+            let key = menu_id.0[(MENU_PREFIX_SAVE_AS.len() + 1)..].to_owned();
+            let storage_path_response =
+                clients.grpc(|_, dao| dao.storage_path(StoragePathRequest { key: key.clone() })).await?;
+            let path = PathBuf::from(storage_path_response.path);
+            let old_file_name = path_file_name(&path)?;
+            app_handle.emit(EVENT_SAVE_AS_CLICKED, (key, old_file_name))?;
         }
         _ => {}
     };
@@ -137,8 +159,8 @@ async fn on_menu_event_open(
         Some(picked) => {
             let path = path_to_str(&picked.path)?.to_owned();
             let key = path.clone();
-            let _response = clients.loader.load(LoadRequest { key, path }).await?;
-            refresh_opened_files_list(app_handle, clients).await?;
+            let _response = clients.grpc(|loader, _| loader.load(LoadRequest { key, path })).await?;
+            refresh_opened_files_list(app_handle, clients, true).await?;
         }
         _ => { /* No file picked */ }
     };
@@ -148,6 +170,7 @@ async fn on_menu_event_open(
 async fn refresh_opened_files_list(
     app_handle: AppHandle,
     mut clients: client::ChatHistoryManagerGrpcClients,
+    emit_js_event: bool,
 ) -> Result<()> {
     let menu = app_handle.menu().expect("get menu");
     let menu_items = menu.items()?;
@@ -160,8 +183,8 @@ async fn refresh_opened_files_list(
          items.iter().position(|item| item.id() == &post_db_sep_id).expect("find separator 2 position"))
     };
 
-    let loaded_files = clients.loader.get_loaded_files(Empty {}).await?;
-    let loaded_files = &loaded_files.get_ref().files;
+    let loaded_files = clients.grpc(|loader, _| loader.get_loaded_files(Empty {})).await?;
+    let loaded_files = loaded_files.files;
 
     let new_items: StdResult<Vec<Submenu<_>>, _> = loaded_files.iter()
         .map(|loaded_file| Submenu::with_id_and_items(
@@ -195,8 +218,10 @@ async fn refresh_opened_files_list(
         ].concat()
     ))?)?;
 
-    // Trigger JS refresh
-    app_handle.emit(EVENT_OPEN_FILES_CHANGED, ())?;
+    if emit_js_event {
+        // Trigger JS refresh
+        app_handle.emit(EVENT_OPEN_FILES_CHANGED, ())?;
+    }
 
     Ok(())
 }
@@ -236,6 +261,25 @@ fn report_error_string(app_handle: AppHandle, error: String) {
         .title("Error")
         .kind(MessageDialogKind::Error)
         .show(|_res| ()/*Ignore the result*/);
+}
+
+// #[tauri::command(rename_all = "snake_case")]
+#[tauri::command]
+fn save_as(
+    key: String,
+    new_name: String,
+    app_handle: AppHandle,
+    clients: State<GrpcClients>,
+) -> tauri::Result<()> {
+    let mut clients = clients.lock().map_err(|_| anyhow!("gRPC clients mutex is poisoned"))?.clone();
+    run_async_callback(app_handle, move |app_handle| {
+        let inner = async move {
+            clients.grpc(|_, dao| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
+            refresh_opened_files_list(app_handle, clients.clone(), true).await
+        };
+        inner
+    });
+    Ok(())
 }
 
 //

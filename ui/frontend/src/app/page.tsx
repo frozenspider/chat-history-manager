@@ -7,7 +7,7 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import LoadSpinner from "@/app/utils/load_spinner";
 
-import { Assert, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { Assert, InvokeTauri, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   DatasetState,
   LoadedFileState,
@@ -23,6 +23,17 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input";
 
 import { User } from "@/protobuf/core/protobuf/entities";
 import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
@@ -45,6 +56,8 @@ export default function Home() {
   let [navigationCallbacks, setNavigationCallbacks] =
     React.useState<NavigationCallbacks | null>(null)
 
+  let [saveAsState, setSaveAsState] = React.useState<SaveAs | null>(null)
+
   // No-dependency useMemo ensures that the services are created only once
   const services = React.useMemo<ServicesContextType>(() => {
     const channel = createChannel('http://localhost:50051');
@@ -63,11 +76,15 @@ export default function Home() {
       PromiseCatchReportError(load())
         .then(() => setLoaded(true))
 
-      // Note: we cannot unmount the returned listener because it's a promise!
+      // Note: we cannot unmount the returned listeners because it's a promise!
       Listen("open-files-changed", () => {
         setLoaded(false)
         PromiseCatchReportError(load())
           .then(() => setLoaded(true))
+      })
+      Listen<[string, string]>("save-as-clicked", (ev) => {
+        let [key, oldName] = ev.payload
+        setSaveAsState({ key: key, oldName: oldName })
       })
       firstLoadCalled = true
     }
@@ -130,8 +147,15 @@ export default function Home() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
+
+      <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState}/>
     </ServicesContext.Provider>
   )
+}
+
+interface SaveAs {
+  key: string,
+  oldName: string
 }
 
 async function LoadExistingData(
@@ -201,4 +225,48 @@ async function LoadExistingData(
     })
     return newOpenFiles
   })
+}
+
+function SaveAsComponent(args: {
+  saveAsState: SaveAs | null
+  setSaveAsState: (s: SaveAs | null) => void
+}): React.JSX.Element {
+  let inputRef = React.useRef<HTMLInputElement>(null)
+
+  let onSaveClick = React.useCallback(() => {
+    Assert(inputRef.current != null)
+    Assert(args.saveAsState != null)
+    let newName = inputRef.current.value
+    if (newName == args.saveAsState.oldName) {
+      // Could show warning but just not closing a dialog is good enough
+      return
+    }
+
+    InvokeTauri<void>("save_as", {
+      key: args.saveAsState.key,
+      newName: newName
+    })
+    args.setSaveAsState(null)
+  }, [args.saveAsState])
+
+  return (
+    <AlertDialog open={!!args.saveAsState}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Save As</AlertDialogTitle>
+          <AlertDialogDescription>
+            Pick new file name
+            <Input ref={inputRef}
+                   type="text"
+                   placeholder={args.saveAsState?.oldName}
+                   defaultValue={args.saveAsState?.oldName}/>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => args.setSaveAsState(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onSaveClick}>Save</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
 }

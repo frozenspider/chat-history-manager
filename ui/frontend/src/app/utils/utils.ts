@@ -19,7 +19,6 @@ export function Unreachable(): never {
   throw new Error("Didn't expect to get here");
 }
 
-// TODO: Make this a global constant?
 export function IsTauriAvailable(): boolean {
   return '__TAURI__' in window
 }
@@ -33,7 +32,9 @@ export function ReportError(message: String) {
 }
 
 export async function PromiseCatchReportError<T>(p: Promise<T>): Promise<T | void> {
-  return p.catch(reason => ReportError(reason.toString()))
+  return p.catch(reason => {
+    ReportError(reason.toString())
+  })
 }
 
 /**
@@ -70,9 +71,9 @@ export async function InvokeTauriAsync<T>(
   }
 }
 
-export async function Listen(event: EventName, cb: EventCallback<void>): Promise<UnlistenFn> {
+export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise<UnlistenFn> {
   if (IsTauriAvailable()) {
-    return listen(event, cb)
+    return listen<T>(event, cb)
   } else {
     console.warn("Listening to " + event + " but Tauri is not available")
     return () => {

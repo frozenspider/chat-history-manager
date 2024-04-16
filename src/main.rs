@@ -37,7 +37,7 @@ async fn main() {
 
     let args = Args::parse();
     if let Err(e) = execute_command(args.command).await {
-        eprintln!("Error: {}", error_to_string(&e));
+        eprintln!("Error: {}", error_message(&e));
         let backtrace = e.backtrace();
         // Backtrace is defined as just "&impl Debug + Display", so to make sure we actually have a backtrace
         // we have to use a rather dirty workaround - if backtrace is not available, its string representation
