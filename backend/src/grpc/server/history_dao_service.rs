@@ -1,5 +1,4 @@
 use std::fs;
-use std::sync::{Arc, Mutex};
 
 use itertools::Itertools;
 use tonic::Request;
@@ -16,9 +15,9 @@ macro_rules! with_dao_by_key {
 }
 
 #[tonic::async_trait]
-impl HistoryDaoService for Arc<Mutex<ChatHistoryManagerServer>> {
+impl HistoryDaoService for Arc<ChatHistoryManagerServer> {
     async fn save_as(&self, req: Request<SaveAsRequest>) -> TonicResult<LoadedFile> {
-        let mut new_dao: Option<DaoRefCell> = None;
+        let mut new_dao: Option<DaoMutex> = None;
         let mut new_key: String = String::new();
 
         let res = with_dao_by_key!(self, req, dao, {
@@ -38,17 +37,17 @@ impl HistoryDaoService for Arc<Mutex<ChatHistoryManagerServer>> {
             sqlite_dao.copy_datasets_from(dao, &dao.datasets()?.into_iter().map(|ds| ds.uuid).collect_vec())?;
             new_key =  path_to_str(&new_db_file)?.to_owned();
             let name = sqlite_dao.name().to_owned();
-            new_dao = Some(DaoRefCell::new(Box::new(sqlite_dao)));
+            new_dao = Some(DaoMutex::new(Box::new(sqlite_dao)));
             Ok(LoadedFile { key: new_key.clone(), name })
         });
 
         if let Some(new_dao) = new_dao {
-            let mut self_lock = lock_or_status(self)?;
-            if self_lock.loaded_daos.contains_key(&new_key) {
+            let mut loaded_daos = write_or_status(&self.loaded_daos)?;
+            if loaded_daos.contains_key(&new_key) {
                 return Err(Status::new(Code::Internal,
                                        format!("Key {} is already taken!", new_key)));
             }
-            self_lock.loaded_daos.insert(new_key, new_dao);
+            loaded_daos.insert(new_key, new_dao);
         }
 
         res

@@ -24,6 +24,7 @@ mod utils;
 #[path = "sqlite_dao_tests.rs"]
 mod tests;
 
+// TODO: Make Send + Sync
 pub struct SqliteDao {
     pub name: String,
     pub db_file: PathBuf,
