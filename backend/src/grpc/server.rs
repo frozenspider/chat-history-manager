@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -27,13 +27,13 @@ type TonicResult<T> = StatusResult<Response<T>>;
 
 // Abosulte path to data source
 type DaoKey = String;
-type DaoMutex = Mutex<Box<dyn ChatHistoryDao>>;
+type DaoRwLock = RwLock<Box<dyn ChatHistoryDao>>;
 
 // Should be used wrapped as Arc<Self>
 pub struct ChatHistoryManagerServer {
     loader: Loader,
     myself_chooser: Box<dyn MyselfChooser>,
-    loaded_daos: RwLock<IndexMap<DaoKey, DaoMutex>>,
+    loaded_daos: RwLock<IndexMap<DaoKey, DaoRwLock>>,
 }
 
 impl ChatHistoryManagerServer {
@@ -55,6 +55,11 @@ trait ChatHistoryManagerServerTrait {
     fn process_request_with_dao<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, logic: L) -> TonicResult<P>
         where Q: Debug,
               P: Debug,
+              L: FnMut(&Q, &dyn ChatHistoryDao) -> Result<P>;
+
+    fn process_request_with_dao_mut<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, logic: L) -> TonicResult<P>
+        where Q: Debug,
+              P: Debug,
               L: FnMut(&Q, &mut dyn ChatHistoryDao) -> Result<P>;
 }
 
@@ -69,11 +74,25 @@ impl ChatHistoryManagerServerTrait for ChatHistoryManagerServer {
         log::debug!("<<< Response: {}", truncate_to(format!("{:?}", response_result), 150));
         response_result.map_err(|err| {
             eprintln!("Request failed! Error was:\n{:?}", err);
-            Status::new(Code::Internal, error_to_string(&err))
+            Status::new(Code::Internal, error_message(&err))
         })
     }
 
     fn process_request_with_dao<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, mut logic: L) -> TonicResult<P>
+        where Q: Debug,
+              P: Debug,
+              L: FnMut(&Q, &dyn ChatHistoryDao) -> Result<P> {
+        let loaded_daos = read_or_status(&self.loaded_daos)?;
+        let dao = loaded_daos.get(key)
+            .ok_or_else(|| Status::new(Code::FailedPrecondition,
+                                       format!("Database with key {key} is not loaded!")))?;
+        let dao = read_or_status(dao)?;
+        let dao = dao.as_ref();
+
+        self.process_request(req, |req| logic(req, dao))
+    }
+
+    fn process_request_with_dao_mut<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, mut logic: L) -> TonicResult<P>
         where Q: Debug,
               P: Debug,
               L: FnMut(&Q, &mut dyn ChatHistoryDao) -> Result<P> {
@@ -81,7 +100,7 @@ impl ChatHistoryManagerServerTrait for ChatHistoryManagerServer {
         let dao = loaded_daos.get(key)
             .ok_or_else(|| Status::new(Code::FailedPrecondition,
                                        format!("Database with key {key} is not loaded!")))?;
-        let mut dao = lock_or_status(dao)?;
+        let mut dao = write_or_status(dao)?;
         let dao = dao.as_mut();
 
         self.process_request(req, |req| logic(req, dao))
@@ -117,10 +136,6 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
         .await?;
 
     Ok(())
-}
-
-fn lock_or_status<T>(target: &Mutex<T>) -> StatusResult<MutexGuard<'_, T>> {
-    target.lock().map_err(|_| Status::new(Code::Internal, "Mutex is poisoned!"))
 }
 
 fn read_or_status<T>(target: &RwLock<T>) -> StatusResult<RwLockReadGuard<'_, T>> {

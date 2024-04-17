@@ -36,18 +36,18 @@ impl InMemoryDao {
     pub fn new(name: String,
                storage_path: PathBuf,
                data: Vec<DatasetEntry>) -> Self {
-        let cache = DaoCache::new();
         let mut ds_roots = HashMap::new();
         let mut cwms_map = HashMap::new();
-        let mut cache_inner = (*cache.inner).borrow_mut();
-        cache_inner.initialized = true;
+        let cache_wrapper = DaoCache::new();
+        let mut cache = cache_wrapper.inner.write().expect("cache write lock");
+        cache.initialized = true;
         for DatasetEntry { ds, ds_root, myself_id, users, cwms } in data {
             assert!(users.iter().any(|u| u.id() == myself_id));
             assert!(users.iter().all(|u| u.ds_uuid == ds.uuid));
             assert!(cwms.iter().all(|cwm| cwm.chat.ds_uuid == ds.uuid));
             let ds_uuid = ds.uuid.clone();
-            cache_inner.datasets.push(ds);
-            cache_inner.users.insert(ds_uuid.clone(), UserCacheForDataset {
+            cache.datasets.push(ds);
+            cache.users.insert(ds_uuid.clone(), UserCacheForDataset {
                 myself_id,
                 user_by_id: users.into_iter().map(|u| (u.id(), u)).collect(),
             });
@@ -56,9 +56,9 @@ impl InMemoryDao {
             cwms_map.insert(ds_uuid, cwms);
         }
 
-        drop(cache_inner);
+        drop(cache);
 
-        InMemoryDao { name, storage_path, ds_roots, cwms: cwms_map, cache }
+        InMemoryDao { name, storage_path, ds_roots, cwms: cwms_map, cache: cache_wrapper }
     }
 
     fn chat_members(&self, chat: &Chat) -> Result<Vec<User>> {
@@ -96,7 +96,7 @@ impl InMemoryDao {
             self.cwms.values().flatten().flat_map(|cwm| &cwm.chat.member_ids).collect();
 
         let mut num_removed = 0;
-        let mut cache = self.cache.inner.borrow_mut();
+        let mut cache = self.cache.inner.write().expect("cache write lock");
         for users_for_ds in cache.users.values_mut() {
             let user_ids = users_for_ds.user_by_id.keys().cloned().collect_vec();
             for user_id in user_ids {
@@ -121,7 +121,7 @@ impl WithCache for InMemoryDao {
 
     fn get_cache_mut_unchecked(&mut self) -> &mut DaoCache { &mut self.cache }
 
-    fn init_cache(&self, _inner: &mut DaoCacheInner) -> EmptyRes { Ok(()) }
+    fn init_cache(&self, _inner: &mut RwLockWriteGuard<DaoCacheInner>) -> EmptyRes { Ok(()) }
 
     fn invalidate_cache(&self) -> EmptyRes { err!("Cannot invalidate cache of in-memory DAO!") }
 }
@@ -265,7 +265,7 @@ impl MutableChatHistoryDao for InMemoryDao {
     fn update_dataset(&mut self, old_uuid: PbUuid, ds: Dataset) -> Result<Dataset> {
         ensure!(old_uuid == ds.uuid, "Changing dataset UUID is not supported");
 
-        let mut cache = self.cache.inner.borrow_mut();
+        let mut cache = self.cache.inner.write().expect("cache write lock");
         if let Some(old_ds) = cache.datasets.iter_mut().find(|ds| ds.uuid == old_uuid) {
             *old_ds = ds;
             Ok(old_ds.clone())
@@ -275,7 +275,7 @@ impl MutableChatHistoryDao for InMemoryDao {
     }
 
     fn delete_dataset(&mut self, uuid: PbUuid) -> EmptyRes {
-        let mut cache = self.cache.inner.borrow_mut();
+        let mut cache = self.cache.inner.write().expect("cache write lock");
         if let Some(ds_idx) = cache.datasets.iter().position(|ds| ds.uuid == uuid) {
             cache.datasets.remove(ds_idx);
             cache.users.remove(&uuid);

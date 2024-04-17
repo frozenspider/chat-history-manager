@@ -183,8 +183,10 @@ macro_rules! err {
     }}
 }
 
-pub fn error_to_string(e: &anyhow::Error) -> String {
-    format!("{:?}", e)
+/// Returns an error message
+pub fn error_message(e: &anyhow::Error) -> String {
+    // I don't see a clean way to get the error message without the backtrace.
+    e.to_string().splitn(2, '\n').next().unwrap_or_default().to_owned()
 }
 
 pub trait ToResult<T> {

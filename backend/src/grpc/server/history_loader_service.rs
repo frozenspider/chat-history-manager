@@ -13,21 +13,21 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
             let path = fs::canonicalize(&req.path)?;
 
             if let Some(dao) = read_or_status(&self.loaded_daos)?.get(&req.key) {
-                let dao = lock_or_status(dao)?;
+                let dao = read_or_status(dao)?;
                 return Ok(LoadResponse { name: dao.name().to_owned() });
             }
 
             let dao = self.loader.load(&path, self.myself_chooser.as_ref())?;
             let response = LoadResponse { name: dao.name().to_owned() };
-            write_or_status(&self.loaded_daos)?.insert(req.key.clone(), DaoMutex::new(dao));
+            write_or_status(&self.loaded_daos)?.insert(req.key.clone(), DaoRwLock::new(dao));
             Ok(response)
         })
     }
 
     async fn get_loaded_files(&self, req: Request<Empty>) -> TonicResult<GetLoadedFilesResponse> {
         self.process_request(&req, |_| {
-            fn dao_to_loaded_file((k, dao): (&DaoKey, &DaoMutex)) -> StatusResult<LoadedFile> {
-                Ok(LoadedFile { key: k.clone(), name: lock_or_status(dao)?.name().to_owned() })
+            fn dao_to_loaded_file((k, dao): (&DaoKey, &DaoRwLock)) -> StatusResult<LoadedFile> {
+                Ok(LoadedFile { key: k.clone(), name: read_or_status(dao)?.name().to_owned() })
             }
             let files: StatusResult<Vec<_>> = read_or_status(&self.loaded_daos)?.iter()
                 .map(dao_to_loaded_file)
@@ -51,8 +51,8 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
 
         self.process_request(&req, |req| {
             let loaded_daos = read_or_status(&self.loaded_daos)?;
-            let master_dao = lock_or_status(&loaded_daos[&req.master_dao_key])?;
-            let slave_dao = lock_or_status(&loaded_daos[&req.slave_dao_key])?;
+            let master_dao = read_or_status(&loaded_daos[&req.master_dao_key])?;
+            let slave_dao = read_or_status(&loaded_daos[&req.slave_dao_key])?;
             let diffs = dao::get_datasets_diff(
                 (*master_dao).as_ref(), &req.master_ds_uuid,
                 (*slave_dao).as_ref(), &req.slave_ds_uuid,

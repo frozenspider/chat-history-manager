@@ -132,9 +132,9 @@ impl MergeService for Arc<ChatHistoryManagerServer> {
                                                    s_dao, &s_ds,
                                                    user_merges, chat_merges)?;
             let key = path_to_str(&dao.db_file)?.to_owned();
-            Ok((key, DaoMutex::new(Box::new(dao)), ds))
-        }, |(key, dao, ds): (DaoKey, DaoMutex, Dataset)| {
-            let name = lock_or_status(&dao)?.name().to_owned();
+            Ok((key, DaoRwLock::new(Box::new(dao)), ds))
+        }, |(key, dao, ds): (DaoKey, DaoRwLock, Dataset)| {
+            let name = read_or_status(&dao)?.name().to_owned();
             write_or_status(&self.loaded_daos)?.insert(key.clone(), dao);
             Ok(MergeResponse {
                 new_file: LoadedFile { key, name },
@@ -153,8 +153,8 @@ trait MergeServiceHelper {
               R2: Debug,
               Process: FnMut(
                   &Q,
-                  &mut dyn ChatHistoryDao, Dataset,
-                  &mut dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
               ) -> Result<R1>,
               Finalize: FnMut(R1) -> Result<R2>;
 }
@@ -168,8 +168,8 @@ impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
               R2: Debug,
               Process: FnMut(
                   &Q,
-                  &mut dyn ChatHistoryDao, Dataset,
-                  &mut dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
               ) -> Result<R1>,
               Finalize: FnMut(R1) -> Result<R2> {
         self.process_request(req, move |req| {
@@ -178,11 +178,8 @@ impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
             let m_dao = loaded_daos.get(req.master_dao_key()).context("Master DAO not found")?;
             let s_dao = loaded_daos.get(req.slave_dao_key()).context("Slave DAO not found")?;
 
-            let mut m_dao = lock_or_status(m_dao)?;
-            let mut s_dao = lock_or_status(s_dao)?;
-
-            let m_dao = m_dao.as_mut();
-            let s_dao = s_dao.as_mut();
+            let m_dao = read_or_status(m_dao)?;
+            let s_dao = read_or_status(s_dao)?;
 
             let m_ds_uuid = req.master_ds_uuid();
             let s_ds_uuid = req.slave_ds_uuid();
@@ -192,7 +189,7 @@ impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
             let s_ds = s_dao.datasets()?.into_iter().find(|ds| &ds.uuid == s_ds_uuid)
                 .context("Slave dataset not found!")?;
 
-            let pre_res = process(req, m_dao, m_ds, s_dao, s_ds)?;
+            let pre_res = process(req, &**m_dao, m_ds, &**s_dao, s_ds)?;
             finalize(pre_res)
         })
     }
