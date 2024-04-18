@@ -137,7 +137,7 @@ fn merge_multiple_datasets() -> EmptyRes {
 
     {
         let cache = helper.m.dao_holder.dao.get_cache_mut_unchecked();
-        let mut cache = cache.inner.borrow_mut();
+        let mut cache = cache.inner.write().unwrap();
 
         cache.datasets.push(other_ds.clone());
         cache.users.insert(other_ds.uuid.clone(), UserCacheForDataset {

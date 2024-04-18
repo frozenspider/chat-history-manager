@@ -638,7 +638,7 @@ fn timestamp_diff() -> EmptyRes {
     let analysis_res = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false);
     assert!(analysis_res.is_err());
     let err = analysis_res.err().unwrap();
-    let msg = error_to_string(&err);
+    let msg = error_message(&err);
     assert!(msg.contains("Time shift detected"));
     Ok(())
 }

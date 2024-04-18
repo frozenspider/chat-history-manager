@@ -1,5 +1,5 @@
-use std::cell::{Ref, RefCell};
 use std::path::Path;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 
 use deepsize::DeepSizeOf;
@@ -18,24 +18,34 @@ pub trait WithCache {
     fn get_cache_mut_unchecked(&mut self) -> &mut DaoCache;
 
     /// For internal use: lazily initialize the cache, and return a reference to it
-    fn init_cache(&self, inner: &mut DaoCacheInner) -> EmptyRes;
+    fn init_cache(&self, inner: &mut RwLockWriteGuard<DaoCacheInner>) -> EmptyRes;
 
     /// For internal use: lazily initialize the cache, and return a reference to immutable inner cache
-    fn get_cache(&self) -> Result<Ref<DaoCacheInner>> {
+    fn get_cache(&self) -> Result<RwLockReadGuard<DaoCacheInner>> {
         let cache = self.get_cache_unchecked();
-        if !cache.inner.borrow().initialized {
-            let mut inner_mut = cache.inner.borrow_mut();
-            self.init_cache(&mut inner_mut)?;
-            inner_mut.initialized = true;
-            drop(inner_mut);
+        let lock = cache.inner.read().map_err(|_| anyhow!("Dao cache mutex is poisoned!"))?;
+        if lock.initialized {
+            return Ok(lock);
         }
-        Ok(cache.inner.borrow())
+        drop(lock);
+
+        // Unfortunately there will be a brief moment when the lock is released
+
+        let mut lock = cache.inner.write().map_err(|_| anyhow!("Dao cache mutex is poisoned!"))?;
+        self.init_cache(&mut lock)?;
+        lock.initialized = true;
+        drop(lock);
+
+        // And again...
+
+        cache.inner.read().map_err(|_| anyhow!("Dao cache mutex is poisoned!"))
     }
 
     /// For internal use, mark cache as invalid
     fn invalidate_cache(&self) -> EmptyRes {
         let cache = self.get_cache_unchecked();
-        let mut cache = (*cache.inner).borrow_mut();
+        let mut cache =
+            cache.inner.write().map_err(|_| anyhow!("Dao cache mutex is poisoned!"))?;
         cache.initialized = false;
         Ok(())
     }
@@ -43,9 +53,9 @@ pub trait WithCache {
 
 /**
  * Everything except for messages should be pre-cached and readily available.
- * Should support equality.
+ * Should support equality and be thread-safe.
  */
-pub trait ChatHistoryDao: WithCache + Send {
+pub trait ChatHistoryDao: WithCache + Send + Sync {
     /** User-friendly name of a loaded data */
     fn name(&self) -> &str;
 
@@ -225,7 +235,7 @@ pub struct UserCacheForDataset {
 
 #[derive(DeepSizeOf)]
 pub struct DaoCache {
-    pub inner: Box<RefCell<DaoCacheInner>>,
+    pub inner: RwLock<DaoCacheInner>,
 }
 
 #[derive(Default, DeepSizeOf)]
@@ -238,7 +248,7 @@ pub struct DaoCacheInner {
 impl DaoCache {
     fn new() -> Self {
         DaoCache {
-            inner: Box::new(RefCell::new(DaoCacheInner { initialized: false, ..Default::default() }))
+            inner: RwLock::new(DaoCacheInner { initialized: false, ..Default::default() })
         }
     }
 }

@@ -1,5 +1,3 @@
-use std::cell::Ref;
-use std::sync::{Arc, Mutex};
 use itertools::Itertools;
 
 use tonic::Request;
@@ -12,10 +10,10 @@ use crate::protobuf::history::merge_service_server::*;
 use super::*;
 
 #[tonic::async_trait]
-impl MergeService for Arc<Mutex<ChatHistoryManagerServer>> {
+impl MergeService for Arc<ChatHistoryManagerServer> {
     async fn analyze(&self, req: Request<AnalyzeRequest>) -> TonicResult<AnalyzeResponse> {
-        self.process_merge_service_request(&req, |req, m_dao, m_ds, s_dao, s_ds| {
-            let analyzer = DatasetDiffAnalyzer::create(m_dao.as_ref(), &m_ds, s_dao.as_ref(), &s_ds)?;
+        self.process_merge_service_request(req, |_, req, m_dao, m_ds, s_dao, s_ds| {
+            let analyzer = DatasetDiffAnalyzer::create(m_dao, &m_ds, s_dao, &s_ds)?;
             let mut analysis = Vec::with_capacity(req.chat_id_pairs.len());
             for pair @ ChatIdPair { master_chat_id, slave_chat_id } in req.chat_id_pairs.iter() {
                 let m_cwd = m_dao.chat_option(&m_ds.uuid, *master_chat_id)?
@@ -66,11 +64,11 @@ impl MergeService for Arc<Mutex<ChatHistoryManagerServer>> {
                 analysis.push(ChatAnalysis { chat_ids: pair.clone(), sections })
             }
             Ok(analysis)
-        }, |analysis, _self_lock| Ok(AnalyzeResponse { analysis }))
+        }, |analysis| Ok(AnalyzeResponse { analysis })).await
     }
 
     async fn merge(&self, req: Request<MergeRequest>) -> TonicResult<MergeResponse> {
-        self.process_merge_service_request(&req, |req, m_dao, m_ds, s_dao, s_ds| {
+        self.process_merge_service_request(req, |self_clone, req, m_dao, m_ds, s_dao, s_ds| {
             let sqlite_dao_dir = Path::new(&req.new_database_dir);
             let user_merges = req.user_merges.iter().map(|um|
                 ok(match UserMergeType::try_from(um.tpe)? {
@@ -130,56 +128,60 @@ impl MergeService for Arc<Mutex<ChatHistoryManagerServer>> {
                 })
             ).try_collect()?;
             let (dao, ds) = merger::merge_datasets(sqlite_dao_dir,
-                                                   &**m_dao, &m_ds,
-                                                   &**s_dao, &s_ds,
+                                                   m_dao, &m_ds,
+                                                   s_dao, &s_ds,
                                                    user_merges, chat_merges)?;
             let key = path_to_str(&dao.db_file)?.to_owned();
-            Ok((key, DaoRefCell::new(Box::new(dao)), ds))
-        }, |(key, dao, ds): (DaoKey, DaoRefCell, Dataset), self_lock| {
-            let name = dao.borrow().name().to_owned();
-            self_lock.loaded_daos.insert(key.clone(), dao);
+            Ok((self_clone, key, DaoRwLock::new(Box::new(dao)), ds))
+        }, |(self_clone, key, dao, ds): (Self, DaoKey, DaoRwLock, Dataset)| {
+            let name = read_or_status(&dao)?.name().to_owned();
+            write_or_status(&self_clone.loaded_daos)?.insert(key.clone(), dao);
             Ok(MergeResponse {
                 new_file: LoadedFile { key, name },
                 new_ds_uuid: ds.uuid.clone(),
             })
-        })
+        }).await
     }
 }
 
 trait MergeServiceHelper {
-    fn process_merge_service_request<Q, R1, R2, Process, Finalize>(&self,
-                                                                   req: &Request<Q>,
-                                                                   process: Process,
-                                                                   finalize: Finalize) -> TonicResult<R2>
-        where Q: MergeServiceRequest + Debug,
-              R2: Debug,
+    async fn process_merge_service_request<Q, R1, R2, Process, Finalize>(&self,
+                                                                         req: Request<Q>,
+                                                                         process: Process,
+                                                                         finalize: Finalize) -> TonicResult<R2>
+        where Q: MergeServiceRequest + Debug + Send + 'static,
+              R2: Debug + Send + 'static,
               Process: FnMut(
-                  &Q,
-                  Ref<Box<dyn ChatHistoryDao>>, Dataset,
-                  Ref<Box<dyn ChatHistoryDao>>, Dataset,
-              ) -> Result<R1>,
-              Finalize: FnMut(R1, &mut ChmLock<'_>) -> Result<R2>;
+                  Self,
+                  Q,
+                  &dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
+              ) -> Result<R1> + Send + 'static,
+              Finalize: FnMut(R1) -> Result<R2> + Send + 'static;
 }
 
-impl MergeServiceHelper for Arc<Mutex<ChatHistoryManagerServer>> {
-    fn process_merge_service_request<Q, R1, R2, Process, Finalize>(&self,
-                                                                   req: &Request<Q>,
-                                                                   mut process: Process,
-                                                                   mut finalize: Finalize) -> TonicResult<R2>
-        where Q: MergeServiceRequest + Debug,
-              R2: Debug,
+impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
+    async fn process_merge_service_request<Q, R1, R2, Process, Finalize>(&self,
+                                                                         req: Request<Q>,
+                                                                         mut process: Process,
+                                                                         mut finalize: Finalize) -> TonicResult<R2>
+        where Q: MergeServiceRequest + Debug + Send + 'static,
+              R2: Debug + Send + 'static,
               Process: FnMut(
-                  &Q,
-                  Ref<Box<dyn ChatHistoryDao>>, Dataset,
-                  Ref<Box<dyn ChatHistoryDao>>, Dataset,
-              ) -> Result<R1>,
-              Finalize: FnMut(R1, &mut ChmLock<'_>) -> Result<R2> {
-        self.process_request(req, move |req, self_lock| {
-            let m_dao = self_lock.loaded_daos.get(req.master_dao_key()).context("Master DAO not found")?;
-            let s_dao = self_lock.loaded_daos.get(req.slave_dao_key()).context("Slave DAO not found")?;
+                  Self,
+                  Q,
+                  &dyn ChatHistoryDao, Dataset,
+                  &dyn ChatHistoryDao, Dataset,
+              ) -> Result<R1> + Send + 'static,
+              Finalize: FnMut(R1) -> Result<R2> + Send + 'static {
+        self.process_request(req, move |self_clone, req| {
+            let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
 
-            let m_dao = (*m_dao).borrow();
-            let s_dao = (*s_dao).borrow();
+            let m_dao = loaded_daos.get(req.master_dao_key()).context("Master DAO not found")?;
+            let s_dao = loaded_daos.get(req.slave_dao_key()).context("Slave DAO not found")?;
+
+            let m_dao = read_or_status(m_dao)?;
+            let s_dao = read_or_status(s_dao)?;
 
             let m_ds_uuid = req.master_ds_uuid();
             let s_ds_uuid = req.slave_ds_uuid();
@@ -189,9 +191,9 @@ impl MergeServiceHelper for Arc<Mutex<ChatHistoryManagerServer>> {
             let s_ds = s_dao.datasets()?.into_iter().find(|ds| &ds.uuid == s_ds_uuid)
                 .context("Slave dataset not found!")?;
 
-            let pre_res = process(req, m_dao, m_ds, s_dao, s_ds)?;
-            finalize(pre_res, self_lock)
-        })
+            let pre_res = process(self_clone.clone(), req, &**m_dao, m_ds, &**s_dao, s_ds)?;
+            finalize(pre_res)
+        }).await
     }
 }
 

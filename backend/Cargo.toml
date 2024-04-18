@@ -37,7 +37,7 @@ num-derive = "0.4.2"
 
 # Database
 rusqlite = { version = "0.30.0", features = ["bundled", "backup"] }
-diesel = { version = "2.1.4", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
+diesel = { version = "2.1.5", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
 
 # Protobuf and web service

@@ -8,7 +8,7 @@ use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
 
 mod myself_chooser;
 
-pub trait MyselfChooser: Send {
+pub trait MyselfChooser: Send + Sync {
     fn choose_myself(&self, users: &[User]) -> Result<usize>;
 }
 

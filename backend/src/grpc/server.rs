@@ -1,11 +1,10 @@
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::ops::DerefMut;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::sync::Arc;
 
 use indexmap::IndexMap;
+use tokio::runtime::Handle;
 use tonic::{Code, Request, Response, Status, transport::Server};
 
 use crate::dao::ChatHistoryDao;
@@ -29,80 +28,97 @@ type TonicResult<T> = StatusResult<Response<T>>;
 
 // Abosulte path to data source
 type DaoKey = String;
-type DaoRefCell = RefCell<Box<dyn ChatHistoryDao>>;
+type DaoRwLock = RwLock<Box<dyn ChatHistoryDao>>;
 
-type ChmLock<'a> = MutexGuard<'a, ChatHistoryManagerServer>;
-
-// Should be used wrapped in Arc<Mutex<Self>>
+// Should be used wrapped as Arc<Self>
 pub struct ChatHistoryManagerServer {
+    tokio_handle: Handle,
     loader: Loader,
     myself_chooser: Box<dyn MyselfChooser>,
-    loaded_daos: IndexMap<DaoKey, DaoRefCell>,
+    loaded_daos: RwLock<IndexMap<DaoKey, DaoRwLock>>,
 }
 
 impl ChatHistoryManagerServer {
-    pub fn new_wrapped(loader: Loader, myself_chooser: Box<dyn MyselfChooser>) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(ChatHistoryManagerServer {
+    pub fn new_wrapped(tokio_handle: Handle, loader: Loader, myself_chooser: Box<dyn MyselfChooser>) -> Arc<Self> {
+        Arc::new(ChatHistoryManagerServer {
+            tokio_handle,
             loader,
             myself_chooser,
-            loaded_daos: IndexMap::new(),
-        }))
+            loaded_daos: RwLock::new(IndexMap::new()),
+        })
     }
 }
 
-trait ChatHistoryManagerServerTrait {
-    fn process_request<Q, P, L>(&self, req: &Request<Q>, logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q, &mut ChmLock<'_>) -> Result<P>;
+trait ChatHistoryManagerServerTrait: Sized {
+    async fn process_request<Q, P, L>(&self, req: Request<Q>, blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q) -> Result<P> + Send + 'static;
 
-    fn process_request_with_dao<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q, &mut dyn ChatHistoryDao) -> Result<P>;
+    async fn process_request_with_dao<Q, P, L>(&self, req: Request<Q>, key: DaoKey, blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q, &dyn ChatHistoryDao) -> Result<P> + Send + 'static;
 
-    fn process_request_inner<Q, P, L>(&self, req: &Request<Q>, logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q) -> Result<P>;
+    async fn process_request_with_dao_mut<Q, P, L>(&self, req: Request<Q>, key: DaoKey, blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q, &mut dyn ChatHistoryDao) -> Result<P> + Send + 'static;
 }
 
-impl ChatHistoryManagerServerTrait for Arc<Mutex<ChatHistoryManagerServer>> {
-    fn process_request<Q, P, L>(&self, req: &Request<Q>, mut logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q, &mut ChmLock<'_>) -> Result<P> {
-        let mut self_lock = lock_or_status(self)?;
-        self.process_request_inner(req, |req| logic(req, &mut self_lock))
-    }
-
-    fn process_request_with_dao<Q, P, L>(&self, req: &Request<Q>, key: &DaoKey, mut logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q, &mut dyn ChatHistoryDao) -> Result<P> {
-        let self_lock = lock_or_status(self)?;
-        let dao = self_lock.loaded_daos.get(key)
-            .ok_or_else(|| Status::new(Code::FailedPrecondition,
-                                       format!("Database with key {key} is not loaded!")))?;
-        let mut dao = (*dao).borrow_mut();
-        let dao = dao.deref_mut().as_mut();
-
-        self.process_request_inner(req, |req| logic(req, dao))
-    }
-
-    fn process_request_inner<Q, P, L>(&self, req: &Request<Q>, mut logic: L) -> TonicResult<P>
-        where Q: Debug,
-              P: Debug,
-              L: FnMut(&Q) -> Result<P> {
+impl ChatHistoryManagerServerTrait for Arc<ChatHistoryManagerServer> {
+    async fn process_request<Q, P, L>(&self, req: Request<Q>, mut blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q) -> Result<P> + Send + 'static {
         log::debug!(">>> Request:  {}", truncate_to(format!("{:?}", req.get_ref()), 150));
-        let response_result = logic(req.get_ref())
+        let self_clone = self.clone();
+        let response_result = self.tokio_handle
+            .spawn_blocking(move || blocking_logic(self_clone, req.into_inner()))
+            .await
+            .map_err(|e| Status::new(Code::Internal, format!("Blocking task failed: {:?}", e)))?
             .map(Response::new);
         log::debug!("<<< Response: {}", truncate_to(format!("{:?}", response_result), 150));
         response_result.map_err(|err| {
-            let msg = error_message(&err);
-            eprintln!("Request failed! Error was:\n{msg}");
-            Status::new(Code::Internal, msg)
+            let status = err.downcast::<Status>()
+                .unwrap_or_else(|err| Status::new(Code::Internal, error_message(&err)));
+            eprintln!("Request failed! Error was:\n{:?}", status.message());
+            status
         })
+    }
+
+    async fn process_request_with_dao<Q, P, L>(&self, req: Request<Q>, key: DaoKey, mut blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q, &dyn ChatHistoryDao) -> Result<P> + Send + 'static {
+        self.process_request(
+            req,
+            move |self_clone, req| {
+                let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
+                let dao = loaded_daos.get(&key)
+                    .ok_or_else(|| anyhow!("Database with key {key} is not loaded!"))?;
+                let dao = read_or_status(dao)?;
+                let dao = dao.as_ref();
+                blocking_logic(self_clone.clone(), req, dao)
+            },
+        ).await
+    }
+
+    async fn process_request_with_dao_mut<Q, P, L>(&self, req: Request<Q>, key: DaoKey, mut blocking_logic: L) -> TonicResult<P>
+        where Q: Debug + Send + 'static,
+              P: Debug + Send + 'static,
+              L: FnMut(Self, Q, &mut dyn ChatHistoryDao) -> Result<P> + Send + 'static {
+        self.process_request(
+            req,
+            move |self_clone, req| {
+                let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
+                let dao = loaded_daos.get(&key)
+                    .ok_or_else(|| anyhow!("Database with key {key} is not loaded!"))?;
+                let mut dao = write_or_status(dao)?;
+                let dao = dao.as_mut();
+                blocking_logic(self_clone.clone(), req, dao)
+            },
+        ).await
     }
 }
 
@@ -112,8 +128,9 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
 
     let remote_port = port + 1;
 
+    let handle = Handle::current();
     let myself_chooser = client::create_myself_chooser(remote_port).await?;
-    let chm_server = ChatHistoryManagerServer::new_wrapped(loader, myself_chooser);
+    let chm_server = ChatHistoryManagerServer::new_wrapped(handle, loader, myself_chooser);
 
     log::info!("Server listening on {}", addr);
 
@@ -137,6 +154,14 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
     Ok(())
 }
 
-fn lock_or_status<T>(target: &Arc<Mutex<T>>) -> StatusResult<MutexGuard<'_, T>> {
+fn lock_or_status<T>(target: &Mutex<T>) -> StatusResult<MutexGuard<'_, T>> {
     target.lock().map_err(|_| Status::new(Code::Internal, "Mutex is poisoned!"))
+}
+
+fn read_or_status<T>(target: &RwLock<T>) -> StatusResult<RwLockReadGuard<'_, T>> {
+    target.read().map_err(|_| Status::new(Code::Internal, "RwLock is poisoned!"))
+}
+
+fn write_or_status<T>(target: &RwLock<T>) -> StatusResult<RwLockWriteGuard<'_, T>> {
+    target.write().map_err(|_| Status::new(Code::Internal, "RwLock is poisoned!"))
 }

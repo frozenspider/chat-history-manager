@@ -24,7 +24,7 @@ mod whatsapp_text;
 mod badoo_android;
 mod mra;
 
-trait DataLoader: Send {
+trait DataLoader: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Used in dataset alias
@@ -59,7 +59,7 @@ trait DataLoader: Send {
 }
 
 pub struct Loader {
-    loaders: Vec<Box<dyn DataLoader>>,
+    loaders: Vec<Box<dyn DataLoader + 'static>>,
 }
 
 impl Loader {
