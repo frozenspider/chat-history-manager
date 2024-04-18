@@ -46,10 +46,10 @@ impl DataLoader for TelegramDataLoader {
     fn looks_about_right_inner(&self, src_path: &Path) -> EmptyRes {
         let path = get_real_path(src_path);
         if !path.exists() {
-            bail!("{} not found in {}", RESULT_JSON, src_path.display());
+            bail!("File is not {RESULT_JSON} or containing folder");
         }
         if !super::first_line(&path)?.starts_with('{') {
-            bail!("{} is not a valid JSON file", path.display());
+            bail!("{RESULT_JSON} is not a valid JSON file");
         }
         Ok(())
     }

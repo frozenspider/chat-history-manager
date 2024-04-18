@@ -33,10 +33,10 @@ impl DataLoader for WhatsAppTextDataLoader {
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         let filename = path_file_name(path)?;
         if !FILENAME_REGEX.is_match(filename) {
-            bail!("File {} is not named as expected", filename);
+            bail!("File is not \"WhatsApp Chat with X.txt\"");
         }
         if !TIMESTAMP_REGEX.is_match(super::first_line(path)?.as_str()) {
-            bail!("File {} does not start with a timestamp as expected", path.display());
+            bail!("File does not start with a timestamp as expected");
         }
         Ok(())
     }

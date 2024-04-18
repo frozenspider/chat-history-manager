@@ -2,6 +2,7 @@
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
 import { listen, EventCallback, UnlistenFn, EventName } from "@tauri-apps/api/event";
+import { ClientError } from "nice-grpc-common";
 
 export function Assert(cond: boolean, message?: string): asserts cond {
   if (!cond) throw new Error(message ?? "Assertion failed")
@@ -33,7 +34,13 @@ export function ReportError(message: String) {
 
 export async function PromiseCatchReportError<T>(p: Promise<T>): Promise<T | void> {
   return p.catch(reason => {
-    ReportError(reason.toString())
+    let message: string
+    if (reason instanceof ClientError) {
+      message = reason.details
+    } else {
+      message = reason.toString()
+    }
+    ReportError(message)
   })
 }
 

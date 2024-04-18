@@ -103,7 +103,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<Menu<R>> where R: Run
     let file_menu = Submenu::with_id_and_items(
         app_handle, MENU_ID_DATABASE.clone(), "Database", true,
         &[
-            &MenuItem::with_id(app_handle, MENU_ID_OPEN.clone(), "Open [NYI]", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, MENU_ID_OPEN.clone(), "Open", true, None::<&str>)?,
             &pre_db_sep,
             &post_db_sep,
             &PredefinedMenuItem::quit(app_handle, None)?,
@@ -151,10 +151,12 @@ async fn on_menu_event_open(
     app_handle: AppHandle,
     mut clients: client::ChatHistoryManagerGrpcClients,
 ) -> Result<()> {
+    // We cannot add custom file filters here, and extension filter is not enough.
+    // As a workaround, user can select any file.
     let picked = app_handle
         .dialog()
         .file()
-        .add_filter("Own format", &["sqlite"])
+        .set_title("Open one of the supported file types (see README.md)")
         .blocking_pick_file();
     match picked {
         Some(picked) => {
