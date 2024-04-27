@@ -253,7 +253,7 @@ function SaveAsComponent(args: {
       newName: newName
     })
     args.setSaveAsState(null)
-  }, [args.saveAsState])
+  }, [args])
 
   return (
     <AlertDialog open={!!args.saveAsState}>

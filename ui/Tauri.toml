@@ -1,17 +1,18 @@
 identifier = "org.fs.chm"
 
 [build]
-beforeDevCommand = "pnpm dev"
-beforeBuildCommand = "pnpm generate"
-devUrl = "http://localhost:3000"
-frontendDist = "./frontend/out"
+before-dev-command = "pnpm dev"
+before-build-command = "pnpm build"
+dev-url = "http://localhost:3000"
+frontend-dist = "./frontend/out"
 
 [app]
 # Injects window.__TAURI__ global variable
 withGlobalTauri = true
 
 [app.security]
-csp = "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost"
+# There is no external links loading in the app so CSP is unnecessary
+dangerous-disable-asset-csp-modification = true
 
 [app.security.assetProtocol]
 enable = true
