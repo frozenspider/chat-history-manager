@@ -6,7 +6,7 @@ use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -44,28 +44,31 @@ lazy_static! {
 static MENU_PREFIX_SAVE_AS: &str = "save-as";
 static MENU_PREFIX_CLOSE: &str = "close";
 
-static MENU_PRE_DB_SEPARATOR: OnceLock<MenuId> = OnceLock::new();
-static MENU_POST_DB_SEPARATOR: OnceLock<MenuId> = OnceLock::new();
+struct MenuDbSeparatorIds {
+    before: MenuId,
+    after: MenuId,
+}
 
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_BUSY: &str = "busy";
 
 pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
-    let clients: GrpcClients = Arc::new(Mutex::new(clients));
-
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(clients.clone())
-        .manage(Arc::new(Mutex::new(BusyStateValue::NotBusy)))
+        .manage(GrpcClients::new(Mutex::new(clients)))
+        .manage(BusyState::new(Mutex::new(BusyStateValue::NotBusy)))
         .setup(move |app| {
             let app_handle = app.handle();
 
-            let menu = create_menu_once(app_handle)?;
+            let (menu, separator_ids) = create_menu_once(app_handle)?;
             app_handle.set_menu(menu)?;
+            assert!(app_handle.manage(separator_ids));
+
+            let clients = lock_mutex(&app.state::<GrpcClients>()).clone();
 
             {
-                let clients = lock_mutex(&clients).clone();
+                let clients = clients.clone();
                 run_async_callback(
                     app_handle.clone(),
                     move |app_handle| refresh_opened_files_list(app_handle, clients, false),
@@ -74,7 +77,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
 
             app_handle.on_menu_event(move |app_handle, event| {
                 let app_handle = app_handle.clone();
-                let clients = lock_mutex(&clients).clone();
+                let clients = clients.clone();
                 run_async_callback(
                     app_handle,
                     move |app_handle| on_menu_event(event, app_handle, clients),
@@ -88,16 +91,16 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
         .expect("error while running tauri application");
 }
 
-fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<Menu<R>> where R: Runtime, M: Manager<R> {
-    if !MENU_PRE_DB_SEPARATOR.get().is_none() || !MENU_POST_DB_SEPARATOR.get().is_none() {
-        let err = Box::<dyn StdError>::from(anyhow!("create_menu_once has already been called!"));
-        return Err(tauri::Error::Setup(err.into()));
-    }
+fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSeparatorIds)>
+    where R: Runtime, M: Manager<R>
+{
     let pre_db_sep = PredefinedMenuItem::separator(app_handle)?;
     let post_db_sep = PredefinedMenuItem::separator(app_handle)?;
 
-    MENU_PRE_DB_SEPARATOR.set(pre_db_sep.id().clone()).expect("setting pre-DB separator");
-    MENU_POST_DB_SEPARATOR.set(post_db_sep.id().clone()).expect("setting post-DB separator");
+    let separator_ids = MenuDbSeparatorIds {
+        before: pre_db_sep.id().clone(),
+        after: post_db_sep.id().clone(),
+    };
 
     // First menu will be a main dropdown menu on macOS
     let file_menu = Submenu::with_id_and_items(
@@ -117,7 +120,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<Menu<R>> where R: Run
             &MenuItem::with_id(app_handle, MENU_ID_COMPARE_DATASETS.clone(), "Compare Datasets [NYI]", true, None::<&str>)?,
         ])?;
 
-    Menu::with_items(app_handle, &[&file_menu, &edit_menu])
+    Ok((Menu::with_items(app_handle, &[&file_menu, &edit_menu])?, separator_ids))
 }
 
 async fn on_menu_event(
@@ -175,15 +178,14 @@ async fn refresh_opened_files_list(
     mut clients: client::ChatHistoryManagerGrpcClients,
     emit_js_event: bool,
 ) -> Result<()> {
+    let separators = app_handle.state::<MenuDbSeparatorIds>();
     let menu = app_handle.menu().expect("get menu");
     let menu_items = menu.items()?;
     let main_menu = menu_items[0].as_submenu().expect("get submenu");
     let items = main_menu.items()?;
     let (pre_db_sep_idx, post_db_sep_idx) = {
-        let pre_db_sep_id = MENU_PRE_DB_SEPARATOR.get().expect("get pre-DB separator");
-        let post_db_sep_id = MENU_POST_DB_SEPARATOR.get().expect("get post-DB separator");
-        (items.iter().position(|item| item.id() == &pre_db_sep_id).expect("find separator 1 position"),
-         items.iter().position(|item| item.id() == &post_db_sep_id).expect("find separator 2 position"))
+        (items.iter().position(|item| item.id() == &separators.before).expect("find separator 1 position"),
+         items.iter().position(|item| item.id() == &separators.after).expect("find separator 2 position"))
     };
 
     let loaded_files = clients.grpc(|loader, _| loader.get_loaded_files(Empty {})).await?;
