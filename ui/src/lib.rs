@@ -4,6 +4,7 @@
 use std::borrow::Cow;
 use std::fs;
 use std::future::Future;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -16,7 +17,7 @@ use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuI
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use chat_history_manager_backend::prelude::*;
-use chat_history_manager_backend::prelude::client;
+use chat_history_manager_backend::prelude::client::ChatHistoryManagerGrpcClients;
 
 /// Proceed with the result value, or report UI error and return
 macro_rules! handle_result {
@@ -53,10 +54,10 @@ static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_BUSY: &str = "busy";
 
-pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
+pub async fn start(clients: ChatHistoryManagerGrpcClients) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(GrpcClients::new(Mutex::new(clients)))
+        .manage(clients)
         .manage(BusyState::new(Mutex::new(BusyStateValue::NotBusy)))
         .setup(move |app| {
             let app_handle = app.handle();
@@ -65,7 +66,7 @@ pub async fn start(clients: client::ChatHistoryManagerGrpcClients) {
             app_handle.set_menu(menu)?;
             assert!(app_handle.manage(separator_ids));
 
-            let clients = lock_mutex(&app.state::<GrpcClients>()).clone();
+            let clients = app.state::<ChatHistoryManagerGrpcClients>().inner().clone();
 
             {
                 let clients = clients.clone();
@@ -126,7 +127,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSepar
 async fn on_menu_event(
     event: MenuEvent,
     app_handle: AppHandle,
-    mut clients: client::ChatHistoryManagerGrpcClients,
+    mut clients: ChatHistoryManagerGrpcClients,
 ) -> Result<()> {
     match event.id() {
         menu_id if menu_id == &*MENU_ID_OPEN => {
@@ -152,7 +153,7 @@ async fn on_menu_event(
 
 async fn on_menu_event_open(
     app_handle: AppHandle,
-    mut clients: client::ChatHistoryManagerGrpcClients,
+    mut clients: ChatHistoryManagerGrpcClients,
 ) -> Result<()> {
     // We cannot add custom file filters here, and extension filter is not enough.
     // As a workaround, user can select any file.
@@ -175,7 +176,7 @@ async fn on_menu_event_open(
 
 async fn refresh_opened_files_list(
     app_handle: AppHandle,
-    mut clients: client::ChatHistoryManagerGrpcClients,
+    mut clients: ChatHistoryManagerGrpcClients,
     emit_js_event: bool,
 ) -> Result<()> {
     let separators = app_handle.state::<MenuDbSeparatorIds>();
@@ -274,16 +275,16 @@ fn save_as(
     key: String,
     new_name: String,
     app_handle: AppHandle,
-    clients: State<GrpcClients>,
+    clients: State<ChatHistoryManagerGrpcClients>,
     busy_state: State<BusyState>,
 ) -> tauri::Result<()> {
-    let mut clients = lock_mutex(&clients).clone();
+    let mut clients = clients.inner().clone();
     let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Saving..."))?;
     run_async_callback(app_handle, move |app_handle| {
         let inner = async move {
             let _wip = wip; // Move the WIP RAII inside async closure
             clients.grpc(|_, dao| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
-            refresh_opened_files_list(app_handle, clients.clone(), true).await
+            refresh_opened_files_list(app_handle, clients, true).await
         };
         inner
     });
@@ -293,8 +294,6 @@ fn save_as(
 //
 // Helpers
 //
-
-type GrpcClients = Arc<Mutex<client::ChatHistoryManagerGrpcClients>>;
 
 // Should be used through the `WorkInProgress` RAII
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -347,6 +346,6 @@ fn as_dyn_menu_items<'a, R: Runtime>(v: &'a [impl IsMenuItem<R> + 'a]) -> Vec<&'
 }
 
 // We cannot recover from a poisoned mutex, so we just panic
-fn lock_mutex<T>(m: &Arc<Mutex<T>>) -> MutexGuard<'_, T> {
+fn lock_mutex<T, M>(m: &M) -> MutexGuard<T> where M: Deref<Target=Mutex<T>> {
     m.lock().expect("Mutex is poisoned")
 }
