@@ -266,10 +266,9 @@ fn report_error_string(app_handle: AppHandle, error: String) {
         .message(error)
         .title("Error")
         .kind(MessageDialogKind::Error)
-        .show(|_res| ()/*Ignore the result*/);
+        .show(|_res| () /* Ignore the result */);
 }
 
-// #[tauri::command(rename_all = "snake_case")]
 #[tauri::command]
 fn save_as(
     key: String,
