@@ -942,7 +942,7 @@ fn members_test_helper(clue: &str,
             PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: None,
                 discard_reason_option: None,
-                members: members.clone()
+                members: members.clone(),
             }),
         ];
         typeds.into_iter().enumerate().map(|(idx, typed)| {
@@ -1144,6 +1144,69 @@ fn merge_chats_content_appended_on_match() -> EmptyRes {
     Ok(())
 }
 
+#[test]
+fn merge_chats_content_adopt_new_filename() -> EmptyRes {
+    let msgs = vec![create_regular_message(0, 1), create_regular_message(1, 1)];
+
+    let helper = MergerHelper::new(
+        2, msgs.clone(), msgs,
+        &|is_master: bool, _ds_root: &DatasetRoot, msg: &mut Message| {
+            let file_name_option = if is_master {
+                match msg.source_id_option.unwrap() {
+                    0 => None,
+                    1 => Some("old_file_name.jpg".to_owned()),
+                    _ => panic!("Unexpected message")
+                }
+            } else {
+                Some("new_file_name.jpg".to_owned())
+            };
+
+            let mr = coerce_enum!(msg.typed.as_mut(), Some(message::Typed::Regular(mr)) => mr);
+            mr.content_option = Some(Content {
+                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
+                    path_option: Some("non/existent/path.jpg".to_owned()),
+                    file_name_option,
+                    mime_type_option: Some("image/jpeg".to_owned()),
+                    thumbnail_path_option: Some("non/existent/thumbnail_path.jpg".to_owned()),
+                })),
+            });
+        },
+    );
+
+    let chat_merges = vec![
+        ChatMergeDecision::Merge {
+            chat_id: helper.m.cwd().id(),
+            message_merges: vec![
+                MessagesMergeDecision::Match(MergeAnalysisSectionMatch {
+                    first_master_msg_id: first_id(&helper.m.msgs),
+                    last_master_msg_id: last_id(&helper.m.msgs),
+                    first_slave_msg_id: first_id(&helper.s.msgs),
+                    last_slave_msg_id: last_id(&helper.s.msgs),
+                }),
+            ],
+        }
+    ];
+    let (new_dao, new_ds, _tmpdir) =
+        merge(&helper, dont_replace_both_users(), chat_merges);
+
+    let new_chats = new_dao.chats(&new_ds.uuid)?;
+    assert_eq!(new_chats.len(), 1);
+    let new_chat = &new_chats[0].chat;
+
+    let new_messages = new_dao.first_messages(new_chat, usize::MAX)?;
+    assert_eq!(new_messages.len(), 2);
+    assert_eq!(new_chat.msg_count, 2);
+
+    for new_msg in new_messages.iter() {
+        let mr = coerce_enum!(new_msg.typed.as_ref(), Some(message::Typed::Regular(mr)) => mr);
+        let content = coerce_enum!(mr.content_option.as_ref(), Some(c) => c);
+        let file = coerce_enum!(content.sealed_value_optional.as_ref(), Some(content::SealedValueOptional::File(f)) => f);
+        assert_eq!(file.file_name_option, Some("new_file_name.jpg".to_owned()));
+    }
+
+    Ok(())
+}
+
 //
 // Helpers
 //
@@ -1211,6 +1274,7 @@ fn make_video_content(ds_root: &DatasetRoot, none_paths: bool, f1_content: &[u8]
     Content {
         sealed_value_optional: Some(content::SealedValueOptional::Video(ContentVideo {
             path_option: if none_paths { None } else { Some(ds_root.to_relative(&path1).unwrap()) },
+            file_name_option: Some(path_file_name(&path1).unwrap().to_owned()),
             title_option: Some("My Title".to_owned()),
             performer_option: Some("My Performer".to_owned()),
             width: 111,

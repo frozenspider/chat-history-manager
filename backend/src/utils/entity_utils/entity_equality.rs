@@ -193,25 +193,32 @@ impl<'a> PracticalEq for Tup<'a, String> {
 }
 
 macro_rules! practical_eq_with_path {
-    ($T:ident, $($x:ident),+) => {
+    ($T:ident, [$($path:ident),+], [$($ignore:ident),*]) => {
         impl<'a> PracticalEq for Tup<'a, $T> {
             fn practically_equals(&self, other: &Self) -> Result<bool> {
-                Ok($( self.apply(|v| &v.$x).practically_equals(&other.apply(|v| &v.$x))? && )*
-                    $T { $( $x: None, )* ..(*self.v).clone() } == $T { $( $x: None, )* ..(*other.v).clone() } &&
-                    true)
+                Ok($( self.apply(|v| &v.$path).practically_equals(&other.apply(|v| &v.$path))? && )*
+                    $T {
+                        $( $path: None, )*
+                        $( $ignore: None, )*
+                        ..(*self.v).clone()
+                    } == $T {
+                        $( $path: None, )*
+                        $( $ignore: None, )*
+                        ..(*other.v).clone()
+                    })
             }
         }
     };
 }
 
-practical_eq_with_path!(ContentSticker, path_option, thumbnail_path_option);
-practical_eq_with_path!(ContentPhoto, path_option);
-practical_eq_with_path!(ContentVoiceMsg, path_option);
-practical_eq_with_path!(ContentAudio, path_option);
-practical_eq_with_path!(ContentVideoMsg, path_option, thumbnail_path_option);
-practical_eq_with_path!(ContentVideo, path_option, thumbnail_path_option);
-practical_eq_with_path!(ContentFile, path_option, thumbnail_path_option);
-practical_eq_with_path!(ContentSharedContact, vcard_path_option);
+practical_eq_with_path!(ContentSticker, [path_option, thumbnail_path_option], [file_name_option]);
+practical_eq_with_path!(ContentPhoto, [path_option], []);
+practical_eq_with_path!(ContentVoiceMsg, [path_option], [file_name_option]);
+practical_eq_with_path!(ContentAudio, [path_option], [file_name_option]);
+practical_eq_with_path!(ContentVideoMsg, [path_option, thumbnail_path_option], [file_name_option]);
+practical_eq_with_path!(ContentVideo, [path_option, thumbnail_path_option], [file_name_option]);
+practical_eq_with_path!(ContentFile, [path_option, thumbnail_path_option], [file_name_option]);
+practical_eq_with_path!(ContentSharedContact, [vcard_path_option], []);
 
 impl<'a> PracticalEq for Tup<'a, ContentPoll> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {

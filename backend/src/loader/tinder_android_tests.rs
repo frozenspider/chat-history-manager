@@ -95,6 +95,7 @@ fn loading_2023_11() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Sticker(ContentSticker {
                         path_option: Some(format!("{RELATIVE_MEDIA_DIR}/848013095925873688.gif")),
+                        file_name_option: Some("848013095925873688.gif".to_owned()),
                         width: 542,
                         height: 558,
                         thumbnail_path_option: None,

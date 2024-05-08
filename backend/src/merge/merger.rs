@@ -204,8 +204,7 @@ fn merge_inner(
                         MessagesMergeDecision::Match(v) => {
                             // While messages match, our matching rules allow either master or slave
                             // to have missing content.
-                            // We keep master messages (updated with slave source ID) unless slave has new content.
-                            // TODO: Update when slave has new information instead? (like filenames)
+                            // We keep master messages (updated with some data from slave) unless slave has new content.
                             //
                             // Note: We might be loading too much into memory at once!
                             // However, messages memory footprint is pretty small, so this isn't a big concern now.
@@ -224,9 +223,8 @@ fn merge_inner(
                                     let mm_files = mm.files(&master_ds_root).into_iter().filter(|f| f.exists()).collect_vec();
                                     let sm_files = sm.files(&slave_ds_root).into_iter().filter(|f| f.exists()).collect_vec();
                                     if mm_files.len() >= sm_files.len() {
-                                        // Adopt slave source IDs
                                         let mut mm = mm;
-                                        adopt_slave_source_ids(&mut mm, &sm);
+                                        update_with_slave_data(&mut mm, &sm);
                                         (mm, Source::Master)
                                     } else {
                                         (sm, Source::Slave)
@@ -366,13 +364,26 @@ fn fixup_members(msg: &mut Message, final_users: &[User], cwd: &ChatWithDetails)
     Ok(())
 }
 
-/// Change master message by setting all source message IDs to those from slave message.
+/// Change master message by setting all the following to that of slave message:
+///
+/// * Source message ID
+/// * File name (if present)
+///
+///
 /// Messages are assumed to be matching.
-fn adopt_slave_source_ids(mm: &mut Message, sm: &Message) {
+/// Rationale for file name is that newer version may reveal more accurate info.
+fn update_with_slave_data(mm: &mut Message, sm: &Message) {
     mm.source_id_option = sm.source_id_option;
     match (mm.typed_mut(), sm.typed()) {
         (message::Typed::Regular(mmr), message::Typed::Regular(smr)) => {
             mmr.reply_to_message_id_option = smr.reply_to_message_id_option;
+
+            if let (Some(mfn_ref), Some(sfn)) = (
+                mmr.content_option.as_mut().and_then(|c| c.file_name_ref_mut()),
+                smr.content_option.as_ref().and_then(|c| c.file_name())
+            ) {
+                *mfn_ref = Some(sfn.clone());
+            }
         }
         (message::Typed::Service(mms), message::Typed::Service(sms)) => {
             use message_service::SealedValueOptional::*;

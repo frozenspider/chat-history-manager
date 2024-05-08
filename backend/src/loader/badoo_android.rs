@@ -13,7 +13,7 @@ mod tests;
 
 pub struct BadooAndroidDataLoader;
 
-android_sqlite_loader!(BadooAndroidDataLoader, BadooDb, "Badoo", "ChatComDatabase");
+android_sqlite_loader!(BadooAndroidDataLoader, "Badoo", "ChatComDatabase");
 
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
@@ -142,6 +142,7 @@ impl BadooAndroidDataLoader {
                             let duration_sec_option = Some(duration_ms.try_as_i32()? / 1000);
                             (vec![], Some(content::SealedValueOptional::VoiceMsg(ContentVoiceMsg {
                                 path_option: None,
+                                file_name_option: None,
                                 mime_type: "".to_string(),
                                 duration_sec_option,
                             })))

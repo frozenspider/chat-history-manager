@@ -698,6 +698,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Audio(ContentAudio {
                         path_option: Some("audio_file.mp3".to_owned()),
+                        file_name_option: None, // Old format
                         title_option: None,
                         performer_option: None,
                         mime_type: "audio/mpeg".to_owned(),
@@ -722,6 +723,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Audio(ContentAudio {
                         path_option: Some("audio_file.mp3".to_owned()),
+                        file_name_option: None, // Old format
                         title_option: Some("Song Name".to_string()),
                         performer_option: Some("Audio Performer".to_owned()),
                         mime_type: "audio/mpeg".to_owned(),
@@ -746,6 +748,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Video(ContentVideo {
                         path_option: Some("video_file.mp4".to_owned()),
+                        file_name_option: None, // Old format
                         title_option: None,
                         performer_option: None,
                         width: 222,
@@ -773,6 +776,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Video(ContentVideo {
                         path_option: Some("video_file.mp4".to_owned()),
+                        file_name_option: None, // Old format
                         title_option: Some("Clip Name".to_string()),
                         performer_option: Some("Video Performer".to_owned()),
                         width: 222,
@@ -866,6 +870,80 @@ fn loading_2024_02() -> EmptyRes {
             reply_to_message_id_option: None,
             content_option: None,
         }),
+    });
+
+    Ok(())
+}
+
+#[test]
+fn loading_2024_05() -> EmptyRes {
+    let res = resource("telegram_2024-05_boosts_file-name_etc");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 3);
+
+    // Note that this really is an image file, not a photo
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "my-file.jpg".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+                content_option: Some(Content {
+                    sealed_value_optional: Some(File(ContentFile {
+                        path_option: None,
+                        file_name_option: Some("my-file.jpg".to_owned()),
+                        mime_type_option: Some("image/jpeg".to_owned()),
+                        thumbnail_path_option: None,
+                    }))
+                }),
+        }),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "😱".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+                content_option: Some(Content {
+                    sealed_value_optional: Some(Sticker(ContentSticker {
+                        path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
+                        file_name_option: Some("sticker.webm".to_owned()),
+                        width: 0, // Not known!
+                        height: 0, // Not known!
+                        thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
+                        emoji_option: Some("😱".to_owned()),
+                    }))
+                }),
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499757,
+        from_id: 11111111,
+        text: vec![RichText::make_plain("Group boosted by 123".to_owned())],
+        searchable_string: "Group boosted by 123".to_owned(),
+        typed: Some(message_service!(Notice(MessageServiceNotice {}))),
     });
 
     Ok(())

@@ -104,6 +104,7 @@ fn loading_2023_12() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(VoiceMsg(ContentVoiceMsg {
                         path_option: None,
+                        file_name_option: None,
                         mime_type: "".to_owned(),
                         duration_sec_option: Some(23),
                     }))

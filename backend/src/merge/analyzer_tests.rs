@@ -643,6 +643,40 @@ fn timestamp_diff() -> EmptyRes {
     Ok(())
 }
 
+/// Difference in file name only should be a match
+#[test]
+fn file_name_diff() -> EmptyRes {
+    let msgs = vec![create_regular_message(0, 1)];
+    let helper = MergerHelper::new(
+        MAX_USER_ID, msgs.clone(), msgs,
+        &|is_master: bool, _ds_root: &DatasetRoot, msg: &mut Message| {
+            let file_name = if is_master { "old_file_name.jpg" } else { "new_file_name.jpg" };
+            let mr = coerce_enum!(msg.typed.as_mut(), Some(message::Typed::Regular(mr)) => mr);
+            mr.content_option = Some(Content {
+                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
+                    path_option: Some("non/existent/path.jpg".to_owned()),
+                    file_name_option: Some(file_name.to_owned()),
+                    mime_type_option: Some("image/jpeg".to_owned()),
+                    thumbnail_path_option: Some("non/existent/thumbnail_path.jpg".to_owned()),
+                })),
+            });
+        },
+    );
+    let analysis = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false)?;
+
+    assert_eq!(
+        analysis, vec![
+            Match(MergeAnalysisSectionMatch {
+                first_master_msg_id: helper.m.msgs[&src_id(0)].typed_id(),
+                last_master_msg_id: helper.m.msgs[&src_id(0)].typed_id(),
+                first_slave_msg_id: helper.s.msgs[&src_id(0)].typed_id(),
+                last_slave_msg_id: helper.s.msgs[&src_id(0)].typed_id(),
+            }),
+        ]
+    );
+    Ok(())
+}
+
 /// "not found" should NOT conflict with "not downloaded" and vice versa
 #[test]
 fn present_absent_not_downloaded() -> EmptyRes {

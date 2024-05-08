@@ -32,8 +32,6 @@ trait DataLoader: Send + Sync {
         self.name()
     }
 
-    fn src_type(&self) -> SourceType;
-
     // TODO: Add allowed files filter
 
     fn looks_about_right(&self, path: &Path) -> EmptyRes {
@@ -147,7 +145,6 @@ pub mod android {
                     $(: $generic_type_bound:ident $(+ $generic_type_bound2:ident)* )?
                 ),+
             >)?,
-            $tpe:ident,
             $name:literal,
             $db_filename:literal
         ) => {
@@ -169,8 +166,6 @@ pub mod android {
                 fn name(&self) -> &'static str { concatcp!($name, " (db)") }
 
                 fn src_alias(&self) -> &'static str { self.name() }
-
-                fn src_type(&self) -> SourceType { SourceType::$tpe }
 
                 fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
                     let filename = path_file_name(path)?;

@@ -223,6 +223,8 @@ message Content {
 message ContentSticker {
   // Path relative to data root!
   optional string path_option = 1;
+  // Original file name, might be different from a name of the stored file. Optional even if path is present.
+  optional string file_name_option = 6;
   // 0 if unknown
   required int32 width = 2;
   // 0 if unknown
@@ -246,6 +248,8 @@ message ContentPhoto {
 message ContentVoiceMsg {
   // Path relative to data root!
   optional string path_option = 1;
+  // Original file name, might be different from a name of the stored file. Optional even if path is present.
+  optional string file_name_option = 4;
   required string mime_type = 2;
   optional int32 duration_sec_option = 3;
 }
@@ -253,6 +257,8 @@ message ContentVoiceMsg {
 message ContentAudio {
   // Path relative to data root!
   optional string path_option = 1;
+  // Original file name, might be different from a name of the stored file. Optional even if path is present.
+  optional string file_name_option = 7;
 
   optional string title_option = 2;
   optional string performer_option = 3;
@@ -268,6 +274,8 @@ message ContentAudio {
 message ContentVideoMsg {
   // Path relative to data root!
   optional string path_option = 1;
+  // Original file name, might be different from a name of the stored file. Optional even if path is present.
+  optional string file_name_option = 8;
   // 0 if unknown
   required int32 width = 2;
   // 0 if unknown
@@ -285,6 +293,8 @@ message ContentVideoMsg {
 message ContentVideo {
   // Path relative to data root!
   optional string path_option = 1;
+  // Original file name, might be different from a name of the stored file. Optional even if path is present.
+  optional string file_name_option = 10;
 
   optional string title_option = 8;
   optional string performer_option = 9;

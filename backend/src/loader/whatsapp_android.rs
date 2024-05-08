@@ -25,7 +25,7 @@ lazy_static! {
 /// 3. User avatars are looked up in <data_root>/files/Avatars
 pub struct WhatsAppAndroidDataLoader;
 
-android_sqlite_loader!(WhatsAppAndroidDataLoader, WhatsappDb, "WhatsApp", "msgstore.db");
+android_sqlite_loader!(WhatsAppAndroidDataLoader, "WhatsApp", "msgstore.db");
 
 type Jid = String;
 type MessageKey = String;
@@ -684,6 +684,14 @@ fn parse_regular_message(
     macro_rules! get_mandatory_width { () => { get_mandatory_int!(columns::message_media::WIDTH, "width") }; }
     macro_rules! get_mandatory_height { () => { get_mandatory_int!(columns::message_media::HEIGHT, "height") }; }
 
+    fn get_media_path_and_file_name(row: &Row) -> Result<(Option<String>, Option<String>)> {
+        let path: Option<String> = row.get(columns::message_media::FILE_PATH)?;
+        let name: Option<String> = row.get(columns::message_media::NAME)?;
+        let name = name.or_else(||
+            path.as_ref().map(|p| p.rsplit_once('/').unwrap_or(("", p)).1.to_owned()));
+        Ok((path, name))
+    }
+
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
     let content_option = match msg_tpe {
         MessageType::Text => None,
@@ -703,16 +711,22 @@ fn parse_regular_message(
                 is_one_time: true,
             }))
         }
-        MessageType::Audio =>
+        MessageType::Audio => {
+            let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             Some(VoiceMsg(ContentVoiceMsg {
-                path_option: row.get(columns::message_media::FILE_PATH)?,
+                path_option,
+                file_name_option,
                 mime_type: row.get(columns::message_media::MIME_TYPE)?,
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
-            })),
+            }))
+        }
         MessageType::Video | MessageType::AnimatedGif => {
             text_column = None;
+            // TODO: One-time videos
+            let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             Some(VideoMsg(ContentVideoMsg {
-                path_option: row.get(columns::message_media::FILE_PATH)?, // TODO: One-time videos
+                path_option,
+                file_name_option,
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
                 mime_type: row.get(columns::message_media::MIME_TYPE)?,
@@ -724,6 +738,7 @@ fn parse_regular_message(
         MessageType::OneTimeVideo =>
             Some(VideoMsg(ContentVideoMsg {
                 path_option: None, // TODO!
+                file_name_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
                 mime_type: row.get(columns::message_media::MIME_TYPE)?,
@@ -734,9 +749,10 @@ fn parse_regular_message(
         MessageType::Document => {
             // For some reason, text is moved here
             text_column = Some(columns::message_media::CAPTION);
+            let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             Some(File(ContentFile {
-                path_option: row.get(columns::message_media::FILE_PATH)?,
-                file_name_option: row.get(columns::message_media::NAME)?,
+                path_option,
+                file_name_option,
                 mime_type_option: row.get(columns::message_media::MIME_TYPE)?,
                 thumbnail_path_option: None,
             }))
@@ -751,8 +767,10 @@ fn parse_regular_message(
                 w *= 2;
                 h *= 2;
             }
+            let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             Some(Sticker(ContentSticker {
-                path_option: row.get(columns::message_media::FILE_PATH)?,
+                path_option,
+                file_name_option,
                 width: w,
                 height: h,
                 thumbnail_path_option: None,

@@ -53,8 +53,6 @@ impl DataLoader for MailRuAgentDataLoader {
 
     fn src_alias(&self) -> &'static str { "MRA" }
 
-    fn src_type(&self) -> SourceType { SourceType::Mra }
-
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         if path_file_name(path)? != MRA_DBS {
             bail!("File is not {MRA_DBS}")
@@ -276,6 +274,7 @@ fn convert_cartoon(src: &str) -> Result<TextAndTyped> {
         content_option: Some(Content {
             sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
                 path_option: None,
+                file_name_option: None,
                 width: 0,
                 height: 0,
                 thumbnail_path_option: None,

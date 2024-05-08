@@ -41,8 +41,6 @@ pub struct TelegramDataLoader;
 impl DataLoader for TelegramDataLoader {
     fn name(&self) -> &'static str { "Telegram" }
 
-    fn src_type(&self) -> SourceType { SourceType::Telegram }
-
     fn looks_about_right_inner(&self, src_path: &Path) -> EmptyRes {
         let path = get_real_path(src_path);
         if !path.exists() {
@@ -670,6 +668,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
         Ok(Some(SealedValueOptional::Audio(ContentAudio {
             path_option: message_json.field_opt_path("file")?,
+            file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
             performer_option: message_json.field_opt_str("performer")?,
             mime_type: mime_type_option.clone().unwrap(),
@@ -680,6 +679,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
         Ok(Some(SealedValueOptional::Video(ContentVideo {
             path_option: message_json.field_opt_path("file")?,
+            file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
             performer_option: message_json.field_opt_str("performer")?,
             width: message_json.field_opt_i32("width")?.unwrap_or(0),
@@ -703,8 +703,9 @@ fn parse_regular_message(message_json: &mut MessageJson,
             message_json.add_optional("duration_seconds");
             Some(SealedValueOptional::Sticker(ContentSticker {
                 path_option: message_json.field_opt_path("file")?,
-                width: message_json.field_i32("width")?,
-                height: message_json.field_i32("height")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
+                width: message_json.field_opt_i32("width")?.unwrap_or_default(),
+                height: message_json.field_opt_i32("height")?.unwrap_or_default(),
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
@@ -712,6 +713,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         (Some("voice_message"), None, true, false, false, false) =>
             Some(SealedValueOptional::VoiceMsg(ContentVoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type: mime_type_option.unwrap(),
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
             })),
@@ -722,6 +724,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         (Some("video_message"), None, true, false, false, false) =>
             Some(SealedValueOptional::VideoMsg(ContentVideoMsg {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_i32("width")?,
                 height: message_json.field_i32("height")?,
                 mime_type: mime_type_option.unwrap(),
@@ -732,6 +735,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         (Some("animation"), None, true, false, false, false) =>
             Some(SealedValueOptional::Video(ContentVideo {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 title_option: None,
                 performer_option: None,
                 width: message_json.field_i32("width")?,
@@ -751,7 +755,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             message_json.add_optional("height");
             Some(SealedValueOptional::File(ContentFile {
                 path_option: message_json.field_opt_path("file")?,
-                file_name_option: None, // Telegram does not provide it
+                file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type_option,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
             }))
@@ -936,6 +940,12 @@ fn parse_service_message(message_json: &mut MessageJson,
 
             (SealedValueOptional::Notice(MessageServiceNotice {}),
              Some(format!("Messages will be auto-deleted in {period} {period_str}")))
+        }
+        "boost_apply" => {
+            let boosts = message_json.field_i32("boosts")?;
+
+            (SealedValueOptional::Notice(MessageServiceNotice {}),
+             Some(format!("Group boosted by {boosts}")))
         }
         "edit_chat_theme" => {
             // Not really interesting to track.
