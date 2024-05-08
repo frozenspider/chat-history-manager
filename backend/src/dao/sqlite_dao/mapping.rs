@@ -89,6 +89,7 @@ pub mod schema {
             discard_reason -> Nullable<Text>,
             pinned_message_id -> Nullable<BigInt>,
             is_blocked -> Nullable<Integer>,
+            file_name -> Nullable<Text>,
         }
     }
 
@@ -239,6 +240,7 @@ pub struct RawMessageContent {
 
     pub path: Option<String>,
     pub thumbnail_path: Option<String>,
+    pub file_name: Option<String>,
     pub emoji: Option<String>,
     pub width: Option<i32>,
     pub height: Option<i32>,

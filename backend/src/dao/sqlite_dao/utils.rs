@@ -402,7 +402,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "file".to_owned(),
                     path,
-                    title: v.file_name_option.clone(),
+                    file_name: v.file_name_option.clone(),
                     mime_type: v.mime_type_option.clone(),
                     thumbnail_path,
                     ..Default::default()
@@ -649,7 +649,7 @@ pub mod message {
             }),
             "file" => File(ContentFile {
                 path_option: raw.path,
-                file_name_option: raw.title,
+                file_name_option: raw.file_name,
                 mime_type_option: raw.mime_type,
                 thumbnail_path_option: raw.thumbnail_path,
             }),

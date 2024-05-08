@@ -756,10 +756,9 @@ fn parse_regular_message(message_json: &mut MessageJson,
             // Ignoring dimensions of downloadable image
             message_json.add_optional("width");
             message_json.add_optional("height");
-            let fname = message_json.field_opt_str("file_name")?;
             Some(SealedValueOptional::File(ContentFile {
                 path_option: message_json.field_opt_path("file")?,
-                file_name_option: fname, // Telegram does not provide it
+                file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type_option,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
             }))
