@@ -40,6 +40,18 @@
       "mime_type": "video/webm",
       "text": "",
       "text_entities": []
+     },
+     {
+      "id": 11113,
+      "type": "service",
+      "date": "2022-10-11T22:49:17",
+      "date_unixtime": "1665499757",
+      "actor": "Aaaaa Aaaaaaaaaaa",
+      "actor_id": "user11111111",
+      "action": "boost_apply",
+      "boosts": 123,
+      "text": "",
+      "text_entities": []
      }
     ]
    }

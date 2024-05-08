@@ -881,7 +881,7 @@ fn loading_2024_05() -> EmptyRes {
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
-    assert_eq!(msgs.len() as i32, 2);
+    assert_eq!(msgs.len() as i32, 3);
 
     // Note that this really is an image file, not a photo
     assert_eq!(msgs[0], Message {
@@ -929,6 +929,16 @@ fn loading_2024_05() -> EmptyRes {
                     }))
                 }),
         }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499757,
+        from_id: 11111111,
+        text: vec![RichText::make_plain("Group boosted by 123".to_owned())],
+        searchable_string: "Group boosted by 123".to_owned(),
+        typed: Some(message_service!(Notice(MessageServiceNotice {}))),
     });
 
     Ok(())

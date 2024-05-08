@@ -945,6 +945,12 @@ fn parse_service_message(message_json: &mut MessageJson,
             (SealedValueOptional::Notice(MessageServiceNotice {}),
              Some(format!("Messages will be auto-deleted in {period} {period_str}")))
         }
+        "boost_apply" => {
+            let boosts = message_json.field_i32("boosts")?;
+
+            (SealedValueOptional::Notice(MessageServiceNotice {}),
+             Some(format!("Group boosted by {boosts}")))
+        }
         "edit_chat_theme" => {
             // Not really interesting to track.
             return Ok(ShouldProceed::SkipMessage);
