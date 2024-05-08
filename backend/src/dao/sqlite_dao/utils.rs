@@ -332,6 +332,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "sticker".to_owned(),
                     path,
+                    file_name: v.file_name_option.clone(),
                     width: Some(v.width),
                     height: Some(v.height),
                     thumbnail_path,
@@ -345,6 +346,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "voice_message".to_owned(),
                     path,
+                    file_name: v.file_name_option.clone(),
                     mime_type: Some(v.mime_type.clone()),
                     duration_sec: v.duration_sec_option,
                     ..Default::default()
@@ -356,6 +358,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "audio".to_owned(),
                     path,
+                    file_name: v.file_name_option.clone(),
                     title: v.title_option.clone(),
                     performer: v.performer_option.clone(),
                     mime_type: Some(v.mime_type.clone()),
@@ -370,6 +373,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "video_message".to_owned(),
                     path,
+                    file_name: v.file_name_option.clone(),
                     width: Some(v.width),
                     height: Some(v.height),
                     mime_type: Some(v.mime_type.clone()),
@@ -385,6 +389,7 @@ pub mod message {
                 RawMessageContent {
                     element_type: "video".to_owned(),
                     path,
+                    file_name: v.file_name_option.clone(),
                     title: v.title_option.clone(),
                     performer: v.performer_option.clone(),
                     width: Some(v.width),
@@ -601,13 +606,14 @@ pub mod message {
     fn deserialize_content(raw: RawMessageContent) -> Result<content::SealedValueOptional> {
         use content::SealedValueOptional::*;
         macro_rules! get_or_bail {
-                ($obj:ident.$field:ident) => {
-                    $obj.$field.with_context(|| format!("{} field was missing for a {} content!",
-                                                        stringify!($field), raw.element_type))? };
-            }
+            ($obj:ident.$field:ident) => {
+                $obj.$field.with_context(|| format!("{} field was missing for a {} content!",
+                                                    stringify!($field), raw.element_type))? };
+        }
         Ok(match raw.element_type.as_str() {
             "sticker" => Sticker(ContentSticker {
                 path_option: raw.path,
+                file_name_option: raw.file_name,
                 width: get_or_bail!(raw.width),
                 height: get_or_bail!(raw.height),
                 thumbnail_path_option: raw.thumbnail_path,
@@ -616,11 +622,13 @@ pub mod message {
             "photo" => Photo(deserialize_photo(raw)?),
             "voice_message" => VoiceMsg(ContentVoiceMsg {
                 path_option: raw.path,
+                file_name_option: raw.file_name,
                 mime_type: get_or_bail!(raw.mime_type),
                 duration_sec_option: raw.duration_sec,
             }),
             "audio" => Audio(ContentAudio {
                 path_option: raw.path,
+                file_name_option: raw.file_name,
                 title_option: raw.title,
                 performer_option: raw.performer,
                 mime_type: get_or_bail!(raw.mime_type),
@@ -629,6 +637,7 @@ pub mod message {
             }),
             "video_message" => VideoMsg(ContentVideoMsg {
                 path_option: raw.path,
+                file_name_option: raw.file_name,
                 width: get_or_bail!(raw.width),
                 height: get_or_bail!(raw.height),
                 mime_type: get_or_bail!(raw.mime_type),
@@ -638,6 +647,7 @@ pub mod message {
             }),
             "video" => Video(ContentVideo {
                 path_option: raw.path,
+                file_name_option: raw.file_name,
                 title_option: raw.title,
                 performer_option: raw.performer,
                 width: get_or_bail!(raw.width),

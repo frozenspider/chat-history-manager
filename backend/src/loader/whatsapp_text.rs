@@ -209,6 +209,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             }),
             "STK" => Sticker(ContentSticker {
                 path_option: Some(filename.to_owned()),
+                file_name_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
                 thumbnail_path_option: None,
@@ -218,6 +219,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
                 ensure!(filename.ends_with(".mp4"), "Unexpected video file extension: {}", filename);
                 Video(ContentVideo {
                     path_option: Some(filename.to_owned()),
+                    file_name_option: Some(filename.to_owned()),
                     title_option: None,
                     performer_option: None,
                     width: 0,
@@ -232,6 +234,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
                 ensure!(filename.ends_with(".opus"), "Unexpected audio file extension: {}", filename);
                 VoiceMsg(ContentVoiceMsg {
                     path_option: Some(filename.to_owned()),
+                    file_name_option: Some(filename.to_owned()),
                     mime_type: "audio/ogg".to_owned(),
                     duration_sec_option: None,
                 })

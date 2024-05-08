@@ -274,6 +274,7 @@ fn convert_cartoon(src: &str) -> Result<TextAndTyped> {
         content_option: Some(Content {
             sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
                 path_option: None,
+                file_name_option: None,
                 width: 0,
                 height: 0,
                 thumbnail_path_option: None,

@@ -1211,6 +1211,7 @@ fn make_video_content(ds_root: &DatasetRoot, none_paths: bool, f1_content: &[u8]
     Content {
         sealed_value_optional: Some(content::SealedValueOptional::Video(ContentVideo {
             path_option: if none_paths { None } else { Some(ds_root.to_relative(&path1).unwrap()) },
+            file_name_option: Some(path_file_name(&path1).unwrap().to_owned()),
             title_option: Some("My Title".to_owned()),
             performer_option: Some("My Performer".to_owned()),
             width: 111,

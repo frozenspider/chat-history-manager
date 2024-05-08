@@ -172,6 +172,7 @@ fn loading_2023_10() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Video(ContentVideo {
                         path_option: Some("VID-20230630-WA0001.mp4".to_owned()),
+                        file_name_option: Some("VID-20230630-WA0001.mp4".to_owned()),
                         title_option: None,
                         performer_option: None,
                         width: 0,
@@ -199,6 +200,7 @@ fn loading_2023_10() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(VoiceMsg(ContentVoiceMsg {
                         path_option: Some("AUD-20230630-WA0002.opus".to_owned()),
+                        file_name_option: Some("AUD-20230630-WA0002.opus".to_owned()),
                         mime_type: "audio/ogg".to_owned(),
                         duration_sec_option: None,
                     }))
@@ -220,6 +222,7 @@ fn loading_2023_10() -> EmptyRes {
                 content_option: Some(Content {
                     sealed_value_optional: Some(Sticker(ContentSticker {
                         path_option: Some("STK-20230630-WA0003.webp".to_owned()),
+                        file_name_option: Some("STK-20230630-WA0003.webp".to_owned()),
                         width: 0,
                         height: 0,
                         thumbnail_path_option: None,

@@ -142,6 +142,7 @@ impl BadooAndroidDataLoader {
                             let duration_sec_option = Some(duration_ms.try_as_i32()? / 1000);
                             (vec![], Some(content::SealedValueOptional::VoiceMsg(ContentVoiceMsg {
                                 path_option: None,
+                                file_name_option: None,
                                 mime_type: "".to_string(),
                                 duration_sec_option,
                             })))

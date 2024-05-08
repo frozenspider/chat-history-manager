@@ -666,9 +666,9 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
     // Helpers to reduce boilerplate, since we can't have match guards for separate pattern arms.
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
-        message_json.add_optional("file_name");
         Ok(Some(SealedValueOptional::Audio(ContentAudio {
             path_option: message_json.field_opt_path("file")?,
+            file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
             performer_option: message_json.field_opt_str("performer")?,
             mime_type: mime_type_option.clone().unwrap(),
@@ -677,9 +677,9 @@ fn parse_regular_message(message_json: &mut MessageJson,
         })))
     };
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
-        message_json.add_optional("file_name");
         Ok(Some(SealedValueOptional::Video(ContentVideo {
             path_option: message_json.field_opt_path("file")?,
+            file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
             performer_option: message_json.field_opt_str("performer")?,
             width: message_json.field_opt_i32("width")?.unwrap_or(0),
@@ -699,45 +699,43 @@ fn parse_regular_message(message_json: &mut MessageJson,
                                                           contact_info_present) {
         (None, None, false, false, false, false) => None,
         (Some("sticker"), None, true, false, false, false) => {
-            message_json.add_optional("file_name");
             // Ignoring animated sticker duration
             message_json.add_optional("duration_seconds");
             Some(SealedValueOptional::Sticker(ContentSticker {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_opt_i32("width")?.unwrap_or_default(),
                 height: message_json.field_opt_i32("height")?.unwrap_or_default(),
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
         }
-        (Some("voice_message"), None, true, false, false, false) => {
-            message_json.add_optional("file_name");
+        (Some("voice_message"), None, true, false, false, false) =>
             Some(SealedValueOptional::VoiceMsg(ContentVoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type: mime_type_option.unwrap(),
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
-            }))
-        }
+            })),
         (Some("audio_file"), None, true, false, false, false) =>
             make_content_audio(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("audio/")) =>
             make_content_audio(message_json)?,
-        (Some("video_message"), None, true, false, false, false) => {
-            message_json.add_optional("file_name");
+        (Some("video_message"), None, true, false, false, false) =>
             Some(SealedValueOptional::VideoMsg(ContentVideoMsg {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_i32("width")?,
                 height: message_json.field_i32("height")?,
                 mime_type: mime_type_option.unwrap(),
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            }))
-        }
-        (Some("animation"), None, true, false, false, false) => {
-            message_json.add_optional("file_name");
+            })),
+        (Some("animation"), None, true, false, false, false) =>
             Some(SealedValueOptional::Video(ContentVideo {
                 path_option: message_json.field_opt_path("file")?,
+                file_name_option: message_json.field_opt_str("file_name")?,
                 title_option: None,
                 performer_option: None,
                 width: message_json.field_i32("width")?,
@@ -746,8 +744,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            }))
-        }
+            })),
         (Some("video_file"), None, true, false, false, false) =>
             make_content_video(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("video/")) =>
