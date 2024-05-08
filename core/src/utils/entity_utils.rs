@@ -451,6 +451,17 @@ impl RichText {
     }
 }
 
+// There seems to be no way to write a function generic over &T and &mut T
+macro_rules! get_file_name_helper {
+    ($c:expr, $svo:ident, $ref_func:ident, $inner:expr) => {
+        if let Some($svo) = $c.sealed_value_optional.$ref_func() {
+            $inner
+        } else {
+            None
+        }
+    };
+}
+
 impl Content {
     pub fn path_file_option(&self, ds_root: &DatasetRoot) -> Option<PathBuf> {
         use content::SealedValueOptional::*;
@@ -464,6 +475,37 @@ impl Content {
             Some(File(c))      => c.path_option.as_ref().map(|c| ds_root.to_absolute(c)),
             _ => None
         } // @formatter:on
+    }
+
+    pub fn file_name(&self) -> Option<&String> {
+        use content::SealedValueOptional::*;
+        get_file_name_helper!(self, svo, as_ref,
+            match svo { // @formatter:off
+                Sticker(v)  => v.file_name_option.as_ref(),
+                VoiceMsg(v) => v.file_name_option.as_ref(),
+                Audio(v)    => v.file_name_option.as_ref(),
+                VideoMsg(v) => v.file_name_option.as_ref(),
+                Video(v)    => v.file_name_option.as_ref(),
+                File(v)     => v.file_name_option.as_ref(),
+                _           => None
+            } // @formatter:on
+        )
+    }
+
+    /// Get a mutable reference to file name field in order to allow changing it.
+    pub fn file_name_ref_mut(&mut self) -> Option<&mut Option<String>> {
+        use content::SealedValueOptional::*;
+        get_file_name_helper!(self, svo, as_mut,
+            match svo { // @formatter:off
+                Sticker(v)  => Some(&mut v.file_name_option),
+                VoiceMsg(v) => Some(&mut v.file_name_option),
+                Audio(v)    => Some(&mut v.file_name_option),
+                VideoMsg(v) => Some(&mut v.file_name_option),
+                Video(v)    => Some(&mut v.file_name_option),
+                File(v)     => Some(&mut v.file_name_option),
+                _           => None
+            } // @formatter:on
+        )
     }
 }
 

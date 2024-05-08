@@ -41,7 +41,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
     ) -> Result<Vec<MergeAnalysisSection>> {
         measure(|| {
             let mut analysis = self.analyze_inner(
-                AnalysContext {
+                AnalysisContext {
                     mm_stream: messages_stream(self.m_dao, &master_cwd.chat, MasterMessage, |m| m.0.internal_id())?,
                     m_cwd: master_cwd,
                     sm_stream: messages_stream(self.s_dao, &slave_cwd.chat, SlaveMessage, |m| m.0.internal_id())?,
@@ -55,7 +55,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
         }, |_, t| log::info!("Chat {title} analyzed in {t} ms"))
     }
 
-    fn analyze_inner(&self, mut cx: AnalysContext) -> Result<Vec<MergeAnalysisSection>> {
+    fn analyze_inner(&self, mut cx: AnalysisContext) -> Result<Vec<MergeAnalysisSection>> {
         use AnalysisState::*;
         use InProgressState::*;
 
@@ -368,7 +368,7 @@ pub struct MergeAnalysisSectionConflict {
     pub last_slave_msg_id: SlaveInternalId,
 }
 
-struct AnalysContext<'a> {
+struct AnalysisContext<'a> {
     mm_stream: BatchedMessageIterator<'a, MasterMessage>,
     m_cwd: &'a ChatWithDetails,
 
@@ -376,7 +376,7 @@ struct AnalysContext<'a> {
     s_cwd: &'a ChatWithDetails,
 }
 
-impl AnalysContext<'_> {
+impl AnalysisContext<'_> {
     fn cmp_master_slave(&self) -> Ordering {
         match self.peek() {
             (None, None) => Ordering::Equal,
@@ -406,13 +406,13 @@ impl AnalysContext<'_> {
 
     fn advance_master(&mut self) -> Result<MasterMessage> {
         let next = self.mm_stream.next().expect("Empty master stream advanced! This should've been checked")?;
-        assert!(next.internal_id != *NO_INTERNAL_ID);
+        assert_ne!(next.internal_id, *NO_INTERNAL_ID);
         Ok(next)
     }
 
     fn advance_slave(&mut self) -> Result<SlaveMessage> {
         let next = self.sm_stream.next().expect("Empty slave stream advanced! This should've been checked")?;
-        assert!(next.internal_id != *NO_INTERNAL_ID);
+        assert_ne!(next.internal_id, *NO_INTERNAL_ID);
         Ok(next)
     }
 }
