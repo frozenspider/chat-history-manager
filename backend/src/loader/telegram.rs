@@ -666,6 +666,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
     // Helpers to reduce boilerplate, since we can't have match guards for separate pattern arms.
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
+        message_json.add_optional("file_name");
         Ok(Some(SealedValueOptional::Audio(ContentAudio {
             path_option: message_json.field_opt_path("file")?,
             title_option: message_json.field_opt_str("title")?,
@@ -676,6 +677,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         })))
     };
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
+        message_json.add_optional("file_name");
         Ok(Some(SealedValueOptional::Video(ContentVideo {
             path_option: message_json.field_opt_path("file")?,
             title_option: message_json.field_opt_str("title")?,
@@ -697,6 +699,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                                                           contact_info_present) {
         (None, None, false, false, false, false) => None,
         (Some("sticker"), None, true, false, false, false) => {
+            message_json.add_optional("file_name");
             // Ignoring animated sticker duration
             message_json.add_optional("duration_seconds");
             Some(SealedValueOptional::Sticker(ContentSticker {
@@ -707,17 +710,20 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
         }
-        (Some("voice_message"), None, true, false, false, false) =>
+        (Some("voice_message"), None, true, false, false, false) => {
+            message_json.add_optional("file_name");
             Some(SealedValueOptional::VoiceMsg(ContentVoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
                 mime_type: mime_type_option.unwrap(),
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
-            })),
+            }))
+        }
         (Some("audio_file"), None, true, false, false, false) =>
             make_content_audio(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("audio/")) =>
             make_content_audio(message_json)?,
-        (Some("video_message"), None, true, false, false, false) =>
+        (Some("video_message"), None, true, false, false, false) => {
+            message_json.add_optional("file_name");
             Some(SealedValueOptional::VideoMsg(ContentVideoMsg {
                 path_option: message_json.field_opt_path("file")?,
                 width: message_json.field_i32("width")?,
@@ -726,8 +732,10 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            })),
-        (Some("animation"), None, true, false, false, false) =>
+            }))
+        }
+        (Some("animation"), None, true, false, false, false) => {
+            message_json.add_optional("file_name");
             Some(SealedValueOptional::Video(ContentVideo {
                 path_option: message_json.field_opt_path("file")?,
                 title_option: None,
@@ -738,7 +746,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            })),
+            }))
+        }
         (Some("video_file"), None, true, false, false, false) =>
             make_content_video(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("video/")) =>
@@ -747,9 +756,10 @@ fn parse_regular_message(message_json: &mut MessageJson,
             // Ignoring dimensions of downloadable image
             message_json.add_optional("width");
             message_json.add_optional("height");
+            let fname = message_json.field_opt_str("file_name")?;
             Some(SealedValueOptional::File(ContentFile {
                 path_option: message_json.field_opt_path("file")?,
-                file_name_option: None, // Telegram does not provide it
+                file_name_option: fname, // Telegram does not provide it
                 mime_type_option,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
             }))

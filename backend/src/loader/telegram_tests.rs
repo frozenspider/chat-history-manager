@@ -872,6 +872,45 @@ fn loading_2024_02() -> EmptyRes {
 }
 
 #[test]
+fn loading_2024_05() -> EmptyRes {
+    let res = resource("telegram_2024-05_boosts_file-name_etc");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 1);
+
+    // Note that this really is an image file, not a photo
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "my-file.jpg".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+                content_option: Some(Content {
+                    sealed_value_optional: Some(File(ContentFile {
+                        path_option: None,
+                        file_name_option: Some("my-file.jpg".to_owned()),
+                        mime_type_option: Some("image/jpeg".to_owned()),
+                        thumbnail_path_option: None,
+                    }))
+                }),
+        }),
+    });
+
+    Ok(())
+}
+
+#[test]
 fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;

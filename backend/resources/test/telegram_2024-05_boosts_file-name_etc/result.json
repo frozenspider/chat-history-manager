@@ -1,0 +1,32 @@
+{
+ "about": "This is a minimalistic test.",
+ "personal_information": {
+  "user_id": 11111111
+ },
+ "chats": {
+  "about": "This page lists all chats from this export.",
+  "list": [
+   {
+    "name": "Dummy Supergroup",
+    "type": "private_supergroup",
+    "id": 123123123,
+    "messages": [
+     {
+      "id": 11111,
+      "type": "message",
+      "date": "2022-10-11T22:49:15",
+      "date_unixtime": "1665499755",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "file": "(File not included. Change data exporting settings to download.)",
+      "file_name": "my-file.jpg",
+      "thumbnail": "(File not included. Change data exporting settings to download.)",
+      "mime_type": "image/jpeg",
+      "text": "",
+      "text_entities": []
+     }
+    ]
+   }
+  ]
+ }
+}
