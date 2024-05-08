@@ -25,7 +25,7 @@ lazy_static! {
 /// 3. User avatars are looked up in <data_root>/files/Avatars
 pub struct WhatsAppAndroidDataLoader;
 
-android_sqlite_loader!(WhatsAppAndroidDataLoader, WhatsappDb, "WhatsApp", "msgstore.db");
+android_sqlite_loader!(WhatsAppAndroidDataLoader, "WhatsApp", "msgstore.db");
 
 type Jid = String;
 type MessageKey = String;

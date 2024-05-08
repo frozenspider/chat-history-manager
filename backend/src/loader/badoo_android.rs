@@ -13,7 +13,7 @@ mod tests;
 
 pub struct BadooAndroidDataLoader;
 
-android_sqlite_loader!(BadooAndroidDataLoader, BadooDb, "Badoo", "ChatComDatabase");
+android_sqlite_loader!(BadooAndroidDataLoader, "Badoo", "ChatComDatabase");
 
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);

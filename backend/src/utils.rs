@@ -183,14 +183,9 @@ macro_rules! err {
     }}
 }
 
-/// Returns an error message
+/// Returns an error message with all the causes.
 pub fn error_message(e: &anyhow::Error) -> String {
-    // I don't see a clean way to get the error message without the cause and backtrace.
-    let string = e.to_string();
-    match string.split_once('\n') {
-        Some((first_line, _)) => first_line.to_owned(),
-        None => string
-    }
+    format!("{:#}", e)
 }
 
 pub trait ToResult<T> {

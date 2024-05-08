@@ -14,7 +14,7 @@ pub struct TinderAndroidDataLoader<H: HttpClient + 'static> {
     pub http_client: &'static H,
 }
 
-android_sqlite_loader!(TinderAndroidDataLoader<H: HttpClient>, TinderDb, "Tinder", "tinder-3.db");
+android_sqlite_loader!(TinderAndroidDataLoader<H: HttpClient>, "Tinder", "tinder-3.db");
 
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);

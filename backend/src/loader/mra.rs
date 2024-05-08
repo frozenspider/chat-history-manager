@@ -53,11 +53,9 @@ impl DataLoader for MailRuAgentDataLoader {
 
     fn src_alias(&self) -> &'static str { "MRA" }
 
-    fn src_type(&self) -> SourceType { SourceType::Mra }
-
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         if path_file_name(path)? != MRA_DBS {
-            bail!("Given file is not {MRA_DBS}")
+            bail!("File is not {MRA_DBS}")
         }
         Ok(())
     }
