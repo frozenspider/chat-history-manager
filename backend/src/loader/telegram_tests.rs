@@ -881,7 +881,7 @@ fn loading_2024_05() -> EmptyRes {
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
-    assert_eq!(msgs.len() as i32, 1);
+    assert_eq!(msgs.len() as i32, 2);
 
     // Note that this really is an image file, not a photo
     assert_eq!(msgs[0], Message {
@@ -902,6 +902,30 @@ fn loading_2024_05() -> EmptyRes {
                         file_name_option: Some("my-file.jpg".to_owned()),
                         mime_type_option: Some("image/jpeg".to_owned()),
                         thumbnail_path_option: None,
+                    }))
+                }),
+        }),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "😱".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+                content_option: Some(Content {
+                    sealed_value_optional: Some(Sticker(ContentSticker {
+                        path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
+                        width: 0, // Not known!
+                        height: 0, // Not known!
+                        thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
+                        emoji_option: Some("😱".to_owned()),
                     }))
                 }),
         }),

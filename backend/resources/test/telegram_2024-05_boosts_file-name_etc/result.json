@@ -24,6 +24,22 @@
       "mime_type": "image/jpeg",
       "text": "",
       "text_entities": []
+     },
+     {
+      "id": 11112,
+      "type": "message",
+      "date": "2022-10-11T22:49:16",
+      "date_unixtime": "1665499756",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "file": "chats/chat_001/stickers/sticker.webm",
+      "file_name": "sticker.webm",
+      "thumbnail": "chats/chat_001/stickers/sticker.webm_thumb.jpg",
+      "media_type": "sticker",
+      "sticker_emoji": "😱",
+      "mime_type": "video/webm",
+      "text": "",
+      "text_entities": []
      }
     ]
    }

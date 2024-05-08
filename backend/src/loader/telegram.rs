@@ -704,8 +704,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
             message_json.add_optional("duration_seconds");
             Some(SealedValueOptional::Sticker(ContentSticker {
                 path_option: message_json.field_opt_path("file")?,
-                width: message_json.field_i32("width")?,
-                height: message_json.field_i32("height")?,
+                width: message_json.field_opt_i32("width")?.unwrap_or_default(),
+                height: message_json.field_opt_i32("height")?.unwrap_or_default(),
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
