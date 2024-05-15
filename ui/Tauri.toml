@@ -2,7 +2,7 @@ identifier = "org.fs.chm"
 
 [build]
 before-dev-command = "pnpm dev"
-before-build-command = "pnpm build"
+before-build-command = "pnpm i && pnpm build"
 dev-url = "http://localhost:3000"
 frontend-dist = "./frontend/out"
 
