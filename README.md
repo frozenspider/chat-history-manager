@@ -1,16 +1,30 @@
-Chat History Manager (backend)
-==============================
+Chat History Manager
+====================
 
 Parses, stores and reads chat histories exported from different sources in a dedicated SQLite database.
 This includes not just text messages, but also media, stickers, call records and other salvageable data.
 Big part of app's functionality is merging chat history snapshots taken on different dates under different settings.
 
-Doesn't have a UI of its own, exposing a gRPC API instead.
-Crude UI written in Scala in available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
+UI functionality is currently limited.
+As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
+written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
 
-To run the gRPC server on a default port 50051, use
+To build a standalone app with UI, you'd need some external pre-requisites:
+- [pnpm](https://pnpm.io/) (needs to be in the PATH)
+- [protoc](https://grpc.io/docs/protoc-installation/) (needs to be in the PATH)
+- (Windows only) [WebView2 runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download)
+
+To build, use
 ```
-cargo run --release start-server
+cargo build --release
+```
+then run the binary from `target/release`.
+
+Build without UI is self-sufficient, with no external dependencies needed.
+
+To build and run just the gRPC server on a default port 50051, use
+```
+cargo run --release --no-default-features start-server
 ```
 
 Supports a bunch of different history formats, refer to sections below for their list and instuction on how to

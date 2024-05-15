@@ -4,7 +4,6 @@ use clap::{Parser, Subcommand};
 use deepsize::DeepSizeOf;
 use log::LevelFilter;
 use mimalloc::MiMalloc;
-use tokio::runtime::Handle;
 
 use chat_history_manager_backend::prelude::*;
 
@@ -45,21 +44,27 @@ async fn main() {
 async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRes {
     match command {
         None => {
-            let port = port.unwrap_or(DEFAULT_SERVER_PORT);
-            let handle = Handle::current();
-            // Start a server if not already running
-            handle.spawn(async move {
-                match start_server(port).await {
-                    Err(e) if e.root_cause().downcast_ref::<std::io::Error>()
-                        .filter(|e| e.kind() == std::io::ErrorKind::AddrInUse)
-                        .is_some() => {
-                        log::warn!("Server already running on port {port}")
+            if cfg!(not(feature = "ui-core")) {
+                bail!("UI is disabled, specify a command to run instead");
+            }
+            #[cfg(feature = "ui-core")]
+            {
+                let port = port.unwrap_or(DEFAULT_SERVER_PORT);
+                let handle = tokio::runtime::Handle::current();
+                // Start a server if not already running
+                handle.spawn(async move {
+                    match start_server(port).await {
+                        Err(e) if e.root_cause().downcast_ref::<std::io::Error>()
+                            .filter(|e| e.kind() == std::io::ErrorKind::AddrInUse)
+                            .is_some() => {
+                            log::warn!("Server already running on port {port}")
+                        }
+                        e => catch_fatal_error(e)
                     }
-                    e => catch_fatal_error(e)
-                }
-            });
-            let clients = client::create_clients(port).await?;
-            chat_history_manager_ui::start(clients).await;
+                });
+                let clients = client::create_clients(port).await?;
+                chat_history_manager_ui::start(clients).await;
+            }
         }
         Some(Command::StartServer) => {
             let port = port.unwrap_or(DEFAULT_SERVER_PORT);

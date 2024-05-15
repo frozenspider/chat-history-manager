@@ -4,6 +4,9 @@ authors.workspace = true
 version.workspace = true
 edition.workspace = true
 
+[features]
+run-before-build-command = ["dep:toml", "dep:run_script"]
+
 [dependencies]
 chat-history-manager-core = { workspace = true }
 chat-history-manager-backend = { workspace = true }
@@ -20,7 +23,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Tauri
-tauri = { version = "2.0.0-beta.18", features = [
+tauri = { version = "2.0.0-beta.19", features = [
     "config-toml", "protocol-asset", "custom-protocol", "native-tls"
 ] }
 tauri-plugin-dialog = "2.0.0-beta.7"
@@ -29,4 +32,6 @@ tauri-plugin-fs = "2.0.0-beta.7"
 log = "0.4.21"
 
 [build-dependencies]
-tauri-build = { version = "2.0.0-beta.14", features = [] }
+tauri-build = { version = "2.0.0-beta.15", features = [] }
+toml = { version = "0.8.13", optional = true }
+run_script = { version = "0.10.1",  optional = true }
