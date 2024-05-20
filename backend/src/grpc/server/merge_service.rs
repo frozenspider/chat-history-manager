@@ -175,23 +175,25 @@ impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
               ) -> Result<R1> + Send + 'static,
               Finalize: FnMut(R1) -> Result<R2> + Send + 'static {
         self.process_request(req, move |self_clone, req| {
-            let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
+            let pre_res = {
+                let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
 
-            let m_dao = loaded_daos.get(req.master_dao_key()).context("Master DAO not found")?;
-            let s_dao = loaded_daos.get(req.slave_dao_key()).context("Slave DAO not found")?;
+                let m_dao = loaded_daos.get(req.master_dao_key()).context("Master DAO not found")?;
+                let s_dao = loaded_daos.get(req.slave_dao_key()).context("Slave DAO not found")?;
 
-            let m_dao = read_or_status(m_dao)?;
-            let s_dao = read_or_status(s_dao)?;
+                let m_dao = read_or_status(m_dao)?;
+                let s_dao = read_or_status(s_dao)?;
 
-            let m_ds_uuid = req.master_ds_uuid();
-            let s_ds_uuid = req.slave_ds_uuid();
+                let m_ds_uuid = req.master_ds_uuid();
+                let s_ds_uuid = req.slave_ds_uuid();
 
-            let m_ds = m_dao.datasets()?.into_iter().find(|ds| &ds.uuid == m_ds_uuid)
-                .context("Master dataset not found!")?;
-            let s_ds = s_dao.datasets()?.into_iter().find(|ds| &ds.uuid == s_ds_uuid)
-                .context("Slave dataset not found!")?;
+                let m_ds = m_dao.datasets()?.into_iter().find(|ds| &ds.uuid == m_ds_uuid)
+                    .context("Master dataset not found!")?;
+                let s_ds = s_dao.datasets()?.into_iter().find(|ds| &ds.uuid == s_ds_uuid)
+                    .context("Slave dataset not found!")?;
 
-            let pre_res = process(self_clone.clone(), req, &**m_dao, m_ds, &**s_dao, s_ds)?;
+                process(self_clone.clone(), req, &**m_dao, m_ds, &**s_dao, s_ds)?
+            };
             finalize(pre_res)
         }).await
     }
