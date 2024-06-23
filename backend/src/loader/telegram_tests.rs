@@ -900,14 +900,14 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(File(ContentFile {
-                        path_option: None,
-                        file_name_option: Some("my-file.jpg".to_owned()),
-                        mime_type_option: Some("image/jpeg".to_owned()),
-                        thumbnail_path_option: None,
-                    }))
-                }),
+            content_option: Some(Content {
+                sealed_value_optional: Some(File(ContentFile {
+                    path_option: None,
+                    file_name_option: Some("my-file.jpg".to_owned()),
+                    mime_type_option: Some("image/jpeg".to_owned()),
+                    thumbnail_path_option: None,
+                }))
+            }),
         }),
     });
 
@@ -923,16 +923,16 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Sticker(ContentSticker {
-                        path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
-                        file_name_option: Some("sticker.webm".to_owned()),
-                        width: 0, // Not known!
-                        height: 0, // Not known!
-                        thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
-                        emoji_option: Some("😱".to_owned()),
-                    }))
-                }),
+            content_option: Some(Content {
+                sealed_value_optional: Some(Sticker(ContentSticker {
+                    path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
+                    file_name_option: Some("sticker.webm".to_owned()),
+                    width: 0, // Not known!
+                    height: 0, // Not known!
+                    thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
+                    emoji_option: Some("😱".to_owned()),
+                }))
+            }),
         }),
     });
 
@@ -944,6 +944,38 @@ fn loading_2024_05() -> EmptyRes {
         text: vec![RichText::make_plain("Group boosted by 123".to_owned())],
         searchable_string: "Group boosted by 123".to_owned(),
         typed: Some(message_service!(Notice(MessageServiceNotice {}))),
+    });
+
+    Ok(())
+}
+
+#[test]
+fn loading_2024_06() -> EmptyRes {
+    let res = resource("telegram_2024-06_blockquote-collapsed");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 1);
+
+    // Note that this really is an image file, not a photo
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![RichText::make_blockquote("Blockquote with collapsed property".to_owned())],
+        searchable_string: "Blockquote with collapsed property".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499755),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            content_option: None,
+        }),
     });
 
     Ok(())

@@ -1009,11 +1009,19 @@ fn parse_rich_text(json_path: &str, rt_json: &BorrowedValue) -> Result<Vec<RichT
 
 fn parse_rich_text_object(json_path: &str,
                           rte_json: &Object) -> Result<Option<RichTextElement>> {
+    let tpe = get_field_str!(rte_json, json_path, "type");
     macro_rules! check_keys {
-        ($expected_keys:expr) => {
-            let keys: HashSet<&str, Hasher> = rte_json.keys().map(|cow| cow.deref()).collect();
-            if keys != HashSet::<&str, Hasher>::from_iter($expected_keys) {
-                bail!("Unexpected keys: {:?}", keys)
+        ($required_keys:expr) => { check_keys!($required_keys, [] as [&str; 0]) };
+        ($required_keys:expr, $optional_keys:expr) => {
+            let mut keys: HashSet<&str, Hasher> = rte_json.keys().map(|cow| cow.deref()).collect();
+            for rk in $required_keys.iter() {
+                if !keys.remove(rk) {
+                    bail!("Missing required key '{rk}' for rich text node \"{tpe}\"")
+                }
+            }
+            $optional_keys.iter().for_each(|ok| { keys.remove(ok); });
+            if !keys.is_empty() {
+                bail!("Unexpected keys for rich text node \"{tpe}\": {keys:?}")
             }
         };
     }
@@ -1027,7 +1035,7 @@ fn parse_rich_text_object(json_path: &str,
         };
     }
 
-    let res: Option<RichTextElement> = match get_field_str!(rte_json, json_path, "type") {
+    let res: Option<RichTextElement> = match tpe {
         "plain" => {
             check_keys!(["type", "text"]);
             // Empty plain string is discarded
@@ -1051,7 +1059,7 @@ fn parse_rich_text_object(json_path: &str,
             Some(RichText::make_strikethrough(get_field_string!(rte_json, json_path, "text")))
         }
         "blockquote" => {
-            check_keys!(["type", "text"]);
+            check_keys!(["type", "text"], ["collapsed"]);
             Some(RichText::make_blockquote(get_field_string!(rte_json, json_path, "text")))
         }
         "spoiler" => {

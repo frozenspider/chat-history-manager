@@ -1,0 +1,42 @@
+{
+ "about": "This is a minimalistic test.",
+ "personal_information": {
+  "user_id": 11111111
+ },
+ "chats": {
+  "about": "This page lists all chats from this export.",
+  "list": [
+   {
+    "name": "Dummy Supergroup",
+    "type": "private_supergroup",
+    "id": 123123123,
+    "messages": [
+     {
+      "id": 11111,
+      "type": "message",
+      "date": "2022-10-11T22:49:15",
+      "date_unixtime": "1665499755",
+      "edited": "2022-10-11T22:49:15",
+      "edited_unixtime": "1665499755",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "text": [
+       {
+        "type": "blockquote",
+        "text": "Blockquote with collapsed property",
+        "collapsed": false
+       }
+      ],
+      "text_entities": [
+       {
+        "type": "blockquote",
+        "text": "Blockquote with collapsed property",
+        "collapsed": false
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}
