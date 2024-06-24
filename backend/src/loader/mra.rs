@@ -19,6 +19,7 @@ use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
 use crate::grpc::client::MyselfChooser;
 use crate::loader::DataLoader;
 use crate::prelude::*;
+use crate::prelude::blob_utils::*;
 
 mod mra_dbs;
 mod db;
@@ -570,12 +571,8 @@ fn upsert_user(users: &mut HashMap<String, User>,
 
 // All read functions read in Little Endian
 
-fn read_n_bytes<const N: usize>(bytes: &[u8], shift: usize) -> [u8; N] {
-    bytes[shift..(shift + N)].try_into().unwrap()
-}
-
 fn read_u32(bytes: &[u8], shift: usize) -> u32 {
-    u32::from_le_bytes(read_n_bytes(bytes, shift))
+    u32::from_le_bytes(read_const_n_bytes_at(bytes, shift))
 }
 
 fn next_u32(bytes: &[u8]) -> (u32, &[u8]) {
@@ -583,7 +580,8 @@ fn next_u32(bytes: &[u8]) -> (u32, &[u8]) {
 }
 
 fn next_u32_size(bytes: &[u8]) -> (usize, &[u8]) {
-    (read_u32(bytes, 0) as usize, &bytes[4..])
+    let (u32_bytes, rest) = next_const_n_bytes::<4>(bytes);
+    (u32::from_le_bytes(u32_bytes) as usize, rest)
 }
 
 /// Assumes the next 4 payload bytes to specify the size of the chunk. Read and return it, and the rest of the payload.

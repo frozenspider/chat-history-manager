@@ -506,11 +506,11 @@ impl MockHttpClient {
 }
 
 impl HttpClient for MockHttpClient {
-    fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse> {
         log::info!("Mocking request to {}", url);
         let lock = self.calls.lock().unwrap();
         let cell = &*lock;
         cell.borrow_mut().push(url.to_owned());
-        Ok(Vec::from(url.as_bytes()))
+        Ok(HttpResponse::Ok(Vec::from(url.as_bytes())))
     }
 }
