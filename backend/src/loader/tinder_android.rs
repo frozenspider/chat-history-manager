@@ -2,9 +2,8 @@ use std::fs;
 
 use rusqlite::Connection;
 
-use crate::loader::DataLoader;
-
 use super::*;
+use super::android::*;
 
 #[cfg(test)]
 #[path = "tinder_android_tests.rs"]
@@ -14,18 +13,24 @@ pub struct TinderAndroidDataLoader<H: HttpClient + 'static> {
     pub http_client: &'static H,
 }
 
-android_sqlite_loader!(TinderAndroidDataLoader<H: HttpClient>, "Tinder", "tinder-3.db");
-
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
 
 /// Technically, self does have a proper key, but knowing it doesn't help us.
 const MYSELF_KEY: &str = "myself";
 
+const NAME: &'static str = "Tinder";
+pub const DB_FILENAME: &'static str = "tinder-3.db";
+
 type UserKey = String;
 type Users = HashMap<UserKey, User>;
 
-impl<H: HttpClient + 'static> TinderAndroidDataLoader<H> {
+impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
+    const NAME: &'static str = NAME;
+    const DB_FILENAME: &'static str = DB_FILENAME;
+
+    type Users = Users;
+
     fn tweak_conn(&self, _path: &Path, _conn: &Connection) -> EmptyRes { Ok(()) }
 
     fn normalize_users(&self, users: Users, _cwms: &[ChatWithMessages]) -> Result<Vec<User>> {
@@ -35,7 +40,7 @@ impl<H: HttpClient + 'static> TinderAndroidDataLoader<H> {
         Ok(users)
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
+    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
         let mut users: Users = Default::default();
 
         users.insert(MYSELF_KEY.to_owned(), User {
@@ -69,7 +74,7 @@ impl<H: HttpClient + 'static> TinderAndroidDataLoader<H> {
         Ok(users)
     }
 
-    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, users: &Users, path: &Path) -> Result<Vec<ChatWithMessages>> {
+    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
         let mut cwms = vec![];
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);

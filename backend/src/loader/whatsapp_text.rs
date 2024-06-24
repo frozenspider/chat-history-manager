@@ -26,7 +26,7 @@ lazy_static! {
 pub struct WhatsAppTextDataLoader;
 
 impl DataLoader for WhatsAppTextDataLoader {
-    fn name(&self) -> &'static str { "WhatsApp (text)" }
+    fn name(&self) -> String { "WhatsApp (text)".to_owned() }
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         let filename = path_file_name(path)?;

@@ -6,10 +6,8 @@ use num_traits::FromPrimitive;
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension, Row, Statement};
 
-use crate::dao::in_memory_dao::InMemoryDao;
-use crate::loader::DataLoader;
-
 use super::*;
+use super::android::AndroidDataLoader;
 
 #[cfg(test)]
 #[path = "whatsapp_android_tests.rs"]
@@ -25,13 +23,14 @@ lazy_static! {
 /// 3. User avatars are looked up in <data_root>/files/Avatars
 pub struct WhatsAppAndroidDataLoader;
 
-android_sqlite_loader!(WhatsAppAndroidDataLoader, "WhatsApp", "msgstore.db");
+const NAME: &'static str = "WhatsApp";
+pub const DB_FILENAME: &'static str = "msgstore.db";
 
 type Jid = String;
 type MessageKey = String;
 
 #[derive(Default)]
-struct Users {
+pub struct Users {
     jids: HashMap<Jid, UserId>,
     id_to_user: HashMap<UserId, User, Hasher>,
     occupied_user_ids: HashSet<UserId, Hasher>,
@@ -53,7 +52,12 @@ impl Users {
     }
 }
 
-impl WhatsAppAndroidDataLoader {
+impl AndroidDataLoader for WhatsAppAndroidDataLoader {
+    const NAME: &'static str = NAME;
+    const DB_FILENAME: &'static str = DB_FILENAME;
+
+    type Users = Users;
+
     fn tweak_conn(&self, path: &Path, conn: &Connection) -> EmptyRes {
         conn.execute(r#"ATTACH DATABASE ?1 AS wa_db"#, [path_to_str(&path.join("wa.db"))?])?;
         Ok(())
@@ -75,7 +79,7 @@ impl WhatsAppAndroidDataLoader {
         Ok(users)
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
+    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
         let mut users: Users = Default::default();
 
         // 1-on-1 chat users
@@ -128,8 +132,8 @@ impl WhatsAppAndroidDataLoader {
     fn parse_chats(&self,
                    conn: &Connection,
                    ds_uuid: &PbUuid,
-                   users: &mut Users,
-                   _path: &Path) -> Result<Vec<ChatWithMessages>> {
+                   _path: &Path,
+                   users: &mut Users) -> Result<Vec<ChatWithMessages>> {
         parse_chats(conn, ds_uuid, users)
     }
 }
@@ -688,7 +692,7 @@ fn parse_regular_message(
         let path: Option<String> = row.get(columns::message_media::FILE_PATH)?;
         let name: Option<String> = row.get(columns::message_media::NAME)?;
         let name = name.or_else(||
-            path.as_ref().map(|p| p.rsplit_once('/').unwrap_or(("", p)).1.to_owned()));
+        path.as_ref().map(|p| p.rsplit_once('/').unwrap_or(("", p)).1.to_owned()));
         Ok((path, name))
     }
 

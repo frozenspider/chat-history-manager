@@ -49,9 +49,9 @@ lazy_static! {
 }
 
 impl DataLoader for MailRuAgentDataLoader {
-    fn name(&self) -> &'static str { "Mail.Ru Agent" }
+    fn name(&self) -> String { "Mail.Ru Agent".to_owned() }
 
-    fn src_alias(&self) -> &'static str { "MRA" }
+    fn src_alias(&self) -> String { "MRA".to_owned() }
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         if path_file_name(path)? != MRA_DBS {

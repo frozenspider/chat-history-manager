@@ -39,7 +39,7 @@ const RESULT_JSON: &str = "result.json";
 pub struct TelegramDataLoader;
 
 impl DataLoader for TelegramDataLoader {
-    fn name(&self) -> &'static str { "Telegram" }
+    fn name(&self) -> String{ "Telegram".to_owned() }
 
     fn looks_about_right_inner(&self, src_path: &Path) -> EmptyRes {
         let path = get_real_path(src_path);
