@@ -39,6 +39,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Www".to_owned()),
             username_option: None,
             phone_number_option: Some("+998 90 9998877".to_owned()),
+            profile_pictures: vec![],
         },
         member.to_user(ds_uuid),
         User {
@@ -48,6 +49,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Eeeeeeeeee".to_owned()),
             username_option: None,
             phone_number_option: Some("+7 999 333 44 55".to_owned()),
+            profile_pictures: vec![],
         },
         ShortUser::new_name_str(UserId(310242343), "Vlllllll").to_user(ds_uuid),
         ShortUser::new_name_str(UserId(333333333), "Ddddddd Uuuuuuuu").to_user(ds_uuid),
@@ -58,6 +60,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: None,
             username_option: None,
             phone_number_option: Some("+998 90 1112233".to_owned()),
+            profile_pictures: vec![],
         },
         ShortUser::new_name_str(UserId(666666666), "Iiiii Kkkkkkkkkk").to_user(ds_uuid),
         User {
@@ -67,6 +70,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Vvvvvvvvv".to_owned()),
             username_option: None,
             phone_number_option: Some("+7 951 123 45 67".to_owned()),
+            profile_pictures: vec![],
         },
     ];
 
@@ -141,6 +145,7 @@ fn loading_2021_05() -> EmptyRes {
         last_name_option: Some("Www".to_owned()),
         username_option: None,
         phone_number_option: Some("+998 90 9998877".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     let member2 = User {
         ds_uuid: ds_uuid.clone(),
@@ -149,6 +154,7 @@ fn loading_2021_05() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 4);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &service_member, &member1, &member2]);
@@ -337,6 +343,7 @@ fn loading_2021_07() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &member]);
@@ -417,6 +424,7 @@ fn loading_2023_01() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     let channel_user = User {
         ds_uuid: ds_uuid.clone(),
@@ -425,6 +433,7 @@ fn loading_2023_01() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 3);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &member, &channel_user]);
@@ -570,6 +579,7 @@ fn loading_2023_08() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &unnamed_user]);
@@ -655,6 +665,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &unnamed_user]);
@@ -1036,5 +1047,6 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: Some("Aaaaaaaaaaa".to_owned()),
         username_option: Some("@frozenspider".to_owned()),
         phone_number_option: Some("+998 91 1234567".to_owned()),
+        profile_pictures: vec![],
     }
 }

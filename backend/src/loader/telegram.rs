@@ -90,6 +90,7 @@ impl Users {
             last_name_option,
             phone_number_option: original.phone_number_option.or(new.phone_number_option),
             username_option: original.username_option.or(new.username_option),
+            profile_pictures: original.profile_pictures, // TG doesn't export profile pictures
         }
     }
 

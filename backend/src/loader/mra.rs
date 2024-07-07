@@ -562,6 +562,7 @@ fn upsert_user(users: &mut HashMap<String, User>,
         last_name_option: None,
         username_option: Some(username.to_owned()),
         phone_number_option: None,
+        profile_pictures: vec![],
     });
 
     if user.first_name_option.is_none() && first_name_or_email.as_ref().is_some_and(|v| v != username) {

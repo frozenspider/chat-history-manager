@@ -117,6 +117,7 @@ impl ShortUser {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         }
     }
 }

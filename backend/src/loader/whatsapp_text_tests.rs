@@ -37,6 +37,7 @@ fn loading_2023_10() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: Some("+123 45 6789".to_owned()),
+        profile_pictures: vec![],
     };
 
     assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
@@ -281,6 +282,7 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     }
 }
 

@@ -47,6 +47,7 @@ fn loading_2023_11() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
 
     assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
@@ -124,5 +125,6 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     }
 }

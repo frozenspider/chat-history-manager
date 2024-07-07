@@ -103,6 +103,7 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     }, User {
         ds_uuid: ds_uuid.clone(),
         id: super::hash_to_id(other_name),
@@ -110,6 +111,7 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
         last_name_option: None,
         username_option: None,
         phone_number_option: if other_name.starts_with('+') { Some(other_name.to_owned()) } else { None },
+        profile_pictures: vec![],
     }))
 }
 

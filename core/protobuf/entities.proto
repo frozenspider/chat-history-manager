@@ -27,6 +27,8 @@ message User {
   optional string last_name_option = 4;
   optional string username_option = 5;
   optional string phone_number_option = 6;
+
+  repeated ProfilePicture profile_pictures = 7;
 }
 
 message ChatWithMessages {
@@ -59,6 +61,20 @@ message Chat {
   required int32 msg_count = 7;
 
   optional int64 main_chat_id = 9;
+}
+
+message ProfilePicture {
+  // Path relative to data root!
+  required string path = 1;
+
+  optional PictureFrame frame_option = 2;
+}
+
+message PictureFrame {
+  required uint32 x = 1;
+  required uint32 y = 2;
+  required uint32 w = 3;
+  required uint32 h = 4;
 }
 
 enum SourceType {

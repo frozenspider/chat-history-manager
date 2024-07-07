@@ -280,6 +280,7 @@ pub fn create_user(ds_uuid: &PbUuid, id: i64) -> User {
         last_name_option: Some(id.to_string()),
         username_option: Some(format!("user{id}")),
         phone_number_option: Some("xxx xx xx".replace("x", &id.to_string())),
+        profile_pictures: vec![],
     }
 }
 

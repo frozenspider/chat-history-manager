@@ -50,6 +50,7 @@ impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         });
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);
@@ -81,6 +82,7 @@ impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
+                profile_pictures: vec![], // TODO
             });
         }
 

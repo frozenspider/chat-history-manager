@@ -197,7 +197,7 @@ pub trait MutableChatHistoryDao: ChatHistoryDao {
     /// Delete a dataset with all the related entities. Deleted dataset root will be moved to backup folder.
     fn delete_dataset(&mut self, uuid: PbUuid) -> EmptyRes;
 
-    fn insert_user(&mut self, user: User, is_myself: bool) -> Result<User>;
+    fn insert_user(&mut self, user: User, is_myself: bool, src_ds_root: &DatasetRoot) -> Result<User>;
 
     /// Update a user, renaming relevant personal chats and updating messages mentioning that user in plaintext.
     fn update_user(&mut self, old_id: UserId, user: User) -> Result<User>;

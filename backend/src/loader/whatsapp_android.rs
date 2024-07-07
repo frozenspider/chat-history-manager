@@ -124,6 +124,7 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         });
 
         Ok(users)
@@ -172,6 +173,7 @@ fn parse_users_from_stmt(stmt: &mut Statement, ds_uuid: &PbUuid, users: &mut Use
             last_name_option: None, // Last name is unreliable
             username_option,
             phone_number_option,
+            profile_pictures: vec![], // TODO
         });
     }
     Ok(())

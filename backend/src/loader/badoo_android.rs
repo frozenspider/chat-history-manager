@@ -56,6 +56,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         });
 
         let mut stmt = conn.prepare(r"SELECT * FROM conversation_info WHERE conversation_type = 'User'")?;
@@ -78,6 +79,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
+                profile_pictures: vec![],
             });
         }
 

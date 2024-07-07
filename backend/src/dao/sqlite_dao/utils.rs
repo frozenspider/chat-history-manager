@@ -102,7 +102,7 @@ pub mod dataset {
 pub mod user {
     use super::*;
 
-    pub fn deserialize(raw: RawUser) -> Result<(User, bool)> {
+    pub fn deserialize(raw: RawUser, picts: Vec<RawProfilePicture>) -> Result<(User, bool)> {
         Ok((User {
             ds_uuid: PbUuid { value: Uuid::from_slice(&raw.ds_uuid)?.to_string() },
             id: raw.id,
@@ -110,11 +110,22 @@ pub mod user {
             last_name_option: raw.last_name,
             username_option: raw.username,
             phone_number_option: raw.phone_numbers,
+            profile_pictures: picts.into_iter()
+                .sorted_by_key(|p| p.order)
+                .map(|p| ProfilePicture {
+                    path: p.path,
+                    frame_option: match (p.frame_x, p.frame_y, p.frame_w, p.frame_h) {
+                        (Some(x), Some(y), Some(w), Some(h)) =>
+                            Some(PictureFrame { x: x as u32, y: y as u32, w: w as u32, h: h as u32 }),
+                        _ =>
+                            None
+                    },
+                }).collect(),
         }, deserialize_bool(raw.is_myself)))
     }
 
-    pub fn serialize(user: &User, is_myself: bool, raw_uuid: &[u8]) -> RawUser {
-        RawUser {
+    pub fn serialize(user: &User, is_myself: bool, raw_uuid: &[u8]) -> (RawUser, Vec<RawProfilePicture>) {
+        (RawUser {
             ds_uuid: raw_uuid.to_vec(),
             id: user.id,
             first_name: user.first_name_option.clone(),
@@ -122,7 +133,16 @@ pub mod user {
             username: user.username_option.clone(),
             phone_numbers: user.phone_number_option.clone(),
             is_myself: serialize_bool(is_myself),
-        }
+        }, user.profile_pictures.iter().enumerate().map(|(idx, p)| RawProfilePicture {
+            ds_uuid: raw_uuid.to_vec(),
+            user_id: user.id,
+            path: p.path.clone(),
+            order: idx as i32,
+            frame_x: p.frame_option.as_ref().map(|f| f.x as i32),
+            frame_y: p.frame_option.as_ref().map(|f| f.y as i32),
+            frame_w: p.frame_option.as_ref().map(|f| f.w as i32),
+            frame_h: p.frame_option.as_ref().map(|f| f.h as i32),
+        }).collect())
     }
 }
 
@@ -321,7 +341,7 @@ pub mod message {
         macro_rules! copy_path {
             ($obj:ident.$field:ident, $thumb:expr, $subpath:expr) => {
                 $obj.$field.as_ref().map(|v|
-                    sqlite_dao::copy_file(&v, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
+                    sqlite_dao::copy_chat_file(&v, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
                 ).transpose()?.flatten()
             };
         }
@@ -446,8 +466,8 @@ pub mod message {
                                       src_ds_root: &DatasetRoot,
                                       dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         let path = photo.path_option.as_ref().map(|path|
-            sqlite_dao::copy_file(path, &None, &subpaths::PHOTOS,
-                                  chat_id, src_ds_root, dst_ds_root)
+            sqlite_dao::copy_chat_file(path, &None, &subpaths::PHOTOS,
+                                       chat_id, src_ds_root, dst_ds_root)
         ).transpose()?.flatten();
         Ok(RawMessageContent {
             element_type: "photo".to_owned(),
