@@ -124,8 +124,8 @@ pub mod user {
         }, deserialize_bool(raw.is_myself)))
     }
 
-    pub fn serialize(user: &User, is_myself: bool, raw_uuid: &[u8]) -> (RawUser, Vec<RawProfilePicture>) {
-        (RawUser {
+    pub fn serialize(user: &User, is_myself: bool, raw_uuid: &[u8]) -> RawUser {
+        RawUser {
             ds_uuid: raw_uuid.to_vec(),
             id: user.id,
             first_name: user.first_name_option.clone(),
@@ -133,16 +133,31 @@ pub mod user {
             username: user.username_option.clone(),
             phone_numbers: user.phone_number_option.clone(),
             is_myself: serialize_bool(is_myself),
-        }, user.profile_pictures.iter().enumerate().map(|(idx, p)| RawProfilePicture {
-            ds_uuid: raw_uuid.to_vec(),
-            user_id: user.id,
-            path: p.path.clone(),
-            order: idx as i32,
-            frame_x: p.frame_option.as_ref().map(|f| f.x as i32),
-            frame_y: p.frame_option.as_ref().map(|f| f.y as i32),
-            frame_w: p.frame_option.as_ref().map(|f| f.w as i32),
-            frame_h: p.frame_option.as_ref().map(|f| f.h as i32),
-        }).collect())
+        }
+    }
+
+    pub fn serialize_and_copy_files(user: &User,
+                                    is_myself: bool,
+                                    raw_uuid: &[u8],
+                                    src_ds_root: &DatasetRoot,
+                                    dst_ds_root: &DatasetRoot) -> Result<(RawUser, Vec<RawProfilePicture>)> {
+        let raw_user = serialize(user, is_myself, raw_uuid);
+        let mut raw_profile_pictures = vec![];
+        for (idx, p) in user.profile_pictures.iter().enumerate() {
+            if let Some(new_path) = sqlite_dao::copy_user_profile_pic(&p.path, user.id(), src_ds_root, &dst_ds_root)? {
+                raw_profile_pictures.push(RawProfilePicture {
+                    ds_uuid: raw_uuid.to_vec(),
+                    user_id: user.id,
+                    path: new_path,
+                    order: idx as i32,
+                    frame_x: p.frame_option.as_ref().map(|f| f.x as i32),
+                    frame_y: p.frame_option.as_ref().map(|f| f.y as i32),
+                    frame_w: p.frame_option.as_ref().map(|f| f.w as i32),
+                    frame_h: p.frame_option.as_ref().map(|f| f.h as i32),
+                });
+            }
+        }
+        Ok((raw_user, raw_profile_pictures))
     }
 }
 

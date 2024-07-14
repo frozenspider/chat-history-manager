@@ -137,13 +137,17 @@ impl SqliteDao {
 
                     let raw_ds = utils::dataset::serialize(src_ds);
 
+                    let src_ds_root = src.dataset_root(ds_uuid)?;
+                    let dst_ds_root = self.dataset_root(ds_uuid)?;
+
                     conn.transaction(|txn| {
                         insert_into(dataset::table).values(&raw_ds).execute(txn)?;
 
                         let raw_users_with_pictures: Vec<(RawUser, Vec<RawProfilePicture>)> =
                             src.users(ds_uuid)?.iter().map(|u| {
                                 ensure!(u.id > 0, "IDs should be positive!");
-                                Ok(utils::user::serialize(u, *u == src_myself, &raw_ds.uuid))
+                                utils::user::serialize_and_copy_files(u, *u == src_myself, &raw_ds.uuid,
+                                                                      &src_ds_root, &dst_ds_root)
                             }).try_collect()?;
                         let (raw_users, raw_pictures): (Vec<RawUser>, Vec<Vec<RawProfilePicture>>) =
                             raw_users_with_pictures.into_iter().unzip();
@@ -152,9 +156,6 @@ impl SqliteDao {
                         insert_into(profile_picture::table).values(&raw_pictures).execute(txn)?;
                         ok(())
                     })?;
-
-                    let src_ds_root = src.dataset_root(ds_uuid)?;
-                    let dst_ds_root = self.dataset_root(ds_uuid)?;
 
                     for src_cwd in src.chats(ds_uuid)?.iter() {
                         ensure!(src_cwd.chat.id > 0, "IDs should be positive!");
@@ -747,7 +748,8 @@ impl MutableChatHistoryDao for SqliteDao {
 
         let uuid = Uuid::parse_str(&user.ds_uuid.value).expect("Invalid UUID!");
         let (raw_user, raw_pics) =
-            utils::user::serialize(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()));
+            utils::user::serialize_and_copy_files(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()),
+                                                  src_ds_root, &dst_ds_root)?;
 
         conn.transaction(|conn| {
             insert_into(schema::user::dsl::user)
@@ -775,8 +777,7 @@ impl MutableChatHistoryDao for SqliteDao {
         let mut conn = self.get_conn()?;
 
         let uuid = Uuid::parse_str(&ds_uuid.value).expect("Invalid UUID!");
-        let (raw_user, _raw_pics) =
-            utils::user::serialize(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()));
+        let raw_user = utils::user::serialize(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()));
         let id_changed = user.id != *old_id;
 
         conn.transaction(|conn| {

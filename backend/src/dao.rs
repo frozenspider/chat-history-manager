@@ -200,6 +200,7 @@ pub trait MutableChatHistoryDao: ChatHistoryDao {
     fn insert_user(&mut self, user: User, is_myself: bool, src_ds_root: &DatasetRoot) -> Result<User>;
 
     /// Update a user, renaming relevant personal chats and updating messages mentioning that user in plaintext.
+    /// Note that profile pictures are NOT updated.
     fn update_user(&mut self, old_id: UserId, user: User) -> Result<User>;
 
     /// Copies image (if any) from dataset root.
