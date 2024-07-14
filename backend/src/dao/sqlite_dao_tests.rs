@@ -17,7 +17,7 @@ use super::*;
 const TELEGRAM_DIR: &str = "telegram_2020-01";
 
 thread_local! {
-    static LOADER: Loader = Loader::new::<MockHttpClient>(&HTTP_CLIENT);
+    static LOADER: Loader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
 }
 
 type Tup<'a, T> = PracticalEqTuple<'a, T>;

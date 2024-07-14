@@ -35,9 +35,6 @@ lazy_static! {
         reply_to_message_id_option: None,
         content_option: None,
     };
-
-    // TODO: Do we need cleanup?
-    pub static ref HTTP_CLIENT: MockHttpClient = MockHttpClient::new();
 }
 
 thread_local! {
@@ -348,7 +345,7 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 }
 
 pub mod test_android {
-    use rusqlite::Connection;
+    use rusqlite::{Connection, params};
 
     use super::*;
 
@@ -363,22 +360,43 @@ pub mod test_android {
         if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
         let databases = TmpDir::new_at(databases);
 
-        let files: Vec<(String, PathBuf)> =
-            folder.read_dir().unwrap()
-                .map(|res| res.unwrap().path())
-                .filter(|child| path_file_name(child).unwrap().ends_with(".sql"))
-                .map(|child| {
-                    (path_file_name(&child).unwrap().smart_slice(..-4).to_owned(), child.clone())
-                })
+        let files = folder.read_dir().unwrap()
+            .map(|res| res.unwrap().path())
+            .collect_vec();
+
+        let sql_files =
+            files.iter()
+                .filter(|&child| path_file_name(child).unwrap().ends_with(".sql"))
                 .collect_vec();
 
-        for (table_name, file) in files.into_iter() {
+        for sql_file in sql_files.into_iter() {
+            let db_name = path_file_name(sql_file).unwrap().smart_slice(..-4).to_owned();
             let target_db_path =
-                databases.path.join(format!("{table_name}{target_db_ext_suffix}"));
-            log::info!("Creating table {}", table_name);
+                databases.path.join(format!("{db_name}{target_db_ext_suffix}"));
+            log::info!("Creating database {db_name}");
             let conn = Connection::open(target_db_path).unwrap();
-            let sql = fs::read_to_string(&file).unwrap();
+            let sql = fs::read_to_string(sql_file).unwrap();
             conn.execute_batch(&sql).unwrap();
+        }
+
+        let binary_files =
+            files.iter()
+                .filter(|child| path_file_name(child).unwrap().ends_with(".bin"))
+                .collect_vec();
+
+        for bin_file in binary_files.into_iter() {
+            let name = path_file_name(bin_file).unwrap();
+            let (db_name, table_name, condition, column_name) =
+                name.smart_slice(..-4).split("__").collect_tuple().unwrap();
+            let (condition_key, condition_value) = condition.split('=').collect_tuple().unwrap();
+
+            let target_db_path =
+                databases.path.join(format!("{db_name}{target_db_ext_suffix}"));
+            log::info!("Applying binary file {name}");
+            let conn = Connection::open(target_db_path).unwrap();
+            let content = fs::read(bin_file).unwrap();
+            conn.execute(&format!("UPDATE {table_name} SET {column_name} = ?1 WHERE {condition_key} = ?2"),
+                         params![content, condition_value]).unwrap();
         }
 
         (databases.path.join(db_filename), databases)
@@ -451,7 +469,10 @@ impl MsgVec for Vec<Message> {
 }
 
 
-impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>> where for<'b> PracticalEqTuple<'a, T>: PracticalEq {
+impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>>
+where
+        for<'b> PracticalEqTuple<'a, T>: PracticalEq,
+{
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         if self.v.len() != other.v.len() {
             return Ok(false);
@@ -486,6 +507,15 @@ impl TmpDir {
 impl Drop for TmpDir {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.path).expect(format!("Failed to remove temporary dir '{}'", self.path.to_str().unwrap()).as_str())
+    }
+}
+
+pub struct NoopHttpClient;
+
+impl HttpClient for NoopHttpClient {
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse> {
+        log::info!("Mocking request to {}", url);
+        Ok(HttpResponse::Ok(Vec::from(url.as_bytes())))
     }
 }
 

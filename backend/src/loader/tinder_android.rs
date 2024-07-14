@@ -9,8 +9,8 @@ use super::android::*;
 #[path = "tinder_android_tests.rs"]
 mod tests;
 
-pub struct TinderAndroidDataLoader<H: HttpClient + 'static> {
-    pub http_client: &'static H,
+pub struct TinderAndroidDataLoader<'a, H: HttpClient> {
+    pub http_client: &'a H,
 }
 
 /// Using a first legal ID (i.e. "1") for myself
@@ -25,7 +25,7 @@ pub const DB_FILENAME: &'static str = "tinder-3.db";
 type UserKey = String;
 type Users = HashMap<UserKey, User>;
 
-impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
+impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
     const NAME: &'static str = NAME;
     const DB_FILENAME: &'static str = DB_FILENAME;
 
@@ -67,12 +67,15 @@ impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
 
             let photos_blob = row.get::<_, Vec<u8>>("photos")?;
             let photo_urls = analyze_photos_blob(&key, photos_blob)?;
-            let mut photo_paths = vec![];
+            let mut profile_pictures = vec![];
             for photo_url in photo_urls {
                 let (_, file_name) = photo_url.rsplit_once("/").unwrap();
                 // TODO: This can be downloaded in parallel, but slow running time isn't a big deal.
                 download_if_missing(&file_name, &downloaded_media_path, &photo_url, self.http_client)?;
-                photo_paths.push(format!("{RELATIVE_MEDIA_DIR}/{file_name}"));
+                profile_pictures.push(ProfilePicture {
+                    path: format!("{RELATIVE_MEDIA_DIR}/{file_name}"),
+                    frame_option: None,
+                });
             }
 
             users.insert(key, User {
@@ -82,7 +85,7 @@ impl<H: HttpClient + 'static> AndroidDataLoader for TinderAndroidDataLoader<H> {
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
-                profile_pictures: vec![], // TODO
+                profile_pictures,
             });
         }
 
