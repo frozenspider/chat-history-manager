@@ -1,4 +1,5 @@
 use std::path::Path;
+use tokio::runtime::Handle;
 
 use prelude::*;
 
@@ -59,15 +60,37 @@ pub async fn debug_request_myself(port: u16) -> Result<usize> {
 //
 // Other
 //
+pub enum HttpResponse {
+    Ok(Vec<u8>),
+    Failure {
+        status: reqwest::StatusCode,
+        headers: reqwest::header::HeaderMap,
+        body: Vec<u8>,
+    },
+}
 
 pub trait HttpClient: Send + Sync {
-    fn get_bytes(&self, url: &str) -> Result<Vec<u8>>;
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse>;
 }
 
 pub struct ReqwestHttpClient;
 
 impl HttpClient for ReqwestHttpClient {
-    fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
-        Ok(reqwest::blocking::get(url)?.bytes()?.to_vec())
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse> {
+        let handle = Handle::current();
+        let url = url.to_owned();
+        let join_handle = handle.spawn(async move {
+            let res = reqwest::get(&url).await?;
+            let status = res.status();
+            if status.is_success() {
+                let body = res.bytes().await?.to_vec();
+                Ok(HttpResponse::Ok(body))
+            } else {
+                let headers = res.headers().clone();
+                let body = res.bytes().await?.to_vec();
+                Ok(HttpResponse::Failure { status, headers, body })
+            }
+        });
+        handle.block_on(join_handle)?
     }
 }

@@ -8,19 +8,19 @@ use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-pub use anyhow::{anyhow, bail, ensure, Context};
+pub use anyhow::{anyhow, bail, Context, ensure};
 use chrono::Local;
 use hashers::fx_hash::FxHasher;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use unicode_segmentation::UnicodeSegmentation;
 
+pub mod blob_utils;
 pub mod entity_utils;
+pub mod json_utils;
 
 #[cfg(test)]
 pub mod test_utils;
-
-pub mod json_utils;
 
 //
 // Constants
@@ -204,8 +204,9 @@ impl<T> ToResult<T> for StdResult<T, Box<dyn StdError + Send + Sync>> {
 //
 
 pub fn measure<T, AC, R>(block: T, after_call: AC) -> R
-    where T: FnOnce() -> R,
-          AC: FnOnce(&R, u128)
+where
+    T: FnOnce() -> R,
+    AC: FnOnce(&R, u128),
 {
     let start_time = Instant::now();
     let result = block();

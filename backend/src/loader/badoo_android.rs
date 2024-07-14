@@ -3,9 +3,8 @@ use std::fs;
 use rusqlite::Connection;
 use simd_json::prelude::*;
 
-use crate::loader::DataLoader;
-
 use super::*;
+use super::android::*;
 
 #[cfg(test)]
 #[path = "badoo_android_tests.rs"]
@@ -13,15 +12,16 @@ mod tests;
 
 pub struct BadooAndroidDataLoader;
 
-android_sqlite_loader!(BadooAndroidDataLoader, "Badoo", "ChatComDatabase");
-
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
+
+const NAME: &'static str = "Badoo";
+pub const DB_FILENAME: &'static str = "ChatComDatabase";
 
 type EncUserId = String;
 
 #[derive(Default)]
-struct Users {
+pub struct Users {
     user_id_to_encrypted: HashMap<UserId, EncUserId>,
     user_id_to_user: HashMap<UserId, User>,
 }
@@ -33,13 +33,18 @@ impl Users {
     }
 }
 
-impl BadooAndroidDataLoader {
+impl AndroidDataLoader for BadooAndroidDataLoader {
+    const NAME: &'static str = NAME;
+    const DB_FILENAME: &'static str = DB_FILENAME;
+
+    type Users = Users;
+
     fn tweak_conn(&self, path: &Path, conn: &Connection) -> EmptyRes {
         conn.execute(r#"ATTACH DATABASE ?1 AS conn_db"#, [path_to_str(&path.join("CombinedConnectionsDatabase"))?])?;
         Ok(())
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
+    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
         let mut users: Users = Default::default();
 
         // We can get own encrypted ID from messages table where is_incoming = 0, but no reason to do so.
@@ -51,6 +56,7 @@ impl BadooAndroidDataLoader {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         });
 
         let mut stmt = conn.prepare(r"SELECT * FROM conversation_info WHERE conversation_type = 'User'")?;
@@ -73,6 +79,7 @@ impl BadooAndroidDataLoader {
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
+                profile_pictures: vec![],
             });
         }
 
@@ -86,7 +93,7 @@ impl BadooAndroidDataLoader {
         Ok(users)
     }
 
-    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, users: &Users, path: &Path) -> Result<Vec<ChatWithMessages>> {
+    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
         let mut cwms = vec![];
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);

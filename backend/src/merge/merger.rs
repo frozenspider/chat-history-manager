@@ -134,18 +134,18 @@ fn merge_inner(
     ensure!(master_self.id == slave_self.id, "Myself of merged datasets doesn't match!");
     for um in user_merges {
         let user_to_insert_option = match um {
-            UserMergeDecision::Retain(user_id) => Some(master.users[&user_id].clone()),
-            UserMergeDecision::MatchOrDontReplace(user_id) => Some(master.users[&user_id].clone()),
-            UserMergeDecision::Add(user_id) => Some(slave.users[&user_id].clone()),
+            UserMergeDecision::Retain(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),
+            UserMergeDecision::MatchOrDontReplace(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),
+            UserMergeDecision::Add(user_id) => Some((slave.users[&user_id].clone(), &slave_ds_root)),
             UserMergeDecision::DontAdd(user_id) if selected_chat_members.contains(&user_id.0) =>
                 bail!("Cannot skip user {} because it's used in a chat that wasn't skipped", user_id.0),
             UserMergeDecision::DontAdd(_) => None,
-            UserMergeDecision::Replace(user_id) => Some(slave.users[&user_id].clone()),
+            UserMergeDecision::Replace(user_id) => Some((slave.users[&user_id].clone(), &slave_ds_root)),
         };
-        if let Some(mut user) = user_to_insert_option {
+        if let Some((mut user, src_ds_root)) = user_to_insert_option {
             user.ds_uuid = new_ds.uuid.clone();
             let is_myself = user.id == master_self.id;
-            new_dao.insert_user(user, is_myself)?;
+            new_dao.insert_user(user, is_myself, src_ds_root)?;
         }
     }
     let final_users = new_dao.users(&new_ds.uuid)?;
@@ -164,8 +164,8 @@ fn merge_inner(
             // Could happen e.g. if other members never wrote anything.
             if !interlocutors.is_empty() {
                 let final_user = final_users.iter().find(|u| u.id == interlocutors[0].id).with_context(||
-                    format!("User {} not found among final users! Personal chat should've been skipped",
-                            interlocutors[0].id))?;
+                format!("User {} not found among final users! Personal chat should've been skipped",
+                        interlocutors[0].id))?;
                 cwd.chat.name_option = final_user.pretty_name_option();
             }
         }

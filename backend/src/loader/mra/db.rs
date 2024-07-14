@@ -59,6 +59,7 @@ fn load_account(
         last_name_option: None,
         username_option: Some(myself_username.to_owned()),
         phone_number_option: None,
+        profile_pictures: vec![],
     };
 
     // Read whole files into the memory

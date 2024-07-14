@@ -623,7 +623,7 @@ fn merge_chats_match_replace_keep() -> EmptyRes {
     ];
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd,
+        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
                                   new_msg, &new_ds_root, &new_chats[0]);
     }
 
@@ -712,7 +712,7 @@ fn merge_chats_merge_all_modes() -> EmptyRes {
     ];
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd,
+        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
                                   new_msg, &new_ds_root, &new_chats[0]);
     }
 
@@ -779,7 +779,7 @@ fn merge_chats_merge_a_lot_of_messages() -> EmptyRes {
     ].into_iter().concat();
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd,
+        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
                                   new_msg, &new_ds_root, &new_chats[0]);
     }
 

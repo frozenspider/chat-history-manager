@@ -37,6 +37,7 @@ pub async fn debug_request_myself(port: u16) -> Result<usize> {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         },
         User {
             ds_uuid,
@@ -45,6 +46,7 @@ pub async fn debug_request_myself(port: u16) -> Result<usize> {
             last_name_option: Some("User 200 LN".to_owned()),
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         },
     ])?;
     Ok(chosen)

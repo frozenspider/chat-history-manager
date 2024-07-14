@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use deepsize::DeepSizeOf;
 use log::LevelFilter;
 use mimalloc::MiMalloc;
+use tokio::runtime::Handle;
 
 use chat_history_manager_backend::prelude::*;
 
@@ -59,7 +60,11 @@ async fn execute_command(command: Command) -> EmptyRes {
             start_server(server_port).await?;
         }
         Command::Parse { path } => {
-            let parsed = parse_file(&path, &client::NoChooser).with_context(|| format!("Failed to parse {path}"))?;
+            let handle = Handle::current();
+            let join_handle = handle.spawn_blocking(move || {
+                parse_file(&path, &client::NoChooser).with_context(|| format!("Failed to parse {path}"))
+            });
+            let parsed = join_handle.await??;
             let size: usize = parsed.deep_size_of();
             log::info!("Size of parsed in-memory DB: {} MB ({} B)", size / 1024 / 1024, size);
         }

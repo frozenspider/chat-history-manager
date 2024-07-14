@@ -22,6 +22,19 @@ pub mod schema {
     }
 
     diesel::table! {
+        profile_picture (ds_uuid, user_id, path) {
+            ds_uuid -> Binary,
+            user_id -> BigInt,
+            path -> Text,
+            order -> Integer,
+            frame_x -> Nullable<Integer>,
+            frame_y -> Nullable<Integer>,
+            frame_w -> Nullable<Integer>,
+            frame_h -> Nullable<Integer>,
+        }
+    }
+
+    diesel::table! {
         chat (ds_uuid, id) {
             ds_uuid -> Binary,
             id -> BigInt,
@@ -129,6 +142,7 @@ pub mod schema {
         message_text_element,
         refinery_schema_history,
         user,
+        profile_picture,
     );
 }
 
@@ -156,6 +170,21 @@ pub struct RawUser {
     pub username: Option<String>,
     pub phone_numbers: Option<String>,
     pub is_myself: i32,
+}
+
+#[derive(Debug, PartialEq, Selectable, Queryable, Insertable, AsChangeset)]
+#[diesel(table_name = schema::profile_picture)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[diesel(treat_none_as_null = true)]
+pub struct RawProfilePicture {
+    pub ds_uuid: Vec<u8>,
+    pub user_id: i64,
+    pub path: String,
+    pub order: i32,
+    pub frame_x: Option<i32>,
+    pub frame_y: Option<i32>,
+    pub frame_w: Option<i32>,
+    pub frame_h: Option<i32>,
 }
 
 #[derive(Debug, PartialEq, QueryableByName, Insertable, AsChangeset)]

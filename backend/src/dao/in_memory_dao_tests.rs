@@ -185,6 +185,7 @@ pub fn create_specific_dao() -> InMemoryDaoHolder {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         },
         User {
             ds_uuid: ZERO_PB_UUID.clone(),
@@ -193,6 +194,21 @@ pub fn create_specific_dao() -> InMemoryDaoHolder {
             last_name_option: Some("Aaaaaaaaaaa".to_owned()),
             username_option: Some("myself".to_owned()),
             phone_number_option: Some("+998 91 1234567".to_owned()),
+            profile_pictures: vec![
+                ProfilePicture {
+                    path: "my-path-1".to_owned(),
+                    frame_option: None,
+                },
+                ProfilePicture {
+                    path: "my-path-2".to_owned(),
+                    frame_option: Some(PictureFrame {
+                        x: 1,
+                        y: 2,
+                        w: 3,
+                        h: 4,
+                    }),
+                },
+            ],
         },
     ];
 

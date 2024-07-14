@@ -18,7 +18,7 @@ pub trait PracticalEq<Rhs/*: ?Sized*/ = Self> {
 pub struct PracticalEqTuple<'a, T: 'a> {
     pub v: &'a T,
     pub ds_root: &'a DatasetRoot,
-    pub cwd: &'a ChatWithDetails,
+    pub cwd: Option<&'a ChatWithDetails>,
 }
 
 //
@@ -29,15 +29,27 @@ type Tup<'a, T> = PracticalEqTuple<'a, T>;
 
 impl<'a, T: 'a> Tup<'a, T> {
     pub fn new(v: &'a T, ds_root: &'a DatasetRoot, cwd: &'a ChatWithDetails) -> Self {
-        Self { v, ds_root, cwd }
+        Self { v, ds_root, cwd: Some(cwd) }
+    }
+
+    pub fn new_without_cwd(v: &'a T, ds_root: &'a DatasetRoot) -> Self {
+        Self { v, ds_root, cwd: None }
     }
 
     pub fn with<U>(&self, u: &'a U) -> Tup<'a, U> {
-        Tup::new(u, self.ds_root, self.cwd)
+        if let Some(cwd) = self.cwd {
+            Tup::new(u, self.ds_root, cwd)
+        } else {
+            Tup::new_without_cwd(u, self.ds_root)
+        }
     }
 
     pub fn apply<U>(&self, f: fn(&T) -> &U) -> Tup<'a, U> {
-        Tup::new(f(self.v), self.ds_root, self.cwd)
+        if let Some(cwd) = self.cwd {
+            Tup::new(f(self.v), self.ds_root, cwd)
+        } else {
+            Tup::new_without_cwd(f(self.v), self.ds_root)
+        }
     }
 }
 
@@ -72,6 +84,17 @@ macro_rules! cloned_equals_without {
     ($v1:expr, $v2:expr, $T:ident, $($key:ident : $val:expr),+) => {
         $T { $( $key: $val, )* ..(*$v1).clone() } == $T { $( $key: $val, )* ..(*$v2).clone() }
     };
+}
+
+//
+// User
+//
+
+impl<'a> PracticalEq for Tup<'a, User> {
+    /// Note that we do NOT check profile pictures here!
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        Ok(cloned_equals_without!(self.v, other.v, User, profile_pictures: vec![]))
+    }
 }
 
 //
@@ -126,10 +149,12 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
         macro_rules! case {
             ($T:ident, $name1:ident, $name2:ident) => { (Some($T($name1)), Some($T($name2))) };
         }
+        let self_cwd = self.cwd.expect("CWD for MessageService is required");
+        let other_cwd = other.cwd.expect("CWD for MessageService is required");
         match (self.v.sealed_value_optional.as_ref(), other.v.sealed_value_optional.as_ref()) {
             case!(PhoneCall, c1, c2) => {
                 Ok(c1 == c2 &&
-                    members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd))?)
+                    members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd))?)
             }
             case!(SuggestProfilePhoto, c1, c2) => {
                 // Only need to compare photos
@@ -142,7 +167,7 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
             case!(Notice, c1, c2) => Ok(c1 == c2),
             case!(GroupCreate, c1, c2) =>
                 Ok(c1.title == c2.title &&
-                    members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd))?),
+                    members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd))?),
             case!(GroupEditTitle, c1, c2) => Ok(c1 == c2),
             case!(GroupEditPhoto, c1, c2) => {
                 // Only need to compare photos
@@ -150,9 +175,9 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
             }
             case!(GroupDeletePhoto, c1, c2) => Ok(c1 == c2),
             case!(GroupInviteMembers, c1, c2) =>
-                members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd)),
+                members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd)),
             case!(GroupRemoveMembers, c1, c2) =>
-                members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd)),
+                members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd)),
             case!(GroupMigrateFrom, c1, c2) => Ok(c1 == c2),
             case!(GroupMigrateTo, c1, c2) => Ok(c1 == c2),
 

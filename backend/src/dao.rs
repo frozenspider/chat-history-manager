@@ -101,7 +101,7 @@ pub trait ChatHistoryDao: WithCache + Send + Sync {
     fn chats(&self, ds_uuid: &PbUuid) -> Result<Vec<ChatWithDetails>> {
         let mut chats = self.chats_inner(ds_uuid)?;
         chats.sort_by_key(|cwd| // Minus used to reverse order
-            cwd.last_msg_option.as_ref().map(|m| -m.timestamp).unwrap_or(i64::MAX));
+            cwd.last_msg_option.as_ref().map(|m| -m.timestamp).unwrap_or(cwd.chat.id));
         Ok(chats)
     }
 
@@ -197,9 +197,10 @@ pub trait MutableChatHistoryDao: ChatHistoryDao {
     /// Delete a dataset with all the related entities. Deleted dataset root will be moved to backup folder.
     fn delete_dataset(&mut self, uuid: PbUuid) -> EmptyRes;
 
-    fn insert_user(&mut self, user: User, is_myself: bool) -> Result<User>;
+    fn insert_user(&mut self, user: User, is_myself: bool, src_ds_root: &DatasetRoot) -> Result<User>;
 
     /// Update a user, renaming relevant personal chats and updating messages mentioning that user in plaintext.
+    /// Note that profile pictures are NOT updated.
     fn update_user(&mut self, old_id: UserId, user: User) -> Result<User>;
 
     /// Copies image (if any) from dataset root.
@@ -298,7 +299,8 @@ pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                         )));
             for (i, (master_user, mut slave_user)) in master_users.iter().zip(slave_users.into_iter()).enumerate() {
                 slave_user.ds_uuid = master_ds_uuid.clone();
-                check_diff!(*master_user == slave_user, false,
+                check_diff!(PracticalEqTuple::new_without_cwd(master_user, &master_ds_root).practically_equals(
+                                &PracticalEqTuple::new_without_cwd(&slave_user, &slave_ds_root))?, false,
                             format!("User #{i} differs"), Some((format!("{master_user:?}"), format!("{slave_user:?}"))));
             }
             Ok(vec![])

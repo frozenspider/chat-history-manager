@@ -39,7 +39,7 @@ const RESULT_JSON: &str = "result.json";
 pub struct TelegramDataLoader;
 
 impl DataLoader for TelegramDataLoader {
-    fn name(&self) -> &'static str { "Telegram" }
+    fn name(&self) -> String{ "Telegram".to_owned() }
 
     fn looks_about_right_inner(&self, src_path: &Path) -> EmptyRes {
         let path = get_real_path(src_path);
@@ -90,6 +90,7 @@ impl Users {
             last_name_option,
             phone_number_option: original.phone_number_option.or(new.phone_number_option),
             username_option: original.username_option.or(new.username_option),
+            profile_pictures: original.profile_pictures, // TG doesn't export profile pictures
         }
     }
 

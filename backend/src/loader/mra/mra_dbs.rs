@@ -193,6 +193,7 @@ pub(super) fn collect_datasets(
                 last_name_option: None,
                 username_option: Some(myself_username.clone()),
                 phone_number_option: None,
+                profile_pictures: vec![],
             };
             MraDatasetEntry {
                 ds: Dataset { uuid: ds_uuid, alias: myself_username.clone() },

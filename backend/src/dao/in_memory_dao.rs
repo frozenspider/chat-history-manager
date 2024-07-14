@@ -287,7 +287,7 @@ impl MutableChatHistoryDao for InMemoryDao {
         }
     }
 
-    fn insert_user(&mut self, _user: User, _is_myself: bool) -> Result<User> {
+    fn insert_user(&mut self, _user: User, _is_myself: bool, _src_ds_root: &DatasetRoot) -> Result<User> {
         err!("InMemoryDao does not implement inserting users")
     }
 
