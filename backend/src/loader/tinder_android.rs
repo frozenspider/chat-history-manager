@@ -192,7 +192,18 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
         let ([first_byte], bytes) = next_const_n_bytes::<1>(&bytes);
         let bytes = match first_byte {
             0x0A => {
-                let (_skip, bytes) = next_n_bytes(&bytes, 3);
+                let ([_, _, tpe], bytes) = next_const_n_bytes::<3>(&bytes);
+                match tpe {
+                    0x00 => {
+                        // No more data
+                        return Ok(());
+                    }
+                    0x0A => { /* Continue  processing */ }
+                    etc => {
+                        bail!("Unexpected Tinder photos BLOB format for user {user_key}, unknown type 0x{:02X}", etc)
+                    }
+                }
+
                 let ([url_len], bytes) = next_const_n_bytes::<1>(&bytes);
                 let (url, mut bytes) = next_n_bytes(&bytes, url_len as usize);
                 let url = String::from_utf8(url.into())?;
@@ -218,12 +229,47 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
                 let ([uuid_len], bytes) = next_const_n_bytes::<1>(&bytes);
                 let (_uuid, bytes) = next_n_bytes(&bytes, uuid_len as usize);
 
-                let ([separator], bytes) = next_const_n_bytes::<1>(&bytes);
-                ensure!(separator == 0x30, "Unexpected Tinder photos BLOB format for user {user_key}");
+                let ([next_block_type], bytes) = next_const_n_bytes::<1>(&bytes);
+                match next_block_type {
+                    0x30 => {
+                        // Final block to discard
+                        let ([_, _, block_len], bytes) = next_const_n_bytes::<3>(&bytes);
+                        let (_skip, bytes) = next_n_bytes(&bytes, block_len as usize);
+                        bytes
+                    }
+                    0x22 => {
+                        // Videos
+                        let (_skip, mut bytes) = next_n_bytes(&bytes, 7);
+                        // Skipping all of them
+                        let mut section: u8;
+                        loop {
+                            bytes = {
+                                let ([separator], bytes) = next_const_n_bytes::<1>(&bytes);
+                                ensure!(separator == 0x1A, "Unexpected Tinder photos BLOB format for user {user_key} (video)");
+                                let ([url_len], bytes) = next_const_n_bytes::<1>(&bytes);
+                                let (_url, bytes) = next_n_bytes(&bytes, url_len as usize);
+                                let url = String::from_utf8(_url.into())?;
+                                log::debug!("Skipping video URL {url}");
 
-                let ([_, _, block_len], bytes) = next_const_n_bytes::<3>(&bytes);
-                let (_skip, bytes) = next_n_bytes(&bytes, block_len as usize);
-                bytes
+                                let (_skip, bytes) = next_n_bytes(&bytes, 3);
+                                let ([section_inner], bytes) = next_const_n_bytes::<1>(&bytes);
+                                section = section_inner;
+
+                                bytes
+                            };
+                            if section == 0x22 {
+                                (_, bytes) = next_n_bytes(&bytes, 7);
+                            } else { break; }
+                        }
+                        ensure!(section == 0x30, "Unexpected Tinder photos BLOB format for user {user_key} (video), unknown section 0x{:02X}", section);
+
+                        let (_skip, bytes) = next_n_bytes(&bytes, 3);
+                        bytes
+                    }
+                    etc => {
+                        bail!("Unexpected Tinder photos BLOB format for user {user_key}, unknown section 0x{:02X}", etc)
+                    }
+                }
             }
             0x52 => {
                 let ([uuid_len], bytes) = next_const_n_bytes::<1>(&bytes);
