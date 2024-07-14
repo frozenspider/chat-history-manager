@@ -299,7 +299,8 @@ pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                         )));
             for (i, (master_user, mut slave_user)) in master_users.iter().zip(slave_users.into_iter()).enumerate() {
                 slave_user.ds_uuid = master_ds_uuid.clone();
-                check_diff!(*master_user == slave_user, false,
+                check_diff!(PracticalEqTuple::new_without_cwd(master_user, &master_ds_root).practically_equals(
+                                &PracticalEqTuple::new_without_cwd(&slave_user, &slave_ds_root))?, false,
                             format!("User #{i} differs"), Some((format!("{master_user:?}"), format!("{slave_user:?}"))));
             }
             Ok(vec![])
