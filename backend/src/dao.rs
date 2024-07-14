@@ -101,7 +101,7 @@ pub trait ChatHistoryDao: WithCache + Send + Sync {
     fn chats(&self, ds_uuid: &PbUuid) -> Result<Vec<ChatWithDetails>> {
         let mut chats = self.chats_inner(ds_uuid)?;
         chats.sort_by_key(|cwd| // Minus used to reverse order
-            cwd.last_msg_option.as_ref().map(|m| -m.timestamp).unwrap_or(i64::MAX));
+            cwd.last_msg_option.as_ref().map(|m| -m.timestamp).unwrap_or(cwd.chat.id));
         Ok(chats)
     }
 
