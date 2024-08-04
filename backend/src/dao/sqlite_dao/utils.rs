@@ -136,28 +136,28 @@ pub mod user {
         }
     }
 
-    pub fn serialize_and_copy_files(user: &User,
-                                    is_myself: bool,
-                                    raw_uuid: &[u8],
-                                    src_ds_root: &DatasetRoot,
-                                    dst_ds_root: &DatasetRoot) -> Result<(RawUser, Vec<RawProfilePicture>)> {
-        let raw_user = serialize(user, is_myself, raw_uuid);
-        let mut raw_profile_pictures = vec![];
-        for (idx, p) in user.profile_pictures.iter().enumerate() {
-            if let Some(new_path) = sqlite_dao::copy_user_profile_pic(&p.path, user.id(), src_ds_root, &dst_ds_root)? {
-                raw_profile_pictures.push(RawProfilePicture {
-                    ds_uuid: raw_uuid.to_vec(),
-                    user_id: user.id,
-                    path: new_path,
-                    order: idx as i32,
-                    frame_x: p.frame_option.as_ref().map(|f| f.x as i32),
-                    frame_y: p.frame_option.as_ref().map(|f| f.y as i32),
-                    frame_w: p.frame_option.as_ref().map(|f| f.w as i32),
-                    frame_h: p.frame_option.as_ref().map(|f| f.h as i32),
-                });
-            }
+    pub mod profile_picture {
+        use super::*;
+
+        pub fn serialize_and_copy(user_id: UserId,
+                                  raw_ds_uuid: &[u8],
+                                  path: &Path,
+                                  frame: Option<&PictureFrame>,
+                                  idx: usize,
+                                  dst_ds_root: &DatasetRoot) -> Result<RawProfilePicture> {
+            let new_path = sqlite_dao::copy_user_profile_pic(path, user_id, &dst_ds_root)?
+                .expect("Filter out non-existent paths first!");
+            Ok(RawProfilePicture {
+                ds_uuid: raw_ds_uuid.to_vec(),
+                user_id: user_id.0,
+                path: new_path,
+                order: idx as i32,
+                frame_x: frame.map(|f| f.x as i32),
+                frame_y: frame.map(|f| f.y as i32),
+                frame_w: frame.map(|f| f.w as i32),
+                frame_h: frame.map(|f| f.h as i32),
+            })
         }
-        Ok((raw_user, raw_profile_pictures))
     }
 }
 

@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::dao::ChatHistoryDao;
+use crate::dao::{AbsoluteProfilePicture, ChatHistoryDao};
 use crate::dao::MutableChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
 use crate::merge::analyzer::*;
@@ -147,7 +147,14 @@ fn merge_inner(
         if let Some((mut user, src_ds_root)) = user_to_insert_option {
             user.ds_uuid = new_ds.uuid.clone();
             let is_myself = user.id == master_self.id;
-            new_dao.insert_user(user, is_myself, src_ds_root)?;
+            let profile_pics = user.profile_pictures.iter()
+                .map(|pp| AbsoluteProfilePicture {
+                    absolute_path: src_ds_root.to_absolute(&pp.path),
+                    frame_option: pp.frame_option.clone(),
+                })
+                .collect();
+            let user = new_dao.insert_user(user, is_myself)?;
+            new_dao.update_user_profile_pics(user, profile_pics)?;
         }
     }
     let final_users = new_dao.users(&new_ds.uuid)?;

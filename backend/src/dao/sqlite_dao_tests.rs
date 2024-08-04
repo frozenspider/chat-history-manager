@@ -318,7 +318,7 @@ fn inserts() -> EmptyRes {
     dst_dao.insert_dataset(src_dao.dataset())?;
     for u in src_dao.users_single_ds() {
         let is_myself = u.id == src_dao.myself_single_ds().id;
-        dst_dao.insert_user(u, is_myself, &src_ds_root)?;
+        dst_dao.insert_user(u, is_myself)?;
     }
     assert_eq!(dst_dao.datasets()?, src_dao.datasets()?);
     assert_eq!(dst_dao.users(ds_uuid)?, src_dao.users(ds_uuid)?);
@@ -364,7 +364,7 @@ fn update_dataset_same_uuid() -> EmptyRes {
     let (mut dao, _tmp_dir) = create_sqlite_dao();
 
     let ds = dao.insert_dataset(Dataset { uuid: ZERO_PB_UUID.clone(), alias: "My Dataset".to_owned() })?;
-    dao.insert_user(create_user(&ds.uuid, 1), true, &dao.dataset_root(&ds.uuid)?)?;
+    dao.insert_user(create_user(&ds.uuid, 1), true)?;
 
     let ds = dao.as_mutable()?.update_dataset(ds.uuid.clone(), Dataset { uuid: ds.uuid.clone(), alias: "Renamed Dataset".to_owned() })?;
     assert_eq!(dao.datasets()?.remove(0), ds);
@@ -382,7 +382,7 @@ fn delete_dataset() -> EmptyRes {
         assert!(f.exists());
     }
     let other_ds = dao.insert_dataset(Dataset { uuid: ZERO_PB_UUID.clone(), alias: "My Dataset".to_owned() })?;
-    let other_user = dao.insert_user(create_user(&other_ds.uuid, 1), true, &dao.dataset_root(&other_ds.uuid)?)?;
+    let other_user = dao.insert_user(create_user(&other_ds.uuid, 1), true)?;
     assert_eq!(dao.datasets()?.len(), 2);
 
     dao.delete_dataset(daos.ds_uuid.clone())?;
@@ -418,7 +418,7 @@ fn update_user() -> EmptyRes {
     let ds = dao.insert_dataset(Dataset { uuid: ZERO_PB_UUID.clone(), alias: "My Dataset".to_owned() })?;
 
     let users: Vec<User> = (1..=3)
-        .map(|i| dao.insert_user(create_user(&ZERO_PB_UUID, i as i64), i == 1, &dao.dataset_root(&ds.uuid)?))
+        .map(|i| dao.insert_user(create_user(&ZERO_PB_UUID, i as i64), i == 1))
         .try_collect()?;
 
     fn make_hello_message(internal_id: i64, from_id: UserId) -> Message {
@@ -841,7 +841,7 @@ fn backups() -> EmptyRes {
     dst_dao.insert_dataset(src_dao.dataset())?;
     for u in src_dao.users_single_ds() {
         let is_myself = u.id == src_dao.myself_single_ds().id;
-        dst_dao.insert_user(u, is_myself, &src_ds_root)?;
+        dst_dao.insert_user(u, is_myself)?;
     }
     for src_cwd in src_dao.chats(ds_uuid)? {
         let src_chat = src_cwd.chat;

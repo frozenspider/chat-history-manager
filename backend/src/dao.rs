@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 
@@ -197,11 +197,15 @@ pub trait MutableChatHistoryDao: ChatHistoryDao {
     /// Delete a dataset with all the related entities. Deleted dataset root will be moved to backup folder.
     fn delete_dataset(&mut self, uuid: PbUuid) -> EmptyRes;
 
-    fn insert_user(&mut self, user: User, is_myself: bool, src_ds_root: &DatasetRoot) -> Result<User>;
+    /// Note that profile pictures are NOT inserted and are discarded instead!
+    fn insert_user(&mut self, user: User, is_myself: bool) -> Result<User>;
 
     /// Update a user, renaming relevant personal chats and updating messages mentioning that user in plaintext.
     /// Note that profile pictures are NOT updated.
     fn update_user(&mut self, old_id: UserId, user: User) -> Result<User>;
+
+    /// Update user profile pictures, copying them from the given paths. Excludes those not found.
+    fn update_user_profile_pics(&mut self, user: User, new_profile_pics: Vec<AbsoluteProfilePicture>) -> Result<User>;
 
     /// Copies image (if any) from dataset root.
     fn insert_chat(&mut self, chat: Chat, src_ds_root: &DatasetRoot) -> Result<Chat>;
@@ -244,6 +248,11 @@ pub struct DaoCacheInner {
     pub initialized: bool,
     pub datasets: Vec<Dataset>,
     pub users: UserCache,
+}
+
+pub struct AbsoluteProfilePicture {
+    pub absolute_path: PathBuf,
+    pub frame_option: Option<PictureFrame>,
 }
 
 impl DaoCache {
