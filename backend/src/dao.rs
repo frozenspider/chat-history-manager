@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 
@@ -248,11 +247,6 @@ pub struct DaoCacheInner {
     pub initialized: bool,
     pub datasets: Vec<Dataset>,
     pub users: UserCache,
-}
-
-pub struct AbsoluteProfilePicture {
-    pub absolute_path: PathBuf,
-    pub frame_option: Option<PictureFrame>,
 }
 
 impl DaoCache {

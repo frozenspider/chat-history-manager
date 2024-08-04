@@ -1,6 +1,7 @@
+use std::io;
 use itertools::Itertools;
 
-use crate::dao::{AbsoluteProfilePicture, ChatHistoryDao};
+use crate::dao::ChatHistoryDao;
 use crate::dao::MutableChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
 use crate::merge::analyzer::*;
@@ -134,25 +135,35 @@ fn merge_inner(
     let slave_self = slave.dao.myself(&slave.ds.uuid)?;
     ensure!(master_self.id == slave_self.id, "Myself of merged datasets doesn't match!");
     for um in user_merges {
-        // TODO: Merge photos!
+        macro_rules! iter_pps_master {
+            ($user_id:ident) => { master.users[&$user_id].profile_pictures.iter().map(|pp| pp.to_absolute(&master_ds_root)) };
+        }
+        macro_rules! iter_pps_slave {
+            ($user_id:ident) => { slave.users[&$user_id].profile_pictures.iter().map(|pp| pp.to_absolute(&slave_ds_root)) };
+        }
+        // Slave pictures always go before master pics, new is good, y'know
         let user_to_insert_option = match um {
-            UserMergeDecision::Retain(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),
-            UserMergeDecision::MatchOrDontReplace(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),
-            UserMergeDecision::Add(user_id) => Some((slave.users[&user_id].clone(), &slave_ds_root)),
+            UserMergeDecision::Retain(user_id) =>
+                Some((master.users[&user_id].clone(),
+                      iter_pps_master!(user_id).collect_vec())),
+            UserMergeDecision::MatchOrDontReplace(user_id) =>
+                Some((master.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).chain(iter_pps_master!(user_id)).collect_vec())),
+            UserMergeDecision::Add(user_id) =>
+                Some((slave.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).collect_vec())),
             UserMergeDecision::DontAdd(user_id) if selected_chat_members.contains(&user_id.0) =>
                 bail!("Cannot skip user {} because it's used in a chat that wasn't skipped", user_id.0),
-            UserMergeDecision::DontAdd(_) => None,
-            UserMergeDecision::Replace(user_id) => Some((slave.users[&user_id].clone(), &slave_ds_root)),
+            UserMergeDecision::DontAdd(_) =>
+                None,
+            UserMergeDecision::Replace(user_id) =>
+                Some((slave.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).chain(iter_pps_master!(user_id)).collect_vec())),
         };
-        if let Some((mut user, src_ds_root)) = user_to_insert_option {
+        if let Some((mut user, profile_pics)) = user_to_insert_option {
             user.ds_uuid = new_ds.uuid.clone();
             let is_myself = user.id == master_self.id;
-            let profile_pics = user.profile_pictures.iter()
-                .map(|pp| AbsoluteProfilePicture {
-                    absolute_path: src_ds_root.to_absolute(&pp.path),
-                    frame_option: pp.frame_option.clone(),
-                })
-                .collect();
+            let profile_pics = dedup_profile_pics(profile_pics)?;
             let user = new_dao.insert_user(user, is_myself)?;
             new_dao.update_user_profile_pics(user, profile_pics)?;
         }
@@ -403,6 +414,24 @@ fn update_with_slave_data(mm: &mut Message, sm: &Message) {
         }
         (_, _) => { unreachable!("Messages are supposed to be matching! {:?} vs {:?}", mm, sm) }
     }
+}
+
+/// Deduplicate profile pictures vec by content. Skips subsequent elements, ignoring framing.
+fn dedup_profile_pics(profile_pics: Vec<AbsoluteProfilePicture>) -> Result<Vec<AbsoluteProfilePicture>> {
+    let mut seen = HashSet::new();
+    let mut res = Vec::with_capacity(profile_pics.len());
+    for pp in profile_pics {
+        match file_hash(&pp.absolute_path) {
+            Ok(hash) => {
+                if seen.insert(hash) {
+                    res.push(pp);
+                } // else NOOP
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => { /* NOOP */}
+            Err(e) => return Err(e.into())
+        }
+    }
+    Ok(res)
 }
 
 #[derive(Debug)]

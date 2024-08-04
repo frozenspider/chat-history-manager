@@ -156,6 +156,20 @@ impl User {
     }
 }
 
+pub struct AbsoluteProfilePicture<'a> {
+    pub absolute_path: PathBuf,
+    pub frame_option: &'a Option<PictureFrame>,
+}
+
+impl ProfilePicture {
+    pub fn to_absolute(&self, ds_root: &DatasetRoot) -> AbsoluteProfilePicture {
+        AbsoluteProfilePicture {
+            absolute_path: ds_root.to_absolute(&self.path),
+            frame_option: &self.frame_option,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChatWithDetails {
     pub chat: Chat,

@@ -3,6 +3,7 @@ pub use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher as StdHasher};
+use std::io;
 use std::io::{BufReader, Read};
 use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
@@ -229,7 +230,7 @@ pub fn hasher() -> Hasher {
 }
 
 /// Get a hash string (32 uppercase hex chars) of a file's content.
-pub fn file_hash(path: &Path) -> Result<String> {
+pub fn file_hash(path: &Path) -> StdResult<String, io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::with_capacity(FILE_BUF_CAPACITY, file);
     let mut buffer = [0; 512];

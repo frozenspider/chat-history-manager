@@ -1217,7 +1217,7 @@ mod subpaths {
     pub(super) static VIDEO_MESSAGES: Subpath = Subpath { path_fragment: "video_messages", use_hashing: true };
     pub(super) static VIDEOS: Subpath = Subpath { path_fragment: "videos", use_hashing: true };
     pub(super) static FILES: Subpath = Subpath { path_fragment: "files", use_hashing: false };
-    pub(super) static PROFILE_PICTURES: Subpath = Subpath { path_fragment: "profile_pictures", use_hashing: false };
+    pub(super) static PROFILE_PICTURES: Subpath = Subpath { path_fragment: "profile_pictures", use_hashing: true };
 }
 
 fn copy_file(src_file: &Path,
