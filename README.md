@@ -86,7 +86,7 @@ To download the database use `adb`:
 - Optional cleanup: `adb shell su -c 'rm -rf /storage/self/primary/Download/com.tinder'`
 - Load `./tinder-3.db`
 
-Will attempt to download GIFs to `./Media/_downloaded` if not already there.
+Will attempt to download profile pictures and GIFs to `./Media/_downloaded` if not already there.
 
 Badoo
 -----

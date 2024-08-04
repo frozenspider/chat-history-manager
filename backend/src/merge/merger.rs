@@ -72,6 +72,7 @@ pub fn merge_datasets(
             .filter(|ds_uuid| ds_uuid != &master_ds.uuid)
             .collect_vec();
         new_dao.copy_datasets_from(master_dao, &other_master_dataset_uuids)?;
+        new_dao.vacuum()?;
         Ok((new_dao, new_dataset))
     }, |_, t| log::info!("Datasets merged in {t} ms"))
 }
@@ -133,6 +134,7 @@ fn merge_inner(
     let slave_self = slave.dao.myself(&slave.ds.uuid)?;
     ensure!(master_self.id == slave_self.id, "Myself of merged datasets doesn't match!");
     for um in user_merges {
+        // TODO: Merge photos!
         let user_to_insert_option = match um {
             UserMergeDecision::Retain(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),
             UserMergeDecision::MatchOrDontReplace(user_id) => Some((master.users[&user_id].clone(), &master_ds_root)),

@@ -42,7 +42,6 @@ impl SqliteDao {
         Self::create_load_inner(db_file)
     }
 
-    #[allow(unused)]
     pub fn load(db_file: &Path) -> Result<Self> {
         ensure!(db_file.exists(), "File {} does not exist!", db_file.display());
         Self::create_load_inner(db_file)
@@ -200,6 +199,9 @@ impl SqliteDao {
                             offset += BATCH_SIZE;
                         }
                     }
+
+                    vacuum(&mut conn)?;
+
                     Ok(())
                 }, |_, t| log::info!("Dataset '{}' inserted in {t} ms", ds_uuid.value))?;
             }
@@ -266,6 +268,12 @@ impl SqliteDao {
 
         insert_into(message_content::table).values(raw_mcs).execute(conn)?;
         insert_into(message_text_element::table).values(raw_rtes).execute(conn)?;
+        Ok(())
+    }
+
+    pub fn vacuum(&self) -> EmptyRes {
+        let mut conn = self.get_conn()?;
+        vacuum(&mut conn)?;
         Ok(())
     }
 }
@@ -1252,6 +1260,11 @@ fn copy_user_profile_pic(src_rel_path: &str,
 }
 
 fn defer_fk(conn: &mut SqliteConnection) -> EmptyRes {
+    sql_query("PRAGMA defer_foreign_keys = true").execute(conn)?;
+    ok(())
+}
+
+fn vacuum(conn: &mut SqliteConnection) -> EmptyRes {
     sql_query("PRAGMA defer_foreign_keys = true").execute(conn)?;
     ok(())
 }
