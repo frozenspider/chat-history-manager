@@ -492,7 +492,8 @@ fn parse_message(json_path: &str,
             // forwarded_from: the original source message
             // saved_from:     where the message was last forwarded from, could match forwarded_from (ignored)
             optional_fields: hash_set(["date_unixtime", "text_entities", "forwarded_from", "saved_from", "via_bot",
-                                       "reply_to_peer_id", "reply_to_message_id", "inline_bot_buttons"]),
+                                       "reply_to_peer_id", "reply_to_message_id", "inline_bot_buttons",
+                                       "author"]),
         };
 
         static ref SERVICE_MSG_FIELDS: ExpectedMessageField<'static> = ExpectedMessageField {
@@ -522,6 +523,7 @@ fn parse_message(json_path: &str,
 
             short_user.id = parse_user_id(message_json.field("from_id")?)?;
             short_user.full_name_option = message_json.field_opt_str("from")?;
+            // If a sender is the channel, "author" contains string alias of an admin who sent a message
         }
         "service" => {
             message_json.expected_fields = Some(SERVICE_MSG_FIELDS.clone());
@@ -761,13 +763,30 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
             }))
         }
-        (None, Some(_), false, false, false, false) =>
-            Some(SealedValueOptional::Photo(ContentPhoto {
-                path_option: message_json.field_opt_path("photo")?,
-                width: message_json.field_i32("width")?,
-                height: message_json.field_i32("height")?,
-                is_one_time: false,
-            })),
+        (None, Some(_), false, false, false, false) => {
+            let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
+            match self_destruct {
+                None => {
+                    Some(SealedValueOptional::Photo(ContentPhoto {
+                        path_option: message_json.field_opt_path("photo")?,
+                        width: message_json.field_i32("width")?,
+                        height: message_json.field_i32("height")?,
+                        is_one_time: false,
+                    }))
+                }
+                Some(_) => {
+                    // Path is necessarily None
+                    ensure!(message_json.field_opt_path("photo")?.is_none(),
+                            "Photo path was present for self-destructing photo");
+                    Some(SealedValueOptional::Photo(ContentPhoto {
+                        path_option: None,
+                        width: 0,
+                        height: 0,
+                        is_one_time: true,
+                    }))
+                }
+            }
+        }
         (None, None, false, true, false, false) => {
             let (lat_str, lon_str) = {
                 let loc_info =
@@ -906,7 +925,14 @@ fn parse_service_message(message_json: &mut MessageJson,
                 members: parse_members(message_json)?
             }), None),
         "join_group_by_link" => {
+            // "UserName joined the group via invite link"
             message_json.add_required("inviter");
+            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
+            }), None)
+        }
+        "join_group_by_request" => {
+            // "UserName was accepted to the group"
             (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
             }), None)
@@ -1195,7 +1221,7 @@ fn parse_inline_bot_buttons(json_path: &str, json: &BorrowedValue) -> Result<Vec
                                              get_field_string!(el, json_path, "data"),
                                              false))
                 }
-                "auth" | "callback" => {
+                "auth" | "callback" | "switch_inline_same" => {
                     // Not interesting to preserve
                     None
                 }

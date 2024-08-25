@@ -972,7 +972,6 @@ fn loading_2024_06() -> EmptyRes {
     let msgs = &cwm.messages;
     assert_eq!(msgs.len() as i32, 1);
 
-    // Note that this really is an image file, not a photo
     assert_eq!(msgs[0], Message {
         internal_id: 0,
         source_id_option: Some(11111),
@@ -986,6 +985,88 @@ fn loading_2024_06() -> EmptyRes {
             forward_from_name_option: None,
             reply_to_message_id_option: None,
             content_option: None,
+        }),
+    });
+
+    Ok(())
+}
+
+#[test]
+fn loading_2024_08() -> EmptyRes {
+    let res = resource("telegram_2024-08");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 4);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Admin msg!".to_owned())],
+        searchable_string: "Admin msg!".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499755),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            content_option: None,
+        }),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Bot msg!".to_owned())],
+        searchable_string: "Bot msg!".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            content_option: None,
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499757,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "Aaaaa Aaaaaaaaaaa".to_owned(),
+        typed: Some(message_service!(GroupInviteMembers(MessageServiceGroupInviteMembers {
+            members: vec!["Aaaaa Aaaaaaaaaaa".to_owned()]
+        }))),
+    });
+
+    assert_eq!(msgs[3], Message {
+        internal_id: 3,
+        source_id_option: Some(11114),
+        timestamp: 1665499758,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            content_option: Some(Content {
+                sealed_value_optional: Some(Photo(ContentPhoto {
+                    path_option: None,
+                    width: 0,
+                    height: 0,
+                    is_one_time: true,
+                }))
+            })
         }),
     });
 
