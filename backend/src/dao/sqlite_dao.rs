@@ -623,7 +623,7 @@ impl MutableChatHistoryDao for SqliteDao {
                             .open(archive_path)?;
                         let mut zip = zip::ZipWriter::new(&mut archive);
 
-                        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+                        let options = zip::write::FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
                         zip.start_file(path_file_name(&backup_file)?, options)?;
                         let mut buf = backup_bytes.as_slice();
                         while !buf.is_empty() {

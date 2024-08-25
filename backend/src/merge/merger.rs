@@ -250,7 +250,7 @@ fn merge_inner(
                                         (sm, Source::Slave)
                                     }
                                 })
-                                .group_by(|(_m, src)| *src);
+                                .chunk_by(|(_m, src)| *src);
 
                             let mut data_grouped = Vec::new();
                             for (source, group) in &grouped_total_msgs {
