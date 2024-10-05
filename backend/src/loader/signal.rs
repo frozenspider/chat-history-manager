@@ -1,14 +1,14 @@
 use super::DataLoader;
 use crate::prelude::client::MyselfChooser;
 use crate::prelude::*;
-use chat_history_manager_core::protobuf::history::Dataset;
+
 use itertools::Itertools;
 
 use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use rusqlite::Connection;
-use simd_json::prelude::ArrayTrait;
+use simd_json::prelude::*;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -125,7 +125,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
         // TODO: content
-        // TODO: rich text
         // TODO: edit
         // TODO: reply to
 
@@ -138,6 +137,14 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
             let mut service_option = None;
             let mut content_option = None;
+
+            // TODO: rich text
+            let mut text = if let Some(text) = row.get::<_, Option<String>>("body")? {
+                vec![RichText::make_plain(text)]
+            } else {
+                vec![]
+            };
+
 
             let from_id = match direction.as_str() {
                 "incoming" => user.id(),
@@ -169,8 +176,25 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
                     from_id
                 }
+                "profile-change" => {
+                    let json = row.get::<_, String>("json")?;
+                    let mut json = json.into_bytes();
+                    let json = simd_json::to_borrowed_value(&mut json)?;
+                    let json = as_object!(json, "profile-change");
+                    let profile_change = get_field!(json, "<root>", "profileChange")?;
+                    let profile_change = as_object!(profile_change, "<root>", "profileChange");
+                    let change_type = get_field_str!(profile_change, "profileChange", "type");
+                    ensure!(change_type == "name", "Unknown profile change type: {change_type}");
+
+                    let old_name = get_field_str!(profile_change, "profileChange", "oldName");
+                    let new_name = get_field_str!(profile_change, "profileChange", "newName");
+
+                    text = vec!(RichText::make_plain(format!("{old_name} changed name to {new_name}")));
+                    service_option = Some(message_service!(ServiceSvo::Notice(MessageServiceNotice {})));
+
+                    user.id()
+                }
                 "keychange" => continue, // Not interesting, also not shown in Signal client
-                "profile-change" => continue, // TODO: Profile was renamed
                 "verified-change" => continue, // Not interesting
                 _ => bail!("Unknown message direction: {direction}"),
             };
@@ -179,13 +203,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
             let timestamp = timestamp / 1000;
 
             let is_deleted = row.get::<_, i32>("isErased")? == 1;
-
-            let text_option = row.get::<_, Option<String>>("body")?;
-            let text = if let Some(text) = text_option {
-                vec![RichText::make_plain(text)]
-            } else {
-                vec![]
-            };
 
             let typed = service_option.unwrap_or_else(|| {
                 message_regular! {
