@@ -11,6 +11,7 @@ use crate::dao::sqlite_dao::SqliteDao;
 use crate::grpc::client::MyselfChooser;
 use crate::loader::badoo_android::BadooAndroidDataLoader;
 use crate::loader::mra::MailRuAgentDataLoader;
+use crate::loader::signal::SignalDataLoader;
 use crate::loader::telegram::TelegramDataLoader;
 use crate::loader::tinder_android::TinderAndroidDataLoader;
 use crate::loader::whatsapp_android::WhatsAppAndroidDataLoader;
@@ -20,6 +21,7 @@ mod telegram;
 mod tinder_android;
 mod whatsapp_android;
 mod whatsapp_text;
+mod signal;
 mod badoo_android;
 mod mra;
 
@@ -66,6 +68,7 @@ impl Loader {
                 Box::new(TelegramDataLoader),
                 Box::new(WhatsAppAndroidDataLoader),
                 Box::new(WhatsAppTextDataLoader),
+                Box::new(SignalDataLoader),
                 Box::new(TinderAndroidDataLoader { http_client }),
                 Box::new(BadooAndroidDataLoader),
                 Box::new(MailRuAgentDataLoader),

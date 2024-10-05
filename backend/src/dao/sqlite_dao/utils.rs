@@ -66,6 +66,7 @@ impl_enum_serialization!(SourceType, {
     TextImport  => "text_import",
     Telegram    => "telegram",
     WhatsappDb  => "whatsapp",
+    Signal      => "signal",
     TinderDb    => "tinder",
     BadooDb     => "badoo",
     Mra         => "mra"
