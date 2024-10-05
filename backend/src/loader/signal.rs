@@ -3,6 +3,10 @@ use crate::prelude::client::MyselfChooser;
 use crate::prelude::*;
 use chat_history_manager_core::protobuf::history::Dataset;
 use itertools::Itertools;
+
+use content::SealedValueOptional as ContentSvo;
+use message_service::SealedValueOptional as ServiceSvo;
+
 use rusqlite::Connection;
 use simd_json::prelude::ArrayTrait;
 use std::path::Path;
@@ -94,12 +98,15 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
     let mut cwms = vec![];
 
     // TODO: group chats
-    // TODO: calls
     // TODO: attachments
-    let mut stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
-    let mut rows = stmt.query([])?;
+    let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
+    let mut conv_rows = conv_stmt.query([])?;
 
-    while let Some(row) = rows.next()? {
+    let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
+
+    let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
+
+    while let Some(row) = conv_rows.next()? {
         let chat_uuid_string = row.get::<_, String>("id")?;
         let chat_uuid = Uuid::parse_str(&chat_uuid_string)?;
         let chat_id = ChatId(uuid_to_u32(chat_uuid)? as i64);
@@ -115,25 +122,53 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
         let mut messages = vec![];
 
-        let mut stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ?")?;
-        let mut rows = stmt.query([chat_uuid_string])?;
+        let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
         // TODO: content
         // TODO: rich text
         // TODO: edit
         // TODO: reply to
 
-        while let Some(row) = rows.next()? {
+        while let Some(row) = msg_rows.next()? {
             let source_uuid = row.get::<_, String>("id")?;
             let source_uuid = Uuid::parse_str(&source_uuid)?;
             let source_id = uuid_to_u32(source_uuid)? as i64;
 
             let direction = row.get::<_, String>("type")?;
 
+            let mut service_option = None;
+            let mut content_option = None;
+
             let from_id = match direction.as_str() {
                 "incoming" => user.id(),
                 "outgoing" => myself_id,
-                "call-history" => continue, // TODO!
+                "call-history" => {
+                    let call_id = row.get::<_, String>("callId")?;
+                    let mut call_row = calls_stmt.query([call_id])?;
+                    let call_row = call_row.next()?.ok_or_else(|| anyhow!("Call not found"))?;
+                    let call_direction = call_row.get::<_, String>("direction")?;
+                    let from_id = match call_direction.as_str() {
+                        "Incoming" => user.id(),
+                        "Outgoing" => myself_id,
+                        _ => bail!("Unknown call direction: {call_direction}"),
+                    };
+
+                    let discard_reason = call_row.get::<_, String>("status")?;
+                    let discard_reason = match discard_reason.as_str() {
+                        "Accepted" => "hangup",
+                        "Declined" => "declined",
+                        "Missed" => "missed",
+                        _ => bail!("Unknown call discard reason: {discard_reason}"),
+                    };
+
+                    service_option = Some(message_service!(ServiceSvo::PhoneCall(MessageServicePhoneCall {
+                        duration_sec_option: None, // Duration is not recorded
+                        discard_reason_option: Some(discard_reason.to_owned()),
+                        members: vec![]
+                    })));
+
+                    from_id
+                }
                 "keychange" => continue, // Not interesting, also not shown in Signal client
                 "profile-change" => continue, // TODO: Profile was renamed
                 "verified-change" => continue, // Not interesting
@@ -152,7 +187,15 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                 vec![]
             };
 
-            let content_option = None;
+            let typed = service_option.unwrap_or_else(|| {
+                message_regular! {
+                    edit_timestamp_option: None,
+                    is_deleted,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    content_option,
+                }
+            });
 
             messages.push(Message::new(
                 *NO_INTERNAL_ID,
@@ -160,13 +203,7 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                 timestamp,
                 from_id,
                 text,
-                message_regular! {
-                    edit_timestamp_option: None,
-                    is_deleted,
-                    forward_from_name_option: None,
-                    reply_to_message_id_option: None,
-                    content_option,
-                },
+                typed,
             ));
         }
 
@@ -192,7 +229,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
     Ok(cwms)
 }
-
 
 fn get_myself(conn: &Connection) -> Result<UserId> {
     let mut stmt = conn.prepare(r"SELECT * FROM items WHERE id = 'uuid_id'")?;
