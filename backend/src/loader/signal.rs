@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use super::DataLoader;
 use crate::prelude::client::MyselfChooser;
 use crate::prelude::*;
@@ -10,6 +11,7 @@ use message_service::SealedValueOptional as ServiceSvo;
 use rusqlite::Connection;
 use simd_json::prelude::*;
 use std::path::Path;
+use std::rc::Rc;
 use uuid::Uuid;
 
 pub struct SignalDataLoader;
@@ -100,12 +102,18 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
     // TODO: group chats
     // TODO: attachments
     let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
-    let mut conv_rows = conv_stmt.query([])?;
-
     let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
-
     let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
+    let mut edits_stmt = conn.prepare(r"SELECT * FROM edited_messages")?;
 
+    let mut edited_msg_uuids = HashSet::new();
+    let mut edits_rows = edits_stmt.query([])?;
+    while let Some(row) = edits_rows.next()? {
+        let msg_uuid = row.get::<_, String>("messageId")?;
+        edited_msg_uuids.insert(Uuid::parse_str(&msg_uuid)?);
+    }
+
+    let mut conv_rows = conv_stmt.query([])?;
     while let Some(row) = conv_rows.next()? {
         let chat_uuid_string = row.get::<_, String>("id")?;
         let chat_uuid = Uuid::parse_str(&chat_uuid_string)?;
@@ -125,7 +133,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
         // TODO: content
-        // TODO: edit
         // TODO: reply to
 
         while let Some(row) = msg_rows.next()? {
@@ -145,6 +152,13 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                 vec![]
             };
 
+            let json = LazyCell::new(|| {
+                // This is ugly as we cannot use Result in LazyCell - error is not Clone
+                let json = row.get::<_, String>("json").expect("no json column");
+                let mut json = json.into_bytes();
+                let json = simd_json::to_owned_value(&mut json).expect("json parsing failed");
+                json.try_as_object().expect("json is not an object").clone()
+            });
 
             let from_id = match direction.as_str() {
                 "incoming" => user.id(),
@@ -177,10 +191,7 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                     from_id
                 }
                 "profile-change" => {
-                    let json = row.get::<_, String>("json")?;
-                    let mut json = json.into_bytes();
-                    let json = simd_json::to_borrowed_value(&mut json)?;
-                    let json = as_object!(json, "profile-change");
+                    let json = &(*json);
                     let profile_change = get_field!(json, "<root>", "profileChange")?;
                     let profile_change = as_object!(profile_change, "<root>", "profileChange");
                     let change_type = get_field_str!(profile_change, "profileChange", "type");
@@ -204,15 +215,28 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
             let is_deleted = row.get::<_, i32>("isErased")? == 1;
 
-            let typed = service_option.unwrap_or_else(|| {
+            let typed = if let Some(service) = service_option {
+                service
+            } else {
+                let edit_timestamp_option = if edited_msg_uuids.contains(&source_uuid) {
+                    // We do not track message change history, we're only interested in last edit timestamp
+                    let json = &(*json);
+                    const EDIT_TIMESTAMP_KEY: &str = "editMessageTimestamp";
+                    let edit_timestamp = get_field!(json, "<root>", EDIT_TIMESTAMP_KEY)?;
+                    let edit_timestamp = as_i64!(edit_timestamp, "<root>", EDIT_TIMESTAMP_KEY);
+                    Some(edit_timestamp)
+                } else {
+                    None
+                };
+
                 message_regular! {
-                    edit_timestamp_option: None,
+                    edit_timestamp_option,
                     is_deleted,
                     forward_from_name_option: None,
                     reply_to_message_id_option: None,
                     content_option,
                 }
-            });
+            };
 
             messages.push(Message::new(
                 *NO_INTERNAL_ID,
