@@ -1,4 +1,3 @@
-use std::cell::LazyCell;
 use super::DataLoader;
 use crate::prelude::client::MyselfChooser;
 use crate::prelude::*;
@@ -9,9 +8,8 @@ use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use rusqlite::Connection;
-use simd_json::prelude::*;
+use simd_json::derived::*;
 use std::path::Path;
-use std::rc::Rc;
 use uuid::Uuid;
 
 pub struct SignalDataLoader;
@@ -104,14 +102,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
     let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
     let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
     let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
-    let mut edits_stmt = conn.prepare(r"SELECT * FROM edited_messages")?;
-
-    let mut edited_msg_uuids = HashSet::new();
-    let mut edits_rows = edits_stmt.query([])?;
-    while let Some(row) = edits_rows.next()? {
-        let msg_uuid = row.get::<_, String>("messageId")?;
-        edited_msg_uuids.insert(Uuid::parse_str(&msg_uuid)?);
-    }
 
     let mut conv_rows = conv_stmt.query([])?;
     while let Some(row) = conv_rows.next()? {
@@ -128,12 +118,11 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
             vec![*myself_id, user.id]
         };
 
-        let mut messages = vec![];
+        let mut messages: Vec<Message> = vec![];
 
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
         // TODO: content
-        // TODO: reply to
 
         while let Some(row) = msg_rows.next()? {
             let source_uuid = row.get::<_, String>("id")?;
@@ -152,13 +141,11 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                 vec![]
             };
 
-            let json = LazyCell::new(|| {
-                // This is ugly as we cannot use Result in LazyCell - error is not Clone
-                let json = row.get::<_, String>("json").expect("no json column");
-                let mut json = json.into_bytes();
-                let json = simd_json::to_owned_value(&mut json).expect("json parsing failed");
-                json.try_as_object().expect("json is not an object").clone()
-            });
+            // Parsing JSON unconditionally is expensive but there's no way to get e.g. reply-to message ID without it
+            let json = row.get::<_, String>("json")?;
+            let mut json = json.into_bytes();
+            let json = simd_json::to_borrowed_value(&mut json)?;
+            let json = as_object!(json, "json");
 
             let from_id = match direction.as_str() {
                 "incoming" => user.id(),
@@ -191,14 +178,13 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                     from_id
                 }
                 "profile-change" => {
-                    let json = &(*json);
-                    let profile_change = get_field!(json, "<root>", "profileChange")?;
-                    let profile_change = as_object!(profile_change, "<root>", "profileChange");
-                    let change_type = get_field_str!(profile_change, "profileChange", "type");
+                    const PROFILE_CHANGE_KEY: &str = "profileChange";
+                    let profile_change = get_field_object!(json, "<root>", PROFILE_CHANGE_KEY);
+                    let change_type = get_field_str!(profile_change, PROFILE_CHANGE_KEY, "type");
                     ensure!(change_type == "name", "Unknown profile change type: {change_type}");
 
-                    let old_name = get_field_str!(profile_change, "profileChange", "oldName");
-                    let new_name = get_field_str!(profile_change, "profileChange", "newName");
+                    let old_name = get_field_str!(profile_change, PROFILE_CHANGE_KEY, "oldName");
+                    let new_name = get_field_str!(profile_change, PROFILE_CHANGE_KEY, "newName");
 
                     text = vec!(RichText::make_plain(format!("{old_name} changed name to {new_name}")));
                     service_option = Some(message_service!(ServiceSvo::Notice(MessageServiceNotice {})));
@@ -210,30 +196,43 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                 _ => bail!("Unknown message direction: {direction}"),
             };
 
-            let timestamp = row.get::<_, i64>("sent_at")?;
-            let timestamp = timestamp / 1000;
+            // Note: This is timestamp in millis, not in seconds! This will be fixed later,
+            // as it's needed to resolve replies.
+            let timestamp = get_field_i64!(json, "<root>", "timestamp");
 
             let is_deleted = row.get::<_, i32>("isErased")? == 1;
 
             let typed = if let Some(service) = service_option {
                 service
             } else {
-                let edit_timestamp_option = if edited_msg_uuids.contains(&source_uuid) {
-                    // We do not track message change history, we're only interested in last edit timestamp
-                    let json = &(*json);
-                    const EDIT_TIMESTAMP_KEY: &str = "editMessageTimestamp";
-                    let edit_timestamp = get_field!(json, "<root>", EDIT_TIMESTAMP_KEY)?;
-                    let edit_timestamp = as_i64!(edit_timestamp, "<root>", EDIT_TIMESTAMP_KEY);
-                    Some(edit_timestamp)
-                } else {
-                    None
-                };
+                const EDIT_TIMESTAMP_KEY: &str = "editMessageTimestamp";
+                let edit_timestamp_option =
+                    if let Some(edit_timestamp) = json.get(EDIT_TIMESTAMP_KEY) {
+                        // We do not track message change history, we're only interested in last edit timestamp
+                        let edit_timestamp = as_i64!(edit_timestamp, EDIT_TIMESTAMP_KEY);
+                        Some(edit_timestamp / 1000)
+                    } else { None };
+
+                const QUOTE_KEY: &str = "quote";
+                let reply_to_message_id_option =
+                    if let Some(quote) = json.get(QUOTE_KEY) {
+                        let quote = as_object!(quote, QUOTE_KEY);
+
+                        // No idea why timestamp is stored in "id" field
+                        let reply_to_timestamp = get_field_i64!(quote, QUOTE_KEY, "id");
+
+                        let reply_to = messages.iter().rev()
+                            .take_while(|m| m.timestamp >= reply_to_timestamp)
+                            .find(|m| m.timestamp == reply_to_timestamp);
+
+                        reply_to.map(|m| m.timestamp)
+                    } else { None };
 
                 message_regular! {
                     edit_timestamp_option,
                     is_deleted,
                     forward_from_name_option: None,
-                    reply_to_message_id_option: None,
+                    reply_to_message_id_option,
                     content_option,
                 }
             };
@@ -249,7 +248,10 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
         }
 
         if !messages.is_empty() {
-            messages.iter_mut().enumerate().for_each(|(i, m)| m.internal_id = i as i64);
+            messages.iter_mut().enumerate().for_each(|(i, m)| {
+                m.internal_id = i as i64;
+                m.timestamp = m.timestamp / 1000;
+            });
 
             cwms.push(ChatWithMessages {
                 chat: Chat {
