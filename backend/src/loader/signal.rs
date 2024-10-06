@@ -1,15 +1,24 @@
+///! Huge kudos to https://github.com/tbvdm/sigtop making this implementation possible!
+
 use super::DataLoader;
 use crate::prelude::client::MyselfChooser;
 use crate::prelude::*;
+
+use std::fs;
+use std::path::Path;
 
 use itertools::Itertools;
 
 use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
+use base64::prelude::*;
+use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use hmac::Mac;
 use rusqlite::Connection;
+use simd_json::base::*;
+use simd_json::borrowed::{Object, Value};
 use simd_json::derived::*;
-use std::path::Path;
 use uuid::Uuid;
 
 pub struct SignalDataLoader;
@@ -41,6 +50,23 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
+    const ATTACHMENTS_DIR_NAME: &str = "attachments.noindex";
+
+    let attachments_paths = vec![
+        path.with_file_name(ATTACHMENTS_DIR_NAME),
+        path.parent().unwrap().with_file_name(ATTACHMENTS_DIR_NAME)
+    ];
+
+    let attachments_path =
+        attachments_paths.iter().find(|p| p.is_dir()).map(|p| p.as_path());
+
+    if attachments_path.is_none() {
+        log::warn!("Attachments directory not found, attachments will not be loaded!");
+    }
+
+    let attachments_decrypt_path = attachments_path.map(|p| p.with_file_name("_decrypted"));
+    let attachments_decrypt_path = attachments_decrypt_path.as_ref().map(|p| p.as_path());
+
     if is_encrypted {
         // TODO: encrypted DBs
         bail!("Encrypted Signal databases are not supported yet, decrypt it first!")
@@ -50,15 +76,18 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
 
     let users = parse_users(&conn, &ds.uuid)?;
     let myself_id = get_myself(&conn)?;
-    let cwms = parse_cwms(&conn, &ds.uuid, &users, myself_id)?;
+    let cwms = parse_cwms(&conn, &ds.uuid, &users, myself_id, attachments_path, attachments_decrypt_path)?;
 
     let mut users = users.into_values().collect_vec();
     users.sort_by_key(|u| if u.id == *myself_id { *UserId::MIN } else { u.id });
 
+    // If attachments path is not found, DS root doesn't really matter
+    let ds_root = attachments_decrypt_path.or(path.parent()).unwrap().to_path_buf();
+
     Ok(Box::new(InMemoryDao::new_single(
         format!("{NAME} ({file_name})"),
         ds,
-        path.to_path_buf(),
+        ds_root,
         myself_id,
         users,
         cwms,
@@ -100,10 +129,15 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
     Ok(users)
 }
 
-fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: UserId) -> Result<Vec<ChatWithMessages>> {
+fn parse_cwms(conn: &Connection,
+              ds_uuid: &PbUuid,
+              users: &Users,
+              myself_id: UserId,
+              attachments_path: Option<&Path>,
+              attachments_decrypt_path: Option<&Path>) -> Result<Vec<ChatWithMessages>> {
     let mut cwms = vec![];
 
-    // NOTE: Non-private convesation types (group chats?) are not supported, and it's checked in `parse_users`
+    // NOTE: Non-private conversation types (group chats?) are not supported, and it's checked in `parse_users`
     let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
     let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
     let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
@@ -127,8 +161,7 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
-        // TODO: attachments
-        // TODO: content
+        // TODO: content/attachments
         // TODO: rich text
         // TODO: forwards
 
@@ -140,7 +173,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
             let direction = row.get::<_, String>("type")?;
 
             let mut service_option = None;
-            let mut content_option = None;
 
             let mut text = if let Some(text) = row.get::<_, Option<String>>("body")? {
                 vec![RichText::make_plain(text)]
@@ -232,8 +264,32 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
                             .take_while(|m| m.timestamp >= reply_to_timestamp)
                             .find(|m| m.timestamp == reply_to_timestamp);
 
-                        reply_to.map(|m| m.timestamp)
+                        reply_to.and_then(|m| m.source_id_option)
                     } else { None };
+
+                const ATTACHMENTS_KEY: &str = "attachments";
+                let attachments =
+                    if attachments_path.is_none() {
+                        vec![]
+                    } else if let Some(attachments) = json.get(ATTACHMENTS_KEY) {
+                        parse_attachments(as_array!(attachments, ATTACHMENTS_KEY))?
+                    } else {
+                        vec![]
+                    };
+
+                let mut contents = vec![];
+                for attachment in attachments {
+                    if let Some(c) = decrypt_attachment(attachment, attachments_path.unwrap(), attachments_decrypt_path.unwrap())? {
+                        contents.push(c);
+                    }
+                }
+
+                // FIXME: Use all attachments, not just one!
+                let content_option = if contents.len() > 1 {
+                    Some(Content { sealed_value_optional: contents.into_iter().next() })
+                } else {
+                    None
+                };
 
                 message_regular! {
                     edit_timestamp_option,
@@ -280,6 +336,160 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
     Ok(cwms)
 }
 
+fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> Result<Option<ContentSvo>> {
+    if let Some(path) = decrypt_linked_file(a.name.as_deref(), &a.file_info, src_path, dst_path)? {
+        let path_option = Some(path);
+        let file_name_option = a.name;
+        let mime_type = a.file_info.mime_type;
+        let result = if mime_type.starts_with("image/") {
+            ContentSvo::Photo(ContentPhoto {
+                path_option,
+                width: a.file_info.width.unwrap_or(0),
+                height: a.file_info.height.unwrap_or(0),
+                is_one_time: false,
+            })
+        } else if mime_type.starts_with("video/") {
+            let thumbnail_path_option =
+                if let Some(screenshot) = a.screenshot {
+                    decrypt_linked_file(Some("screenshot"), &screenshot, src_path, dst_path)?
+                } else if let Some(thumbnail) = a.thumbnail {
+                    decrypt_linked_file(Some("thumbnail"), &thumbnail, src_path, dst_path)?
+                } else { None };
+
+            ContentSvo::Video(ContentVideo {
+                path_option,
+                file_name_option,
+                title_option: None,
+                performer_option: None,
+                width: a.file_info.width.unwrap_or(0),
+                height: a.file_info.height.unwrap_or(0),
+                mime_type,
+                duration_sec_option: None,
+                thumbnail_path_option,
+                is_one_time: false,
+            })
+        } else if mime_type.starts_with("audio/") {
+            ContentSvo::VoiceMsg(ContentVoiceMsg {
+                path_option,
+                file_name_option,
+                mime_type,
+                duration_sec_option: None,
+            })
+        } else {
+            bail!("Unsupported attachment MIME type: {mime_type}")
+        };
+        Ok(Some(result))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Returns relative path to decrypted file
+fn decrypt_linked_file(name: Option<&str>,
+                       file_info: &LinkedFileInfo,
+                       src_path: &Path,
+                       dst_path: &Path) -> Result<Option<String>> {
+    if let Some(path) = file_info.path.as_deref() {
+        let full_src_path = src_path.join(path);
+        if !full_src_path.exists() {
+            log::warn!("Attachment not found: {} ({})", name.unwrap_or(UNNAMED), full_src_path.display());
+            return Ok(None);
+        }
+        if !dst_path.is_dir() {
+            fs::create_dir(dst_path)?;
+        }
+
+        let full_dst_path = dst_path.join(path);
+        if !full_dst_path.exists() {
+            log::info!("Decrypting {path}");
+
+            use cipher::*;
+            // Data will be decrypted in-place
+            let mut enc_data = fs::read(full_src_path)?;
+            ensure!(enc_data.len() >= AES_BLOCK_SIZE + SHA256_SIZE, "Attachment data too short");
+
+            let key = file_info.local_key.as_deref().ok_or_else(|| anyhow!("Attachment key not found!"))?;
+            let key = BASE64_STANDARD.decode(key)?;
+            ensure!(key.len() == CIPHER_KEY_SIZE + MAC_KEY_SIZE, "Invalid key length");
+
+            let cipher_key = &key[..CIPHER_KEY_SIZE];
+            let mac_key = &key[CIPHER_KEY_SIZE..];
+
+            let enc_data_len = enc_data.len();
+            let iv = enc_data[..AES_BLOCK_SIZE].to_vec();
+            let their_mac = enc_data[enc_data_len - SHA256_SIZE..].to_vec();
+            let data = &mut enc_data[AES_BLOCK_SIZE..(enc_data_len - SHA256_SIZE)];
+            ensure!(data.len() % AES_BLOCK_SIZE == 0, "Invalid attachment data length");
+
+            let our_mac = {
+                let mut hmac = HmacSha256::new_from_slice(mac_key).expect("HMAC can take key of any size");
+                hmac.update(&iv);
+                hmac.update(data);
+                hmac.finalize()
+            };
+            let our_mac = our_mac.into_bytes();
+            let our_mac = our_mac.as_slice();
+            ensure!(our_mac == &their_mac, "Attachment MAC mismatch");
+
+            let mut dec = Aes256CbcDecryptor::new_from_slices(cipher_key, &iv)
+                .map_err(|_| anyhow!("Invalid attachment key/IV length"))?;
+
+            for data in data.chunks_mut(AES_BLOCK_SIZE) {
+                dec.decrypt_block_mut(Aes256CbcBlock::from_mut_slice(data));
+            }
+
+            fs::create_dir_all(full_dst_path.parent().unwrap())?;
+            fs::write(full_dst_path, data)?;
+        } else {
+            // No cheap way to compare files, so we just assume they're the same
+        }
+
+        Ok(Some(path.to_owned()))
+    } else {
+        Ok(None)
+    }
+}
+
+const ATTACHMENT_KEY: &str = "attachment";
+
+fn parse_attachments(jsons: &[Value]) -> Result<Vec<LinkedAttachment>> {
+    let mut attachments = vec![];
+
+    for json in jsons {
+        let json = as_object!(json, ATTACHMENT_KEY);
+        let attachment = parse_attachment(json)?;
+        attachments.push(attachment);
+    }
+
+    Ok(attachments)
+}
+
+fn parse_attachment(json: &Object) -> Result<LinkedAttachment> {
+    let name =
+        if let Some(name) = json.get("fileName") { as_string_option!(name, "fileName") } else { None };
+    let file_info = parse_linked_file_info(json, ATTACHMENT_KEY)?;
+    let thumbnail = if let Some(thumbnail) = json.get("thumbnail") {
+        Some(parse_linked_file_info(as_object!(thumbnail, ATTACHMENT_KEY),
+                                    &format!("{ATTACHMENT_KEY}.thumbnail"))?)
+    } else { None };
+    let screenshot = if let Some(screenshot) = json.get("screenshot") {
+        Some(parse_linked_file_info(as_object!(screenshot, ATTACHMENT_KEY),
+                                    &format!("{ATTACHMENT_KEY}.screenshot"))?)
+    } else { None };
+    Ok(LinkedAttachment { name, file_info, thumbnail, screenshot })
+}
+
+fn parse_linked_file_info(json: &Object, key: &str) -> Result<LinkedFileInfo> {
+    let mime_type = get_field_string!(json, key, "contentType");
+    let version = json.get("version").and_then(|v| v.as_i32());
+    let path = json.get("path").and_then(|v| v.as_str()).map(|v| v.to_owned());
+    let size = get_field_i64!(json, key, "size") as usize;
+    let local_key = json.get("localKey").and_then(|v| v.as_str()).map(|v| v.to_owned());
+    let width = json.get("width").and_then(|v| v.as_i32());
+    let height = json.get("height").and_then(|v| v.as_i32());
+    Ok(LinkedFileInfo { _version: version, mime_type, path, _size: size, local_key, width, height })
+}
+
 fn get_myself(conn: &Connection) -> Result<UserId> {
     let mut stmt = conn.prepare(r"SELECT * FROM items WHERE id = 'uuid_id'")?;
     let mut rows = stmt.query([])?;
@@ -312,4 +522,43 @@ fn uuid_to_u32(uuid: Uuid) -> Result<u32> {
     ];
     let uuid_parts = uuid_parts.iter().map(|bs| u32::from_le_bytes(*bs)).collect_vec();
     Ok(uuid_parts.iter().cloned().reduce(|a, b| a.wrapping_add(b)).unwrap())
+}
+
+struct LinkedAttachment {
+    name: Option<String>,
+
+    file_info: LinkedFileInfo,
+
+    thumbnail: Option<LinkedFileInfo>,
+    screenshot: Option<LinkedFileInfo>,
+}
+
+struct LinkedFileInfo {
+    _version: Option<i32>,
+    mime_type: String,
+    path: Option<String>,
+    _size: usize,
+    local_key: Option<String>,
+
+    width: Option<i32>,
+    height: Option<i32>,
+}
+
+mod cipher {
+    use aes::cipher::Block;
+    use aes::Aes256;
+    use cbc::Decryptor;
+    use hmac::Hmac;
+    use sha2::Sha256;
+
+    pub const CIPHER_KEY_SIZE: usize = 32;
+    pub const MAC_KEY_SIZE: usize = 32;
+
+    pub const AES_BLOCK_SIZE: usize = 16;
+    pub const SHA256_SIZE: usize = 32;
+
+    pub type HmacSha256 = Hmac<Sha256>;
+
+    pub type Aes256CbcDecryptor = Decryptor<Aes256>;
+    pub type Aes256CbcBlock = Block<Aes256CbcDecryptor>;
 }
