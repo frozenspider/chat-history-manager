@@ -80,7 +80,7 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
         let last_name_option = row.get::<_, Option<String>>("profileFamilyName")?;
         let phone_number_option = row.get::<_, Option<String>>("e164")?;
 
-        users.insert(uuid, User {
+        let user = User {
             ds_uuid: ds_uuid.clone(),
             id: *id,
             first_name_option,
@@ -88,7 +88,13 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
             username_option: None,
             phone_number_option,
             profile_pictures: vec![],
-        });
+        };
+
+        // TODO: group chats
+        let tpe = row.get::<_, String>("type")?;
+        ensure!(tpe == "private", "Only 1-to-1 chats are supported, {} is {tpe}", user.pretty_name());
+
+        users.insert(uuid, user);
     }
 
     Ok(users)
@@ -97,8 +103,7 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
 fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: UserId) -> Result<Vec<ChatWithMessages>> {
     let mut cwms = vec![];
 
-    // TODO: group chats
-    // TODO: attachments
+    // NOTE: Non-private convesation types (group chats?) are not supported, and it's checked in `parse_users`
     let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
     let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
     let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
@@ -122,7 +127,10 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
 
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
+        // TODO: attachments
         // TODO: content
+        // TODO: rich text
+        // TODO: forwards
 
         while let Some(row) = msg_rows.next()? {
             let source_uuid = row.get::<_, String>("id")?;
@@ -134,7 +142,6 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
             let mut service_option = None;
             let mut content_option = None;
 
-            // TODO: rich text
             let mut text = if let Some(text) = row.get::<_, Option<String>>("body")? {
                 vec![RichText::make_plain(text)]
             } else {
@@ -238,7 +245,7 @@ fn parse_cwms(conn: &Connection, ds_uuid: &PbUuid, users: &Users, myself_id: Use
             };
 
             messages.push(Message::new(
-                *NO_INTERNAL_ID,
+                *NO_INTERNAL_ID, // Will be set later
                 Some(source_id),
                 timestamp,
                 from_id,
