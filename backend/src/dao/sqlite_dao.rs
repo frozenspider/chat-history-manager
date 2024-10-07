@@ -177,7 +177,7 @@ impl SqliteDao {
                             let mut raw_chat = utils::chat::serialize(&src_cwd.chat, &raw_ds.uuid)?;
                             if let Some(ref img) = src_cwd.chat.img_path_option {
                                 raw_chat.img_path =
-                                    copy_chat_file(img, &None, &subpaths::ROOT,
+                                    copy_chat_file(img, None, None, &subpaths::ROOT,
                                                    src_cwd.chat.id, &src_ds_root, &dst_ds_root)?;
                             }
                             insert_into(chat::table).values(raw_chat).execute(txn)?;
@@ -898,7 +898,7 @@ impl MutableChatHistoryDao for SqliteDao {
     fn insert_chat(&mut self, mut chat: Chat, src_ds_root: &DatasetRoot) -> Result<Chat> {
         if let Some(ref img) = chat.img_path_option {
             let dst_ds_root = self.dataset_root(&chat.ds_uuid)?;
-            chat.img_path_option = copy_chat_file(img, &None, &subpaths::ROOT,
+            chat.img_path_option = copy_chat_file(img, None, None, &subpaths::ROOT,
                                                   chat.id, src_ds_root, &dst_ds_root)?;
         }
 
@@ -1214,7 +1214,8 @@ mod subpaths {
 }
 
 fn copy_file(src_file: &Path,
-             thumbnail_dst_main_path: &Option<String>,
+             src_mime: Option<&str>,
+             thumbnail_dst_main_path: Option<&str>,
              subpath_prefix: &str,
              subpath: &Subpath,
              dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
@@ -1222,20 +1223,31 @@ fn copy_file(src_file: &Path,
     let src_meta = fs::metadata(src_file);
     if let Ok(src_meta) = src_meta {
         ensure!(src_meta.is_file(), "Not a file: {src_absolute_path}");
-        let ext_suffix = src_file.extension().map(|ext| format!(".{}", ext.to_str().unwrap())).unwrap_or_default();
+
+        let ext =
+            if let Some(ext) = src_mime.and_then(mime2ext::mime2ext) {
+                Some(ext)
+            } else if let Some(ext) = src_file.extension() {
+                Some(ext.to_str().unwrap())
+            } else {
+                None
+            };
+        let ext_suffix = ext.map(|ext| format!(".{ext}")).unwrap_or_default();
 
         let dst_rel_path: String =
             if let Some(main_path) = thumbnail_dst_main_path {
                 let full_name = main_path.rsplit('/').next().unwrap();
-                format!("{}{full_name}_thumb{ext_suffix}", main_path.as_str().smart_slice(..-(full_name.len() as i32)))
+                format!("{}{full_name}_thumb{ext_suffix}", main_path.smart_slice(..-(full_name.len() as i32)))
             } else {
                 let inner_path = if subpath.use_hashing {
                     let hash = file_hash(src_file)?;
                     // Using first two characters of hash as a prefix for better file distribution, same what git does
                     let (prefix, name) = hash.split_at(2);
                     format!("{prefix}/{name}{ext_suffix}")
+                } else if let Some(ext) = ext {
+                    path_file_name(&src_file.with_extension(ext)).unwrap().to_owned()
                 } else {
-                    src_file.file_name().unwrap().to_str().unwrap().to_owned()
+                    path_file_name(src_file).unwrap().to_owned()
                 };
                 format!("{subpath_prefix}/{}/{inner_path}", subpath.path_fragment)
             };
@@ -1259,19 +1271,21 @@ fn copy_file(src_file: &Path,
 }
 
 fn copy_chat_file(src_rel_path: &str,
-                  thumbnail_dst_main_path: &Option<String>,
+                  src_mime: Option<&str>,
+                  thumbnail_dst_main_path: Option<&str>,
                   subpath: &Subpath,
                   chat_id: i64,
                   src_ds_root: &DatasetRoot,
                   dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
-    copy_file(&src_ds_root.to_absolute(src_rel_path), thumbnail_dst_main_path,
+    copy_file(&src_ds_root.to_absolute(src_rel_path), src_mime, thumbnail_dst_main_path,
               &chat_root_rel_path(chat_id), subpath, dst_ds_root)
 }
 
 fn copy_user_profile_pic(src_file: &Path,
+                         src_mime: Option<&str>,
                          user_id: UserId,
                          dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
-    copy_file(src_file, &None,
+    copy_file(src_file, src_mime, None,
               &user_root_rel_path(user_id), &subpaths::PROFILE_PICTURES, dst_ds_root)
 }
 

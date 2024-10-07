@@ -145,7 +145,7 @@ pub mod user {
                                   frame: Option<&PictureFrame>,
                                   idx: usize,
                                   dst_ds_root: &DatasetRoot) -> Result<RawProfilePicture> {
-            let new_path = sqlite_dao::copy_user_profile_pic(path, user_id, &dst_ds_root)?
+            let new_path = sqlite_dao::copy_user_profile_pic(path, None, user_id, &dst_ds_root)?
                 .expect("Filter out non-existent paths first!");
             Ok(RawProfilePicture {
                 ds_uuid: raw_ds_uuid.to_vec(),
@@ -364,16 +364,16 @@ pub mod message {
                                         dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         use content::SealedValueOptional::*;
         macro_rules! copy_path {
-            ($obj:ident.$field:ident, $thumb:expr, $subpath:expr) => {
+            ($obj:ident.$field:ident, $mime:expr, $thumb:expr, $subpath:expr) => {
                 $obj.$field.as_ref().map(|v|
-                    sqlite_dao::copy_chat_file(&v, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
+                    sqlite_dao::copy_chat_file(&v, $mime, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
                 ).transpose()?.flatten()
             };
         }
         Ok(match mc {
             Sticker(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::STICKERS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::STICKERS);
+                let path = copy_path!(v.path_option, None, None, &subpaths::STICKERS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::STICKERS);
                 RawMessageContent {
                     element_type: "sticker".to_owned(),
                     path,
@@ -387,7 +387,7 @@ pub mod message {
             }
             Photo(v) => serialize_photo_and_copy_files(v, chat_id, src_ds_root, dst_ds_root)?,
             VoiceMsg(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VOICE_MESSAGES);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VOICE_MESSAGES);
                 RawMessageContent {
                     element_type: "voice_message".to_owned(),
                     path,
@@ -398,8 +398,8 @@ pub mod message {
                 }
             }
             Audio(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::AUDIOS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::AUDIOS);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::AUDIOS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::AUDIOS);
                 RawMessageContent {
                     element_type: "audio".to_owned(),
                     path,
@@ -413,8 +413,8 @@ pub mod message {
                 }
             }
             VideoMsg(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VIDEO_MESSAGES);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::VIDEO_MESSAGES);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VIDEO_MESSAGES);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::VIDEO_MESSAGES);
                 RawMessageContent {
                     element_type: "video_message".to_owned(),
                     path,
@@ -429,8 +429,8 @@ pub mod message {
                 }
             }
             Video(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VIDEOS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::VIDEOS);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VIDEOS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::VIDEOS);
                 RawMessageContent {
                     element_type: "video".to_owned(),
                     path,
@@ -447,8 +447,8 @@ pub mod message {
                 }
             }
             File(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::FILES);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::FILES);
+                let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::FILES);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::FILES);
                 RawMessageContent {
                     element_type: "file".to_owned(),
                     path,
@@ -473,7 +473,7 @@ pub mod message {
                 ..Default::default()
             },
             SharedContact(v) => {
-                let path = copy_path!(v.vcard_path_option, &None, &subpaths::FILES);
+                let path = copy_path!(v.vcard_path_option, None, None, &subpaths::FILES);
                 RawMessageContent {
                     element_type: "shared_contact".to_owned(),
                     path,
@@ -491,7 +491,7 @@ pub mod message {
                                       src_ds_root: &DatasetRoot,
                                       dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         let path = photo.path_option.as_ref().map(|path|
-            sqlite_dao::copy_chat_file(path, &None, &subpaths::PHOTOS,
+            sqlite_dao::copy_chat_file(path, None, None, &subpaths::PHOTOS,
                                        chat_id, src_ds_root, dst_ds_root)
         ).transpose()?.flatten();
         Ok(RawMessageContent {
