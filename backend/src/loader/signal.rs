@@ -9,7 +9,6 @@ use std::path::Path;
 
 use itertools::Itertools;
 
-use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use base64::prelude::*;
@@ -82,7 +81,7 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     users.sort_by_key(|u| if u.id == *myself_id { *UserId::MIN } else { u.id });
 
     // If attachments path is not found, DS root doesn't really matter
-    let ds_root = attachments_decrypt_path.or(path.parent()).unwrap().to_path_buf();
+    let ds_root = attachments_decrypt_path.unwrap_or(path).parent().unwrap().to_path_buf();
 
     Ok(Box::new(InMemoryDao::new_single(
         format!("{NAME} ({file_name})"),
@@ -161,7 +160,6 @@ fn parse_cwms(conn: &Connection,
 
         let mut msg_rows = msg_stmt.query([chat_uuid_string])?;
 
-        // TODO: content/attachments
         // TODO: rich text
         // TODO: forwards
 
@@ -284,19 +282,12 @@ fn parse_cwms(conn: &Connection,
                     }
                 }
 
-                // FIXME: Use all attachments, not just one!
-                let content_option = if contents.len() > 1 {
-                    Some(Content { sealed_value_optional: contents.into_iter().next() })
-                } else {
-                    None
-                };
-
                 message_regular! {
                     edit_timestamp_option,
                     is_deleted,
                     forward_from_name_option: None,
                     reply_to_message_id_option,
-                    content_option,
+                    contents,
                 }
             };
 
@@ -336,16 +327,17 @@ fn parse_cwms(conn: &Connection,
     Ok(cwms)
 }
 
-fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> Result<Option<ContentSvo>> {
+fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> Result<Option<Content>> {
     if let Some(path) = decrypt_linked_file(a.name.as_deref(), &a.file_info, src_path, dst_path)? {
         let path_option = Some(path);
         let file_name_option = a.name;
         let mime_type = a.file_info.mime_type;
         let result = if mime_type.starts_with("image/") {
-            ContentSvo::Photo(ContentPhoto {
+            content!(Photo {
                 path_option,
                 width: a.file_info.width.unwrap_or(0),
                 height: a.file_info.height.unwrap_or(0),
+                mime_type_option: Some(mime_type),
                 is_one_time: false,
             })
         } else if mime_type.starts_with("video/") {
@@ -356,7 +348,7 @@ fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> 
                     decrypt_linked_file(Some("thumbnail"), &thumbnail, src_path, dst_path)?
                 } else { None };
 
-            ContentSvo::Video(ContentVideo {
+            content!(Video {
                 path_option,
                 file_name_option,
                 title_option: None,
@@ -369,7 +361,7 @@ fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> 
                 is_one_time: false,
             })
         } else if mime_type.starts_with("audio/") {
-            ContentSvo::VoiceMsg(ContentVoiceMsg {
+            content!(VoiceMsg {
                 path_option,
                 file_name_option,
                 mime_type,
@@ -444,7 +436,8 @@ fn decrypt_linked_file(name: Option<&str>,
             // No cheap way to compare files, so we just assume they're the same
         }
 
-        Ok(Some(path.to_owned()))
+
+        Ok(Some(format!("{}/{path}", path_file_name(dst_path)?)))
     } else {
         Ok(None)
     }
