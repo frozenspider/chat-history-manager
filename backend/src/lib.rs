@@ -32,6 +32,7 @@ pub mod prelude {
     pub use chat_history_manager_core::message_service;
     pub use chat_history_manager_core::message_service_pat;
     pub use chat_history_manager_core::message_service_pat_unreachable;
+    pub use chat_history_manager_core::content;
     pub use chat_history_manager_core::utils::entity_utils::*;
 }
 

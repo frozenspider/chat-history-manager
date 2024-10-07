@@ -169,7 +169,7 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
 
                 last_internal_id = MessageInternalId(*last_internal_id + 1);
 
-                let (text, content_option) = parse_message_text(&lines)?;
+                let (text, contents) = parse_message_text(&lines)?;
                 result.push(Message::new(
                     *last_internal_id,
                     None /* source_id_option */,
@@ -181,7 +181,7 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
                         is_deleted: false,
                         forward_from_name_option: None,
                         reply_to_message_id_option: None,
-                        content_option,
+                        contents,
                     },
                 ));
                 user_id = None;
@@ -193,23 +193,20 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
     Ok(result)
 }
 
-fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Content>)> {
-    use content::SealedValueOptional::*;
-
+fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Vec<Content>)> {
     let (lines, content) = if let Some(attachment_captures) = ATTACHED_FILE_REGEX.captures(lines[0]) {
         // First line describes attached file, determine the type
         let tpe = attachment_captures.get(2).unwrap().as_str();
         let filename = attachment_captures.get(1).unwrap().as_str();
 
-
         let content_value = match tpe {
-            "IMG" => Photo(ContentPhoto {
+            "IMG" => content!(Photo {
                 path_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
                 is_one_time: false,
             }),
-            "STK" => Sticker(ContentSticker {
+            "STK" => content!(Sticker {
                 path_option: Some(filename.to_owned()),
                 file_name_option: Some(filename.to_owned()),
                 width: 0,
@@ -219,7 +216,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             }),
             "VID" => {
                 ensure!(filename.ends_with(".mp4"), "Unexpected video file extension: {}", filename);
-                Video(ContentVideo {
+                content!(Video {
                     path_option: Some(filename.to_owned()),
                     file_name_option: Some(filename.to_owned()),
                     title_option: None,
@@ -234,7 +231,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             }
             "AUD" => {
                 ensure!(filename.ends_with(".opus"), "Unexpected audio file extension: {}", filename);
-                VoiceMsg(ContentVoiceMsg {
+                content!(VoiceMsg {
                     path_option: Some(filename.to_owned()),
                     file_name_option: Some(filename.to_owned()),
                     mime_type: "audio/ogg".to_owned(),
@@ -244,17 +241,17 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             _ => bail!("Unknown file type: {}", filename)
         };
 
-        (&lines[1..], Some(Content { sealed_value_optional: Some(content_value) }))
+        (&lines[1..], Some(content_value))
     } else if lines[0] == "null" || lines[0] == "<Media omitted>" {
         // File wasn't present - e.g. one-time photo/video.
         // Since we don't know the type, represent it as a missing file.
-        let content_value = File(ContentFile {
+        let content_value = content!(File {
             path_option: None,
             file_name_option: None,
             mime_type_option: None,
             thumbnail_path_option: None,
         });
-        (&lines[1..], Some(Content { sealed_value_optional: Some(content_value) }))
+        (&lines[1..], Some(content_value))
     } else {
         (lines, None)
     };
@@ -266,7 +263,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
         vec![RichText::make_plain(text)]
     };
 
-    Ok((rtes, content))
+    Ok((rtes, content.into_iter().collect_vec()))
 }
 
 /// Datetime formats used by WhatsApp:

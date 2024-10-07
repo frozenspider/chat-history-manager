@@ -121,7 +121,7 @@ impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
                 let from_id = if &row.get::<_, String>("from_id")? == key { user.id() } else { MYSELF_ID };
 
                 let text = row.get::<_, String>("text")?;
-                let (text, content_option) = if text.starts_with("https://media.tenor.com/") {
+                let (text, contents) = if text.starts_with("https://media.tenor.com/") {
                     // This is a GIF, let's download it and include it as a sticker.
                     // Example: https://media.tenor.com/mYFQztB4EHoAAAAM/house-hugh-laurie.gif?width=220&height=226
                     let hash = hash_to_id(&text);
@@ -132,18 +132,18 @@ impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
                         (split.iter().find(|s| s.starts_with("width=")).map(|s| s[6..].parse()).unwrap_or(Ok(0))?,
                          split.iter().find(|s| s.starts_with("height=")).map(|s| s[7..].parse()).unwrap_or(Ok(0))?)
                     };
-                    (vec![], Some(Content {
-                        sealed_value_optional: Some(content::SealedValueOptional::Sticker(ContentSticker {
+                    (vec![], vec![
+                        content!(Sticker {
                             path_option: Some(format!("{RELATIVE_MEDIA_DIR}/{file_name}")),
                             file_name_option: Some(file_name),
                             width: width * 2,
                             height: height * 2,
                             thumbnail_path_option: None,
                             emoji_option: None,
-                        }))
-                    }))
+                        })
+                    ])
                 } else {
-                    (vec![RichText::make_plain(text)], None)
+                    (vec![RichText::make_plain(text)], vec![])
                 };
 
                 messages.push(Message::new(
@@ -157,7 +157,7 @@ impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
                         is_deleted: false,
                         forward_from_name_option: None,
                         reply_to_message_id_option: None,
-                        content_option,
+                        contents,
                     },
                 ));
             }

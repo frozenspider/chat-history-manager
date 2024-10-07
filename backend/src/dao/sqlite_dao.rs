@@ -232,11 +232,11 @@ impl SqliteDao {
         }, |_, t| log::info!("Dao '{}' fully copied {t} ms", src.name()))
     }
 
-    fn fetch_messages<F>(&self, get_raw_messages_with_content: F) -> Result<Vec<Message>>
-        where F: Fn(&mut SqliteConnection) -> Result<Vec<(RawMessage, Option<RawMessageContent>)>>
+    fn fetch_messages<F>(&self, get_raw_messages: F) -> Result<Vec<Message>>
+        where F: Fn(&mut SqliteConnection) -> Result<Vec<RawMessage>>
     {
         let mut conn = self.get_conn()?;
-        utils::message::fetch(&mut conn, get_raw_messages_with_content)
+        utils::message::fetch(&mut conn, get_raw_messages)
     }
 
     fn copy_messages(&self,
@@ -269,8 +269,8 @@ impl SqliteDao {
         let mut raw_mcs = vec![];
         let mut raw_rtes = vec![];
         for (mut raw, internal_id) in full_raw_msgs.into_iter().zip(internal_ids) {
-            if let Some(mut mc) = raw.mc {
-                mc.message_internal_id = internal_id;
+            for mut mc in raw.mc.into_iter() {
+                mc.message_internal_id = Some(internal_id);
                 raw_mcs.push(mc);
             }
 
@@ -392,10 +392,9 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .filter(message::columns::chat_id.eq(chat.id))
                 .order_by(message::columns::internal_id.asc())
-                .left_join(message_content::table)
                 .offset(offset as i64)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })
     }
@@ -408,9 +407,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .filter(message::columns::chat_id.eq(chat.id))
                 .order_by(message::columns::internal_id.desc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })?;
         msgs.reverse();
@@ -426,9 +424,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::internal_id.lt(*msg_id))
                 .order_by(message::columns::internal_id.desc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })?;
         msgs.reverse();
@@ -444,9 +441,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::internal_id.gt(*msg_id))
                 .order_by(message::columns::internal_id.asc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })
     }
@@ -468,9 +464,8 @@ impl ChatHistoryDao for SqliteDao {
                     .filter(message::columns::internal_id.ge(*first_id))
                     .filter(message::columns::internal_id.le(*msg2_id))
                     .order_by(message::columns::internal_id.asc())
-                    .left_join(message_content::table)
                     .limit(BATCH_SIZE as i64)
-                    .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                    .select(RawMessage::as_select())
                     .load(conn)?)
             })
         };
@@ -502,9 +497,8 @@ impl ChatHistoryDao for SqliteDao {
                         .filter(message::columns::chat_id.eq(chat.id))
                         .filter($cond)
                         .order_by(message::columns::internal_id.$order())
-                        .left_join(message_content::table)
                         .limit($limit as i64)
-                        .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                        .select(RawMessage::as_select())
                         .load(conn)?)
                 })
             };
@@ -556,9 +550,8 @@ impl ChatHistoryDao for SqliteDao {
             Ok(message::table
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::source_id.eq(Some(*source_id)))
-                .left_join(message_content::table)
                 .limit(1)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         }).map(|mut v| v.pop())
     }

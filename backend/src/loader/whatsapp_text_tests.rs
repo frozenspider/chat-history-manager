@@ -148,14 +148,14 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Photo(ContentPhoto {
+                contents: vec![
+                    content!(Photo {
                         path_option: Some("IMG-20230630-WA0000.jpg".to_owned()),
                         width: 0,
                         height: 0,
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[5], Message {
@@ -170,8 +170,8 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Video(ContentVideo {
+                contents: vec![
+                    content!(Video {
                         path_option: Some("VID-20230630-WA0001.mp4".to_owned()),
                         file_name_option: Some("VID-20230630-WA0001.mp4".to_owned()),
                         title_option: None,
@@ -182,8 +182,8 @@ fn loading_2023_10() -> EmptyRes {
                         duration_sec_option: None,
                         thumbnail_path_option: None,
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[6], Message {
@@ -198,14 +198,14 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(VoiceMsg(ContentVoiceMsg {
+                contents: vec![
+                    content!(VoiceMsg {
                         path_option: Some("AUD-20230630-WA0002.opus".to_owned()),
                         file_name_option: Some("AUD-20230630-WA0002.opus".to_owned()),
                         mime_type: "audio/ogg".to_owned(),
                         duration_sec_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[7], Message {
@@ -220,16 +220,16 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Sticker(ContentSticker {
+                contents: vec![
+                    content!(Sticker {
                         path_option: Some("STK-20230630-WA0003.webp".to_owned()),
                         file_name_option: Some("STK-20230630-WA0003.webp".to_owned()),
                         width: 0,
                         height: 0,
                         thumbnail_path_option: None,
                         emoji_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[8], Message {
@@ -244,9 +244,7 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(FILE_UNAVAILABLE.clone())
-                }),
+                contents: vec![FILE_UNAVAILABLE.clone()],
             }),
         });
         assert_eq!(msgs[9], Message {
@@ -261,9 +259,7 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(FILE_UNAVAILABLE.clone())
-                }),
+                contents: vec![FILE_UNAVAILABLE.clone()],
             }),
         });
     }
@@ -287,7 +283,7 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
 }
 
 lazy_static! {
-    static ref FILE_UNAVAILABLE: content::SealedValueOptional = File(ContentFile {
+    static ref FILE_UNAVAILABLE: Content = content!(File {
         path_option: None,
         file_name_option: None,
         mime_type_option: None,

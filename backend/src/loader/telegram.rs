@@ -11,7 +11,6 @@ use regex::Regex;
 use simd_json::borrowed::Object;
 use simd_json::BorrowedValue;
 use simd_json::prelude::*;
-
 use crate::dao::in_memory_dao::InMemoryDao;
 use crate::loader::DataLoader;
 use crate::prelude::*;
@@ -631,8 +630,6 @@ fn parse_message(json_path: &str,
 
 fn parse_regular_message(message_json: &mut MessageJson,
                          regular_msg: &mut MessageRegular) -> EmptyRes {
-    use content::SealedValueOptional;
-
     let json_path = message_json.json_path.clone();
 
     // Telegram has been observed to use 1970-ish edit times, probably signifying message not being edited
@@ -669,7 +666,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
     // Helpers to reduce boilerplate, since we can't have match guards for separate pattern arms.
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
-        Ok(Some(SealedValueOptional::Audio(ContentAudio {
+        Ok(Some(content!(Audio {
             path_option: message_json.field_opt_path("file")?,
             file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
@@ -680,7 +677,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         })))
     };
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
-        Ok(Some(SealedValueOptional::Video(ContentVideo {
+        Ok(Some(content!(Video {
             path_option: message_json.field_opt_path("file")?,
             file_name_option: message_json.field_opt_str("file_name")?,
             title_option: message_json.field_opt_str("title")?,
@@ -694,17 +691,17 @@ fn parse_regular_message(message_json: &mut MessageJson,
         })))
     };
 
-    let content_val: Option<SealedValueOptional> = match (media_type_option.as_deref(),
-                                                          photo_option.as_deref(),
-                                                          file_present,
-                                                          loc_present,
-                                                          poll_question_present,
-                                                          contact_info_present) {
+    let content_val: Option<Content> = match (media_type_option.as_deref(),
+                                              photo_option.as_deref(),
+                                              file_present,
+                                              loc_present,
+                                              poll_question_present,
+                                              contact_info_present) {
         (None, None, false, false, false, false) => None,
         (Some("sticker"), None, true, false, false, false) => {
             // Ignoring animated sticker duration
             message_json.add_optional("duration_seconds");
-            Some(SealedValueOptional::Sticker(ContentSticker {
+            Some(content!(Sticker {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_opt_i32("width")?.unwrap_or_default(),
@@ -714,7 +711,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             }))
         }
         (Some("voice_message"), None, true, false, false, false) =>
-            Some(SealedValueOptional::VoiceMsg(ContentVoiceMsg {
+            Some(content!(VoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type: mime_type_option.unwrap(),
@@ -725,7 +722,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("audio/")) =>
             make_content_audio(message_json)?,
         (Some("video_message"), None, true, false, false, false) =>
-            Some(SealedValueOptional::VideoMsg(ContentVideoMsg {
+            Some(content!(VideoMsg {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_i32("width")?,
@@ -736,7 +733,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 is_one_time: false,
             })),
         (Some("animation"), None, true, false, false, false) =>
-            Some(SealedValueOptional::Video(ContentVideo {
+            Some(content!(Video {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 title_option: None,
@@ -756,7 +753,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             // Ignoring dimensions of downloadable image
             message_json.add_optional("width");
             message_json.add_optional("height");
-            Some(SealedValueOptional::File(ContentFile {
+            Some(content!(File {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type_option,
@@ -767,7 +764,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
             match self_destruct {
                 None => {
-                    Some(SealedValueOptional::Photo(ContentPhoto {
+                    Some(content!(Photo {
                         path_option: message_json.field_opt_path("photo")?,
                         width: message_json.field_i32("width")?,
                         height: message_json.field_i32("height")?,
@@ -778,7 +775,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                     // Path is necessarily None
                     ensure!(message_json.field_opt_path("photo")?.is_none(),
                             "Photo path was present for self-destructing photo");
-                    Some(SealedValueOptional::Photo(ContentPhoto {
+                    Some(content!(Photo {
                         path_option: None,
                         width: 0,
                         height: 0,
@@ -794,7 +791,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 (loc_info.get("latitude").context("Latitude not found!")?.to_string(),
                  loc_info.get("longitude").context("Longitude not found!")?.to_string())
             };
-            Some(SealedValueOptional::Location(ContentLocation {
+            Some(content!(Location {
                 title_option: message_json.field_opt_str("place_name")?,
                 address_option: message_json.field_opt_str("address")?,
                 lat_str,
@@ -807,7 +804,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 let poll_info = as_object!(message_json.field("poll")?, json_path, "poll");
                 get_field_string!(poll_info, json_path, "question")
             };
-            Some(SealedValueOptional::Poll(ContentPoll { question }))
+            Some(content!(Poll { question }))
         }
         (None, None, false, false, false, true) => {
             let (
@@ -829,7 +826,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             {
                 bail!("Shared contact had no information whatsoever!");
             }
-            Some(SealedValueOptional::SharedContact(ContentSharedContact {
+            Some(content!(SharedContact {
                 first_name_option,
                 last_name_option,
                 phone_number_option,
@@ -839,7 +836,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         _ => bail!("Couldn't determine content type for '{:?}'", message_json.val)
     };
 
-    regular_msg.content_option = content_val.map(|v| Content { sealed_value_optional: Some(v) });
+    regular_msg.contents = content_val.into_iter().collect_vec();
     Ok(())
 }
 

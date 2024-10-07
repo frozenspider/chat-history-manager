@@ -4,7 +4,6 @@ use chrono::prelude::*;
 use pretty_assertions::assert_eq;
 
 use crate::dao::ChatHistoryDao;
-use crate::protobuf::history::content::SealedValueOptional::*;
 use crate::protobuf::history::message::*;
 use crate::protobuf::history::message_service::SealedValueOptional::*;
 use crate::protobuf::history::User;
@@ -274,7 +273,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
 
@@ -295,7 +294,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -310,14 +309,14 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(SharedContact(ContentSharedContact {
+                contents: vec![
+                    content!(SharedContact {
                         first_name_option: myself.first_name_option.to_owned(),
                         last_name_option: None,
                         phone_number_option: Some(myself.phone_number_option.to_owned().unwrap()),
                         vcard_path_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
     };
@@ -517,7 +516,7 @@ fn loading_2023_01() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -639,7 +638,7 @@ fn loading_2023_08() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
     };
@@ -706,8 +705,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Audio(ContentAudio {
+                contents: vec![
+                    content!(Audio {
                         path_option: Some("audio_file.mp3".to_owned()),
                         file_name_option: None, // Old format
                         title_option: None,
@@ -715,8 +714,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         mime_type: "audio/mpeg".to_owned(),
                         duration_sec_option: None,
                         thumbnail_path_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[1], Message {
@@ -731,8 +730,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Audio(ContentAudio {
+                contents: vec![
+                    content!(Audio {
                         path_option: Some("audio_file.mp3".to_owned()),
                         file_name_option: None, // Old format
                         title_option: Some("Song Name".to_string()),
@@ -740,8 +739,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         mime_type: "audio/mpeg".to_owned(),
                         duration_sec_option: Some(123),
                         thumbnail_path_option: Some("audio_file.mp3_thumb.jpg".to_owned()),
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[2], Message {
@@ -756,8 +755,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Video(ContentVideo {
+                contents: vec![
+                    content!(Video {
                         path_option: Some("video_file.mp4".to_owned()),
                         file_name_option: None, // Old format
                         title_option: None,
@@ -768,8 +767,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         duration_sec_option: Some(111),
                         thumbnail_path_option: Some("video_file.mp4_thumb.jpg".to_owned()),
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -784,8 +783,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Video(ContentVideo {
+                contents: vec![
+                    content!(Video {
                         path_option: Some("video_file.mp4".to_owned()),
                         file_name_option: None, // Old format
                         title_option: Some("Clip Name".to_string()),
@@ -796,8 +795,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         duration_sec_option: Some(111),
                         thumbnail_path_option: Some("video_file.mp4_thumb.jpg".to_owned()),
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
     };
@@ -879,7 +878,7 @@ fn loading_2024_02() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: Some("Forwarded From Name".to_owned()),
             reply_to_message_id_option: None,
-            content_option: None,
+            contents: vec![],
         }),
     });
 
@@ -911,14 +910,14 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: Some(Content {
-                sealed_value_optional: Some(File(ContentFile {
+            contents: vec![
+                content!(File {
                     path_option: None,
                     file_name_option: Some("my-file.jpg".to_owned()),
                     mime_type_option: Some("image/jpeg".to_owned()),
                     thumbnail_path_option: None,
-                }))
-            }),
+                })
+            ],
         }),
     });
 
@@ -934,16 +933,16 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: Some(Content {
-                sealed_value_optional: Some(Sticker(ContentSticker {
+            contents: vec![
+                content!(Sticker {
                     path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
                     file_name_option: Some("sticker.webm".to_owned()),
                     width: 0, // Not known!
                     height: 0, // Not known!
                     thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
                     emoji_option: Some("😱".to_owned()),
-                }))
-            }),
+                })
+            ],
         }),
     });
 
@@ -984,7 +983,7 @@ fn loading_2024_06() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: None,
+            contents: vec![],
         }),
     });
 
@@ -1015,7 +1014,7 @@ fn loading_2024_08() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: None,
+            contents: vec![],
         }),
     });
 
@@ -1031,7 +1030,7 @@ fn loading_2024_08() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: None,
+            contents: vec![],
         }),
     });
 
@@ -1059,14 +1058,14 @@ fn loading_2024_08() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-            content_option: Some(Content {
-                sealed_value_optional: Some(Photo(ContentPhoto {
+            contents: vec![
+                content!(Photo {
                     path_option: None,
                     width: 0,
                     height: 0,
                     is_one_time: true,
-                }))
-            })
+                })
+            ],
         }),
     });
 

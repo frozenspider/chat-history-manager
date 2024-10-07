@@ -126,7 +126,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                 // TODO: if created_timestamp <> modified_timestamp, does it really mean message was edited?
 
                 // While URLs are known, following them without setting headers results in 403.
-                let (text, content_option) = {
+                let (text, contents) = {
                     let payload_json = row.get::<_, String>("payload")?;
                     let mut payload_bytes_vec = payload_json.as_bytes().to_vec();
                     let parsed = simd_json::to_borrowed_value(&mut payload_bytes_vec)
@@ -140,19 +140,19 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                                     "Unexpected payload format for reaction to photo: {}", payload_json);
                             let message = get_field_str!(root_obj, "message", "message");
                             let emoji = get_field_str!(root_obj, "emoji_reaction", "emoji_reaction");
-                            (vec![RichText::make_plain(format!("{message}: {emoji}"))], None)
+                            (vec![RichText::make_plain(format!("{message}: {emoji}"))], vec![])
                         }
                         "AUDIO" => {
                             ensure!(keys == HashSet::from(["id", "waveform", "url", "duration", "expiration_timestamp"]),
                                     "Unexpected payload format for audio message: {}", payload_json);
                             let duration_ms = get_field!(root_obj, "duration", "duration")?;
                             let duration_sec_option = Some(duration_ms.try_as_i32()? / 1000);
-                            (vec![], Some(content::SealedValueOptional::VoiceMsg(ContentVoiceMsg {
+                            (vec![], vec![content!(VoiceMsg {
                                 path_option: None,
                                 file_name_option: None,
                                 mime_type: "".to_string(),
                                 duration_sec_option,
-                            })))
+                            })])
                         }
                         "TEXT" => {
                             ensure!(keys == HashSet::from(["text", "type", "substitute_id"]),
@@ -160,13 +160,13 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                             match get_field_str!(root_obj, "type", "type") {
                                 "TEXT" => {
                                     let text = get_field_string!(root_obj, "text", "text");
-                                    (vec![RichText::make_plain(text)], None)
+                                    (vec![RichText::make_plain(text)], vec![])
                                 }
                                 "SMILE" => {
                                     // This is an auto-generated message, let's mark it as such
                                     let text = get_field_string!(root_obj, "text", "text");
                                     (vec![RichText::make_italic("(Auto-generated message)\n".to_owned()),
-                                          RichText::make_plain(text)], None)
+                                          RichText::make_plain(text)], vec![])
                                 }
                                 etc => bail!("Unexpected message type {etc}!")
                             }
@@ -174,7 +174,6 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                         etc => bail!("Unexpected payload type {etc}!")
                     }
                 };
-                let content_option = content_option.map(|c| Content { sealed_value_optional: Some(c) });
 
                 messages.push(Message::new(
                     *NO_INTERNAL_ID,
@@ -187,7 +186,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                         is_deleted: false,
                         forward_from_name_option: None,
                         reply_to_message_id_option,
-                        content_option,
+                        contents,
                     },
                 ));
             }

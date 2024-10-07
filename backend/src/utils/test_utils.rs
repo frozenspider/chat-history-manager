@@ -33,7 +33,7 @@ lazy_static! {
         is_deleted: false,
         forward_from_name_option: None,
         reply_to_message_id_option: None,
-        content_option: None,
+        contents: vec![],
     };
 }
 
@@ -324,11 +324,9 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
         is_deleted: false,
         reply_to_message_id_option: reply_to_message_id_option,
         forward_from_name_option: Some(format!("u{user_id}")),
-        content_option: Some(Content {
-            sealed_value_optional: Some(
-                content::SealedValueOptional::Poll(ContentPoll { question: format!("Hey, {idx}!") })
-            )
-        }),
+        contents: vec![
+            content!(Poll { question: format!("Hey, {idx}!") })
+        ],
     };
 
     let text = vec![RichText::make_plain(format!("Hello there, {idx}!"))];
@@ -465,24 +463,6 @@ impl MsgVec for Vec<Message> {
             }
             m => m
         }).collect_vec()
-    }
-}
-
-
-impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>>
-where
-        for<'b> PracticalEqTuple<'a, T>: PracticalEq,
-{
-    fn practically_equals(&self, other: &Self) -> Result<bool> {
-        if self.v.len() != other.v.len() {
-            return Ok(false);
-        }
-        for (v1, v2) in self.v.iter().zip(other.v.iter()) {
-            if !self.with(v1).practically_equals(&other.with(v2))? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
     }
 }
 

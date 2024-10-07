@@ -225,8 +225,7 @@ pub mod chat {
                 Ok(message::fetch(conn, |conn| {
                     Ok(schema::message::table
                         .filter(schema::message::columns::internal_id.eq(last_message_internal_id))
-                        .left_join(schema::message_content::table)
-                        .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                        .select(RawMessage::as_select())
                         .load(conn)?)
                 })?.remove(0))
             }))?;
@@ -272,29 +271,38 @@ pub mod message {
     // clousre, typechecker went into infinite recursion.
     // As such, more boilerplate is needed now.
     pub fn fetch<F>(conn: &mut SqliteConnection,
-                    get_raw_messages_with_content: F) -> Result<Vec<Message>>
-        where F: Fn(&mut SqliteConnection) -> Result<Vec<(RawMessage, Option<RawMessageContent>)>>
+                    get_raw_messages: F) -> Result<Vec<Message>>
+        where F: Fn(&mut SqliteConnection) -> Result<Vec<RawMessage>>
     {
-        let raw_messages_with_content: Vec<(RawMessage, Option<RawMessageContent>)> =
-            get_raw_messages_with_content(conn)?;
+        let raw_messages: Vec<RawMessage> =
+            get_raw_messages(conn)?;
 
-        let raw_messages: Vec<&RawMessage> =
-            raw_messages_with_content.iter().map(|pair| &pair.0).collect();
+        let raw_messages_content: Vec<RawMessageContent> =
+            RawMessageContent::belonging_to(&raw_messages)
+                .select(RawMessageContent::as_select())
+                .load(conn)?;
+
+        let mut raw_messages_content_grouped = raw_messages_content.grouped_by(&raw_messages);
+        for group in raw_messages_content_grouped.iter_mut() {
+            // TODO: This may be redundant
+            group.sort_by_key(|rte| rte.id)
+        }
 
         let raw_message_rtes: Vec<RawRichTextElement> =
             RawRichTextElement::belonging_to(&raw_messages)
                 .select(RawRichTextElement::as_select())
                 .load(conn)?;
 
-        let mut grouped = raw_message_rtes.grouped_by(&raw_messages);
-        for group in grouped.iter_mut() {
+        let mut raw_message_rtes_grouped = raw_message_rtes.grouped_by(&raw_messages);
+        for group in raw_message_rtes_grouped.iter_mut() {
             // TODO: This may be redundant
             group.sort_by_key(|rte| rte.id)
         }
 
-        let messages: Vec<Message> = grouped.into_iter()
-            .zip(raw_messages_with_content)
-            .map(|(rtes, (m, mc))| FullRawMessage { m, mc, rtes })
+        let messages: Vec<Message> = raw_messages.into_iter()
+            .zip(raw_messages_content_grouped)
+            .zip(raw_message_rtes_grouped)
+            .map(|((m, mc), rtes)| FullRawMessage { m, mc, rtes })
             .map(deserialize)
             .try_collect()?;
 
@@ -310,9 +318,11 @@ pub mod message {
         let (tpe, subtype, mc, time_edited, is_deleted, forward_from_name, reply_to_message_id) =
             match m.typed.as_ref().unwrap() {
                 crate::message::Typed::Regular(mr) => {
-                    let content = mr.content_option.as_ref()
+                    let content: Result<Vec<_>> = mr.contents.iter()
                         .map(|mc| serialize_content_and_copy_files(mc.sealed_value_optional.as_ref().unwrap(),
-                                                                   chat_id, src_ds_root, dst_ds_root)).transpose()?;
+                                                                   chat_id, src_ds_root, dst_ds_root))
+                        .collect();
+                    let content = content?;
                     ("regular",
                      None,
                      content,
@@ -323,7 +333,7 @@ pub mod message {
                 }
                 message_service_pat!(ms) => {
                     let (subtype, mc) = serialize_service_and_copy_files(ms, chat_id, src_ds_root, dst_ds_root)?;
-                    ("service", Some(subtype), mc, None, serialize_bool(false), None, None)
+                    ("service", Some(subtype), mc.into_iter().collect_vec(), None, serialize_bool(false), None, None)
                 }
                 message_service_pat_unreachable!() => { unreachable!() }
             };
@@ -614,18 +624,27 @@ pub mod message {
     pub fn deserialize(raw: FullRawMessage) -> Result<Message> {
         let text = raw.rtes.into_iter().map(deserialize_rte).try_collect()?;
         let typed = match raw.m.tpe.as_str() {
-            "regular" => message_regular! {
-                edit_timestamp_option: raw.m.time_edited,
-                is_deleted: deserialize_bool(raw.m.is_deleted),
-                forward_from_name_option: raw.m.forward_from_name,
-                reply_to_message_id_option: raw.m.reply_to_message_id,
-                content_option: raw.mc.map(|mc| ok(Content {
-                    sealed_value_optional: Some(deserialize_content(mc)?)
-                })).transpose()?,
+            "regular" => {
+                let contents: Result<Vec<_>> = raw.mc.into_iter()
+                    .map(|mc| ok(Content {
+                        sealed_value_optional: Some(deserialize_content(mc)?)
+                    }))
+                    .collect();
+                let contents = contents?;
+                message_regular! {
+                    edit_timestamp_option: raw.m.time_edited,
+                    is_deleted: deserialize_bool(raw.m.is_deleted),
+                    forward_from_name_option: raw.m.forward_from_name,
+                    reply_to_message_id_option: raw.m.reply_to_message_id,
+                    contents,
+                }
             },
-            "service" => message_service!(deserialize_service(
+            "service" => {
+                assert!(raw.mc.len() <= 1);
+                message_service!(deserialize_service(
                     raw.m.subtype.as_deref().expect("Service message subtype is empty!"),
-                    raw.mc)?),
+                    raw.mc.into_iter().next())?)
+            },
             tpe => bail!("Unknown message type {}!", tpe)
         };
         Ok(Message::new(

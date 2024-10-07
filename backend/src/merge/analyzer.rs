@@ -507,7 +507,7 @@ fn equals_with_no_mismatching_content(mm_eq: PracticalEqTuple<MasterMessage>,
     fn regular_msg_to_comparable(m: &Message, mr: &MessageRegular) -> Message {
         Message {
             typed: Some(message_regular! {
-                content_option: None,
+                contents: vec![],
                 edit_timestamp_option: None,
                 reply_to_message_id_option: None,
                 ..mr.clone()
@@ -516,10 +516,9 @@ fn equals_with_no_mismatching_content(mm_eq: PracticalEqTuple<MasterMessage>,
             ..m.clone()
         }
     }
-    fn has_content(c: &Option<Content>, root: &DatasetRoot) -> bool {
-        c.as_ref().and_then(|c| c.path_file_option(root))
-            .map(|p| p.exists())
-            .unwrap_or(false)
+    fn has_some_content(c: &[Content], root: &DatasetRoot) -> bool {
+        c.iter().flat_map(|c| c.path_file_option(root))
+            .any(|p| p.exists())
     }
     fn photo_has_content(photo: &ContentPhoto, root: &DatasetRoot) -> bool {
         photo.path_option.as_ref()
@@ -537,12 +536,12 @@ fn equals_with_no_mismatching_content(mm_eq: PracticalEqTuple<MasterMessage>,
                 return Ok(false);
             }
 
-            if !has_content(&mm_regular.content_option, mm_eq.ds_root) ||
-                !has_content(&sm_regular.content_option, sm_eq.ds_root) {
+            if !has_some_content(&mm_regular.contents, mm_eq.ds_root) ||
+                !has_some_content(&sm_regular.contents, sm_eq.ds_root) {
                 return Ok(true);
             }
 
-            mm_eq.with(&mm_regular.content_option).practically_equals(&sm_eq.with(&sm_regular.content_option))
+            mm_eq.with(&mm_regular.contents).practically_equals(&sm_eq.with(&sm_regular.contents))
         }
         (message_service_pat!(GroupEditPhoto(MessageServiceGroupEditPhoto { photo: mm_photo })),
             message_service_pat!(GroupEditPhoto(MessageServiceGroupEditPhoto { photo: sm_photo }))) => {

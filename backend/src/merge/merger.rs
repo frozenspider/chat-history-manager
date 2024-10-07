@@ -398,11 +398,10 @@ fn update_with_slave_data(mm: &mut Message, sm: &Message) {
         (message::Typed::Regular(mmr), message::Typed::Regular(smr)) => {
             mmr.reply_to_message_id_option = smr.reply_to_message_id_option;
 
-            if let (Some(mfn_ref), Some(sfn)) = (
-                mmr.content_option.as_mut().and_then(|c| c.file_name_ref_mut()),
-                smr.content_option.as_ref().and_then(|c| c.file_name())
-            ) {
-                *mfn_ref = Some(sfn.clone());
+            for (mmrc, smrc) in mmr.contents.iter_mut().zip(smr.contents.iter()) {
+                if let (Some(mfn), Some(sfn)) = (mmrc.file_name_ref_mut(), smrc.file_name()) {
+                    *mfn = Some(sfn.clone());
+                }
             }
         }
         (message::Typed::Service(mms), message::Typed::Service(sms)) => {

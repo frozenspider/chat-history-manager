@@ -63,6 +63,23 @@ impl<'a, > PracticalEq for Tup<'a, Option<String>> {
     }
 }
 
+impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>>
+where
+        for<'b> PracticalEqTuple<'a, T>: PracticalEq,
+{
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        if self.v.len() != other.v.len() {
+            return Ok(false);
+        }
+        for (v1, v2) in self.v.iter().zip(other.v.iter()) {
+            if !self.with(v1).practically_equals(&other.with(v2))? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
 macro_rules! default_option_equality {
     ($T:ident) => {
         impl<'a> PracticalEq for Tup<'a, Option<$T>> {
@@ -77,7 +94,6 @@ macro_rules! default_option_equality {
     };
 }
 
-default_option_equality!(Content);
 default_option_equality!(ContentPhoto);
 
 macro_rules! cloned_equals_without {
@@ -138,8 +154,8 @@ impl<'a> PracticalEq for Tup<'a, message::Typed> {
 
 impl<'a> PracticalEq for Tup<'a, MessageRegular> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
-        Ok(cloned_equals_without!(self.v, other.v, MessageRegular, forward_from_name_option: None, content_option: None) &&
-            self.apply(|v| &v.content_option).practically_equals(&other.apply(|v| &v.content_option))?)
+        Ok(cloned_equals_without!(self.v, other.v, MessageRegular, forward_from_name_option: None, contents: vec![]) &&
+            self.apply(|v| &v.contents).practically_equals(&other.apply(|v| &v.contents))?)
     }
 }
 

@@ -207,7 +207,7 @@ impl Chat {
         format!("'{}' (#{})", name_or_unnamed(&self.name_option), self.id)
     }
 
-    pub fn member_ids(&self) -> impl Iterator<Item=UserId> + '_ {
+    pub fn member_ids(&self) -> impl Iterator<Item = UserId> + '_ {
         self.member_ids.iter().map(|id| UserId(*id))
     }
 
@@ -255,6 +255,28 @@ macro_rules! message_service_pat_unreachable {
     () => { $crate::protobuf::history::message::Typed::Service(MessageService { sealed_value_optional: None }) };
 }
 
+#[macro_export]
+macro_rules! content {
+    ($tpe:ident  { $( $k:ident $(: $v:expr)? ,)* ..$etc:expr }) => {
+        paste::paste! {
+            $crate::protobuf::history::Content {
+                sealed_value_optional: Some($crate::protobuf::history::content::SealedValueOptional::$tpe([<Content $tpe>] {
+                    $($k $(: $v)?,)* ..$etc
+                }))
+            }
+        }
+    };
+    ($tpe:ident  { $( $k:ident $(: $v:expr)? ),+ $(,)? }) => {
+        paste::paste! {
+            $crate::protobuf::history::Content {
+                sealed_value_optional: Some($crate::protobuf::history::content::SealedValueOptional::$tpe([<Content $tpe>] {
+                    $($k $(: $v)?,)*
+                }))
+            }
+        }
+    };
+}
+
 impl Message {
     pub fn new(internal_id: i64,
                source_id_option: Option<i64>,
@@ -291,20 +313,23 @@ impl Message {
     pub fn files_relative(&self) -> Vec<&str> {
         let possibilities: Vec<Option<&str>> = match self.typed() {
             message::Typed::Regular(ref mr) => {
-                use content::SealedValueOptional::*;
-                match mr.content_option.as_ref().and_then(|c| c.sealed_value_optional.as_ref()) {
-                    Some(Sticker(v)) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
-                    Some(Photo(v)) => vec![v.path_option.as_deref()],
-                    Some(VoiceMsg(v)) => vec![v.path_option.as_deref()],
-                    Some(Audio(v)) => vec![v.path_option.as_deref()],
-                    Some(VideoMsg(v)) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
-                    Some(Video(v)) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
-                    Some(File(v)) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
-                    Some(Location(_)) => vec![],
-                    Some(Poll(_)) => vec![],
-                    Some(SharedContact(v)) => vec![v.vcard_path_option.as_deref()],
-                    None => vec![],
-                }
+                mr.contents.iter()
+                    .flat_map(|content| {
+                        use content::SealedValueOptional::*;
+                        match content.sealed_value_optional.as_ref().unwrap() {
+                            Sticker(v) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
+                            Photo(v) => vec![v.path_option.as_deref()],
+                            VoiceMsg(v) => vec![v.path_option.as_deref()],
+                            Audio(v) => vec![v.path_option.as_deref()],
+                            VideoMsg(v) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
+                            Video(v) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
+                            File(v) => vec![v.path_option.as_deref(), v.thumbnail_path_option.as_deref()],
+                            Location(_) => vec![],
+                            Poll(_) => vec![],
+                            SharedContact(v) => vec![v.vcard_path_option.as_deref()],
+                        }
+                    })
+                    .collect_vec()
             }
             message_service_pat!(ref ms) => {
                 use message_service::SealedValueOptional::*;
@@ -610,32 +635,42 @@ pub fn make_searchable_string(components: &[RichTextElement], typed: &message::T
 
 
     let typed_component_text: Vec<String> = match typed {
-        message_regular_pat! { content_option, .. } => {
-            match content_option {
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::Sticker(sticker)) }) =>
-                    vec![&sticker.emoji_option].into_iter().flatten().cloned().collect_vec(),
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::Audio(file)) }) =>
-                    vec![&file.title_option, &file.performer_option].into_iter().flatten().cloned().collect_vec(),
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::Video(file)) }) =>
-                    vec![&file.title_option, &file.performer_option].into_iter().flatten().cloned().collect_vec(),
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::File(file)) }) =>
-                    vec![&file.file_name_option].into_iter().flatten().cloned().collect_vec(),
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::Location(loc)) }) => {
-                    let mut vec1 = vec![&loc.address_option, &loc.title_option].into_iter().flatten().collect_vec();
-                    let mut vec2 = vec![&loc.lat_str, &loc.lon_str];
-                    vec1.append(&mut vec2);
-                    vec1.into_iter().cloned().collect_vec()
-                }
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::Poll(poll)) }) =>
-                    vec![poll.question.clone()],
-                Some(Content { sealed_value_optional: Some(content::SealedValueOptional::SharedContact(contact)) }) =>
-                    vec![&contact.first_name_option, &contact.last_name_option, &contact.phone_number_option]
-                        .into_iter().flatten().cloned().collect_vec(),
-                _ => {
-                    // Text is enough.
-                    vec![]
-                }
-            }
+        message_regular_pat! { contents, .. } => {
+            contents.iter()
+                .flat_map(|content| {
+                    use content::SealedValueOptional::*;
+                    match content.sealed_value_optional.as_ref().unwrap() {
+                        Sticker(sticker) =>
+                            vec![&sticker.emoji_option].into_iter().flatten().cloned().collect_vec(),
+                        Audio(file) =>
+                            vec![&file.title_option, &file.performer_option].into_iter().flatten().cloned().collect_vec(),
+                        Video(file) =>
+                            vec![&file.title_option, &file.performer_option].into_iter().flatten().cloned().collect_vec(),
+                        File(file) =>
+                            vec![&file.file_name_option].into_iter().flatten().cloned().collect_vec(),
+                        Location(loc) => {
+                            let mut vec1 = vec![&loc.address_option, &loc.title_option].into_iter().flatten().collect_vec();
+                            let mut vec2 = vec![&loc.lat_str, &loc.lon_str];
+                            vec1.append(&mut vec2);
+                            vec1.into_iter().cloned().collect_vec()
+                        }
+                        Poll(poll) =>
+                            vec![poll.question.clone()],
+                        SharedContact(contact) =>
+                            vec![&contact.first_name_option, &contact.last_name_option, &contact.phone_number_option]
+                                .into_iter().flatten().cloned().collect_vec(),
+                        Photo(_) | VoiceMsg(_) | VideoMsg(_) => {
+                            // Text is enough.
+                            vec![]
+                            // TODO: Add this and reform the database
+                            // VoiceMsg(v)  =>
+                            //     v.file_name_option.iter().cloned().collect_vec(),
+                            // VideoMsg(v) =>
+                            //     v.file_name_option.iter().cloned().collect_vec(),
+                        }
+                    }
+                })
+                .collect_vec()
         }
         message_service_pat!(m) => {
             use message_service::SealedValueOptional::*;

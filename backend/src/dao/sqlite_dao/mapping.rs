@@ -79,7 +79,7 @@ pub mod schema {
     diesel::table! {
         message_content (id) {
             id -> BigInt,
-            message_internal_id -> BigInt,
+            message_internal_id -> Nullable<BigInt>,
             element_type -> Text,
             path -> Nullable<Text>,
             thumbnail_path -> Nullable<Text>,
@@ -263,7 +263,8 @@ pub struct RawMessage {
 pub struct RawMessageContent {
     #[diesel(deserialize_as = i64)]
     pub id: Option<i64>,
-    pub message_internal_id: i64,
+    // This is not supposed to be Option, but Self::belonging_to(&raw_messages) doesn't typecheck otherwise
+    pub message_internal_id: Option<i64>,
 
     pub element_type: String,
 
@@ -321,6 +322,6 @@ pub struct RawRichTextElement {
 
 pub struct FullRawMessage {
     pub m: RawMessage,
-    pub mc: Option<RawMessageContent>,
+    pub mc: Vec<RawMessageContent>,
     pub rtes: Vec<RawRichTextElement>,
 }

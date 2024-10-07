@@ -700,16 +700,16 @@ fn convert_message(
                 }
             };
             (vec![], message_regular! {
-                content_option: Some(Content {
-                    sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
+                contents: vec![
+                    content!(Sticker {
                         path_option: None,
                         file_name_option: None,
                         width: 0,
                         height: 0,
                         thumbnail_path_option: None,
                         emoji_option: None,
-                    }))
-                }),
+                    })
+                ],
                 ..Default::default()
             })
         }
@@ -743,9 +743,7 @@ fn convert_message(
 
             (vec![RichText::make_plain("(Location changed)".to_owned())],
              message_regular! {
-                 content_option: Some(Content {
-                     sealed_value_optional: Some(ContentSvo::Location(location.unwrap()))
-                 }),
+                 contents: vec![content!(Location { ..location.unwrap() })],
                  ..Default::default()
              })
         }

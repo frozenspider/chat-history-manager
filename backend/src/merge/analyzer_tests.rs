@@ -652,14 +652,14 @@ fn file_name_diff() -> EmptyRes {
         &|is_master: bool, _ds_root: &DatasetRoot, msg: &mut Message| {
             let file_name = if is_master { "old_file_name.jpg" } else { "new_file_name.jpg" };
             let mr = coerce_enum!(msg.typed.as_mut(), Some(message::Typed::Regular(mr)) => mr);
-            mr.content_option = Some(Content {
-                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
+            mr.contents = vec![
+                content!(File {
                     path_option: Some("non/existent/path.jpg".to_owned()),
                     file_name_option: Some(file_name.to_owned()),
                     mime_type_option: Some("image/jpeg".to_owned()),
                     thumbnail_path_option: Some("non/existent/thumbnail_path.jpg".to_owned()),
-                })),
-            });
+                }),
+            ];
         },
     );
     let analysis = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false)?;
@@ -713,9 +713,9 @@ fn present_absent_not_downloaded() -> EmptyRes {
                 is_deleted: false,
                 reply_to_message_id_option: None,
                 forward_from_name_option: Some("some user".to_owned()),
-                content_option: Some(Content {
-                    sealed_value_optional: Some(content::SealedValueOptional::Photo(photo.clone()))
-                }),
+                contents: vec![
+                    content!(Photo { ..photo.clone() })
+                ],
             }
         } else {
             message_service!(message_service::SealedValueOptional::GroupEditPhoto(
@@ -800,8 +800,12 @@ fn present_absent_not_downloaded() -> EmptyRes {
             use content::SealedValueOptional::*;
             use message_service::SealedValueOptional::*;
             match msg.typed_mut() {
-                message_regular_pat! { content_option: Some(Content { sealed_value_optional: Some(Photo(ref mut photo)) }), .. } => {
-                    transform(photo)
+                message_regular_pat! { contents, .. } => {
+                    for c in contents.iter_mut() {
+                        if let Content { sealed_value_optional: Some(Photo(ref mut photo)) } = c {
+                            transform(photo)
+                        }
+                    }
                 }
                 message_service_pat!(GroupEditPhoto(ref mut edit_photo)) => {
                     transform(&mut edit_photo.photo)

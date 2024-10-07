@@ -480,18 +480,16 @@ fn convert_message(
             let (lon_bytes, _payload) = next_sized_chunk(payload)?;
             let lon_str = String::from_utf8(lon_bytes.to_vec())?;
 
-            let location = ContentLocation {
+            let content = content!(Location {
                 title_option: None,
                 address_option: Some(text),
                 lat_str,
                 lon_str,
                 duration_sec_option: None,
-            };
+            });
             (vec![RichText::make_plain("(Location changed)".to_owned())],
              message_regular! {
-                 content_option: Some(Content {
-                     sealed_value_optional: Some(ContentSvo::Location(location))
-                 }),
+                 contents: vec![content],
                  ..Default::default()
              })
         }

@@ -1154,22 +1154,31 @@ fn merge_chats_content_adopt_new_filename() -> EmptyRes {
             let file_name_option = if is_master {
                 match msg.source_id_option.unwrap() {
                     0 => None,
-                    1 => Some("old_file_name.jpg".to_owned()),
+                    1 => Some("old_file_name".to_owned()),
                     _ => panic!("Unexpected message")
                 }
             } else {
-                Some("new_file_name.jpg".to_owned())
+                Some("new_file_name".to_owned())
             };
 
+            let file_name_option_1 = file_name_option.clone().map(|s| format!("{}-1.jpg", s));
+            let file_name_option_2 = file_name_option.clone().map(|s| format!("{}-2.jpg", s));
+
             let mr = coerce_enum!(msg.typed.as_mut(), Some(message::Typed::Regular(mr)) => mr);
-            mr.content_option = Some(Content {
-                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
+            mr.contents = vec![
+                content!(File {
                     path_option: Some("non/existent/path.jpg".to_owned()),
-                    file_name_option,
+                    file_name_option: file_name_option_1,
                     mime_type_option: Some("image/jpeg".to_owned()),
                     thumbnail_path_option: Some("non/existent/thumbnail_path.jpg".to_owned()),
-                })),
-            });
+                }),
+                content!(File {
+                    path_option: Some("non/existent/path-2.jpg".to_owned()),
+                    file_name_option: file_name_option_2,
+                    mime_type_option: Some("image/jpeg".to_owned()),
+                    thumbnail_path_option: Some("non/existent/thumbnail_path-2.jpg".to_owned()),
+                }),
+            ];
         },
     );
 
@@ -1199,9 +1208,15 @@ fn merge_chats_content_adopt_new_filename() -> EmptyRes {
 
     for new_msg in new_messages.iter() {
         let mr = coerce_enum!(new_msg.typed.as_ref(), Some(message::Typed::Regular(mr)) => mr);
-        let content = coerce_enum!(mr.content_option.as_ref(), Some(c) => c);
+        assert_eq!(mr.contents.len(), 2);
+
+        let content = &mr.contents[0];
         let file = coerce_enum!(content.sealed_value_optional.as_ref(), Some(content::SealedValueOptional::File(f)) => f);
-        assert_eq!(file.file_name_option, Some("new_file_name.jpg".to_owned()));
+        assert_eq!(file.file_name_option, Some("new_file_name-1.jpg".to_owned()));
+
+        let content = &mr.contents[1];
+        let file = coerce_enum!(content.sealed_value_optional.as_ref(), Some(content::SealedValueOptional::File(f)) => f);
+        assert_eq!(file.file_name_option, Some("new_file_name-2.jpg".to_owned()));
     }
 
     Ok(())
@@ -1305,23 +1320,23 @@ fn assert_practically_equals(src: &Message, src_ds_root: &DatasetRoot, src_cwd: 
 
 fn amend_with_content(mode: ContentMode, ds_root: &DatasetRoot, msg: &mut Message) {
     let content_field =
-        &mut coerce_enum!(msg.typed, Some(message::Typed::Regular(ref mut mr)) => mr).content_option;
+        &mut coerce_enum!(msg.typed, Some(message::Typed::Regular(ref mut mr)) => mr).contents;
 
     match mode {
         ContentMode::None => {
-            *content_field = None;
+            *content_field = vec![];
         }
         ContentMode::Full => {
-            *content_field = Some(make_random_video_content(ds_root, false));
+            *content_field = vec![make_random_video_content(ds_root, false)];
         }
         ContentMode::DeletedPaths => {
-            *content_field = Some(make_random_video_content(ds_root, false));
+            *content_field = vec![make_random_video_content(ds_root, false)];
             for f in msg.files(ds_root) {
                 fs::remove_file(f).unwrap()
             }
         }
         ContentMode::NonePaths => {
-            *content_field = Some(make_random_video_content(ds_root, true));
+            *content_field = vec![make_random_video_content(ds_root, true)];
         }
     }
 }

@@ -12,7 +12,6 @@ use num_traits::FromPrimitive;
 use regex::{Captures, Regex};
 use utf16string::{LE, WStr};
 
-use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
@@ -272,16 +271,16 @@ fn convert_cartoon(src: &str) -> Result<TextAndTyped> {
     };
 
     Ok((vec![], message_regular! {
-        content_option: Some(Content {
-            sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
+        contents: vec![
+            content!(Sticker {
                 path_option: None,
                 file_name_option: None,
                 width: 0,
                 height: 0,
                 thumbnail_path_option: None,
                 emoji_option,
-            }))
-        }),
+            })
+        ],
         ..Default::default()
     }))
 }
@@ -320,14 +319,14 @@ fn convert_file_transfer(text: &str) -> Result<TextAndTyped> {
         Some(file_paths.iter().join(", "))
     };
     Ok((vec![], message_regular! {
-        content_option: Some(Content {
-            sealed_value_optional: Some(ContentSvo::File(ContentFile {
+        contents: vec![
+            content!(File {
                 path_option: None,
                 file_name_option,
                 mime_type_option: None,
                 thumbnail_path_option: None,
-            }))
-        }),
+            })
+        ],
         ..Default::default()
     }))
 }

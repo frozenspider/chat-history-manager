@@ -138,7 +138,7 @@ message MessageRegular {
   optional string forward_from_name_option = 2;
   // References source ID
   optional int64 reply_to_message_id_option = 3;
-  optional Content content_option = 4;
+  repeated Content contents = 4;
 }
 
 message MessageService {
