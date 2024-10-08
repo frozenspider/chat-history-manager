@@ -706,6 +706,7 @@ fn convert_message(
                         file_name_option: None,
                         width: 0,
                         height: 0,
+                        mime_type_option: None,
                         thumbnail_path_option: None,
                         emoji_option: None,
                     })

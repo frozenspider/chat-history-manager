@@ -372,7 +372,7 @@ pub mod message {
         }
         Ok(match mc {
             Sticker(v) => {
-                let path = copy_path!(v.path_option, None, None, &subpaths::STICKERS);
+                let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::STICKERS);
                 let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::STICKERS);
                 RawMessageContent {
                     element_type: "sticker".to_owned(),
@@ -380,6 +380,7 @@ pub mod message {
                     file_name: v.file_name_option.clone(),
                     width: Some(v.width),
                     height: Some(v.height),
+                    mime_type: v.mime_type_option.clone(),
                     thumbnail_path,
                     emoji: v.emoji_option.clone(),
                     ..Default::default()
@@ -491,7 +492,7 @@ pub mod message {
                                       src_ds_root: &DatasetRoot,
                                       dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         let path = photo.path_option.as_ref().map(|path|
-            sqlite_dao::copy_chat_file(path, None, None, &subpaths::PHOTOS,
+            sqlite_dao::copy_chat_file(path, photo.mime_type_option.as_deref(), None, &subpaths::PHOTOS,
                                        chat_id, src_ds_root, dst_ds_root)
         ).transpose()?.flatten();
         Ok(RawMessageContent {
@@ -499,6 +500,7 @@ pub mod message {
             path,
             width: Some(photo.width),
             height: Some(photo.height),
+            mime_type: photo.mime_type_option.clone(),
             is_one_time: Some(serialize_bool(photo.is_one_time)),
             ..Default::default()
         })
@@ -670,6 +672,7 @@ pub mod message {
                 file_name_option: raw.file_name,
                 width: get_or_bail!(raw.width),
                 height: get_or_bail!(raw.height),
+                mime_type_option: raw.mime_type,
                 thumbnail_path_option: raw.thumbnail_path,
                 emoji_option: raw.emoji,
             }),
@@ -746,6 +749,7 @@ pub mod message {
             path_option: raw.path,
             width: get_or_bail!(raw.width),
             height: get_or_bail!(raw.height),
+            mime_type_option: raw.mime_type,
             is_one_time: deserialize_bool(get_or_bail!(raw.is_one_time)),
         })
     }

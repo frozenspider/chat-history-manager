@@ -686,21 +686,23 @@ fn present_absent_not_downloaded() -> EmptyRes {
         path_option: Some("non/existent/path.jpg".to_owned()),
         width: 100500,
         height: 100600,
+        mime_type_option: None,
         is_one_time: false,
     };
 
-    let not_downloaded = ContentPhoto { path_option: None, ..not_found };
+    let not_downloaded = ContentPhoto { path_option: None, ..not_found.clone() };
 
     let placeholder1 = ContentPhoto {
         path_option: Some("placeholder-1".to_owned()),
         width: -1,
         height: -1,
+        mime_type_option: Some("image/lol".to_owned()),
         is_one_time: false,
     };
 
     let placeholder2 = ContentPhoto {
         path_option: Some("placeholder-2".to_owned()),
-        ..not_found
+        ..not_found.clone()
     };
 
     let placeholder1_content = random_alphanumeric(256);

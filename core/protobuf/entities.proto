@@ -246,6 +246,8 @@ message ContentSticker {
   // 0 if unknown
   required int32 height = 3;
 
+  optional string mime_type_option = 7;
+
   // Path relative to data root!
   optional string thumbnail_path_option = 4;
   optional string emoji_option = 5;
@@ -258,6 +260,9 @@ message ContentPhoto {
   required int32 width = 2;
   // 0 if unknown
   required int32 height = 3;
+
+  optional string mime_type_option = 5;
+
   required bool is_one_time = 4;
 }
 

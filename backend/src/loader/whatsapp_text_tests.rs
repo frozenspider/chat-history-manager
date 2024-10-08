@@ -153,6 +153,7 @@ fn loading_2023_10() -> EmptyRes {
                         path_option: Some("IMG-20230630-WA0000.jpg".to_owned()),
                         width: 0,
                         height: 0,
+                        mime_type_option: None,
                         is_one_time: false,
                     })
                 ],
@@ -226,6 +227,7 @@ fn loading_2023_10() -> EmptyRes {
                         file_name_option: Some("STK-20230630-WA0003.webp".to_owned()),
                         width: 0,
                         height: 0,
+                        mime_type_option: None,
                         thumbnail_path_option: None,
                         emoji_option: None,
                     })

@@ -551,6 +551,7 @@ fn loading_2023_01() -> EmptyRes {
                     path_option: None,
                     width: 640,
                     height: 640,
+                    mime_type_option: None,
                     is_one_time: false,
                 }
             }))),
@@ -939,6 +940,7 @@ fn loading_2024_05() -> EmptyRes {
                     file_name_option: Some("sticker.webm".to_owned()),
                     width: 0, // Not known!
                     height: 0, // Not known!
+                    mime_type_option: None,
                     thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
                     emoji_option: Some("😱".to_owned()),
                 })
@@ -1063,6 +1065,7 @@ fn loading_2024_08() -> EmptyRes {
                     path_option: None,
                     width: 0,
                     height: 0,
+                    mime_type_option: None,
                     is_one_time: true,
                 })
             ],

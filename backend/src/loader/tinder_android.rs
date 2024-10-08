@@ -138,6 +138,7 @@ impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
                             file_name_option: Some(file_name),
                             width: width * 2,
                             height: height * 2,
+                            mime_type_option: None,
                             thumbnail_path_option: None,
                             emoji_option: None,
                         })

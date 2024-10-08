@@ -620,6 +620,7 @@ fn parse_system_message<'a>(
                             path_option: None,
                             width: 0,
                             height: 0,
+                            mime_type_option: None,
                             is_one_time: false,
                         }
                     })
@@ -696,6 +697,9 @@ fn parse_regular_message(
         Ok((path, name))
     }
 
+    let mime_type_option =
+        row.get::<_, Option<String>>(columns::message_media::MIME_TYPE)?
+            .and_then(|s| if s.is_empty() { None } else { Some(s) });
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
     let contents = match msg_tpe {
         MessageType::Text => vec![],
@@ -704,6 +708,7 @@ fn parse_regular_message(
                 path_option: row.get(columns::message_media::FILE_PATH)?, // TODO: One-time photos
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
+                mime_type_option,
                 is_one_time: false,
             })],
         MessageType::OneTimePhoto => {
@@ -712,6 +717,7 @@ fn parse_regular_message(
                 path_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
+                mime_type_option,
                 is_one_time: true,
             })]
         }
@@ -720,7 +726,7 @@ fn parse_regular_message(
             vec![content!(VoiceMsg {
                 path_option,
                 file_name_option,
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
             })]
         }
@@ -733,7 +739,7 @@ fn parse_regular_message(
                 file_name_option,
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: false,
@@ -745,7 +751,7 @@ fn parse_regular_message(
                 file_name_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: true,
@@ -757,7 +763,7 @@ fn parse_regular_message(
             vec![content!(File {
                 path_option,
                 file_name_option,
-                mime_type_option: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type_option,
                 thumbnail_path_option: None,
             })]
         }
@@ -777,6 +783,7 @@ fn parse_regular_message(
                 file_name_option,
                 width: w,
                 height: h,
+                mime_type_option,
                 thumbnail_path_option: None,
                 emoji_option: None,
             })]

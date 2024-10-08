@@ -204,6 +204,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Vec<Conte
                 path_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
+                mime_type_option: None,
                 is_one_time: false,
             }),
             "STK" => content!(Sticker {
@@ -211,6 +212,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Vec<Conte
                 file_name_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
+                mime_type_option: None,
                 thumbnail_path_option: None,
                 emoji_option: None,
             }),

@@ -95,6 +95,7 @@ fn loading_2023_11() -> EmptyRes {
                         file_name_option: Some("848013095925873688.gif".to_owned()),
                         width: 542,
                         height: 558,
+                        mime_type_option: None,
                         thumbnail_path_option: None,
                         emoji_option: None,
                     })
