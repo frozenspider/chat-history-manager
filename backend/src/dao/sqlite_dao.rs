@@ -1213,6 +1213,10 @@ mod subpaths {
     pub(super) static PROFILE_PICTURES: Subpath = Subpath { path_fragment: "profile_pictures", use_hashing: true };
 }
 
+/// Copy file to dataset root, returning relative path to it.
+/// If source file doesn't exist, return None.
+/// If destination file already exists, check if it's the same as source file.
+/// If source file doesn't have an extension, use MIME type to determine and add it.
 fn copy_file(src_file: &Path,
              src_mime: Option<&str>,
              thumbnail_dst_main_path: Option<&str>,
@@ -1225,10 +1229,10 @@ fn copy_file(src_file: &Path,
         ensure!(src_meta.is_file(), "Not a file: {src_absolute_path}");
 
         let ext =
-            if let Some(ext) = src_mime.and_then(mime2ext::mime2ext) {
-                Some(ext)
-            } else if let Some(ext) = src_file.extension() {
+            if let Some(ext) = src_file.extension() {
                 Some(ext.to_str().unwrap())
+            } else if let Some(ext) = src_mime.and_then(mime2ext::mime2ext) {
+                Some(ext)
             } else {
                 None
             };
