@@ -60,7 +60,8 @@ Reads (manually decrypted) Signal Desktop database and decrypts attachments.
 - Has only been tested with Signal Desktop v7.27 and may not work with older/newer versions.
 
 Current limitations:
-- Can't handle group chats and formatted text yet.
+- Can't handle group chats, formatted text and stickers yet.
+- Doesn't understand forwards.
 - Required database to be manually decrypted via [sqlcipher](https://github.com/sqlcipher/sqlcipher/) as
   `plaintext.sqlite`.
 - This in turn requires a password from `config.json` to be decrypted with a password from macOS Keychain -

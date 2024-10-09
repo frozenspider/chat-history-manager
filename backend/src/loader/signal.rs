@@ -20,12 +20,19 @@ use simd_json::borrowed::{Object, Value};
 use simd_json::derived::*;
 use uuid::Uuid;
 
+#[cfg(test)]
+#[path = "signal_tests.rs"]
+mod tests;
+
 pub struct SignalDataLoader;
 
 const NAME: &'static str = "Signal";
 
 const ENCRYPTED_DB_FILENAME: &'static str = "db.sqlite";
 const PLAINTEXT_DB_FILENAME: &'static str = "plaintext.sqlite";
+
+const ATTACHMENTS_DIR_NAME: &'static str = "attachments.noindex";
+const DECRYPTED_ATTACHMENTS_DIR_NAME: &'static str = "_decrypted";
 
 impl DataLoader for SignalDataLoader {
     fn name(&self) -> String { NAME.to_owned() }
@@ -49,8 +56,6 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
-    const ATTACHMENTS_DIR_NAME: &str = "attachments.noindex";
-
     let attachments_paths = vec![
         path.with_file_name(ATTACHMENTS_DIR_NAME),
         path.parent().unwrap().with_file_name(ATTACHMENTS_DIR_NAME)
@@ -63,7 +68,7 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
         log::warn!("Attachments directory not found, attachments will not be loaded!");
     }
 
-    let attachments_decrypt_path = attachments_path.map(|p| p.with_file_name("_decrypted"));
+    let attachments_decrypt_path = attachments_path.map(|p| p.with_file_name(DECRYPTED_ATTACHMENTS_DIR_NAME));
     let attachments_decrypt_path = attachments_decrypt_path.as_ref().map(|p| p.as_path());
 
     if is_encrypted {
@@ -102,7 +107,7 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
     while let Some(row) = rows.next()? {
         let uuid = row.get::<_, String>("serviceId")?;
         let uuid = Uuid::parse_str(&uuid)?;
-        let id = UserId(uuid_to_u32(uuid)? as i64);
+        let id = UserId(uuid_to_i64_pos(uuid)?);
 
         let first_name_option = row.get::<_, Option<String>>("profileName")?;
         let last_name_option = row.get::<_, Option<String>>("profileFamilyName")?;
@@ -122,9 +127,10 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
         let tpe = row.get::<_, String>("type")?;
         ensure!(tpe == "private", "Only 1-to-1 chats are supported, {} is {tpe}", user.pretty_name());
 
-        users.insert(uuid, user);
+        assert_eq!(users.insert(uuid, user), None, "Duplicate user UUID: {uuid}");
     }
 
+    assert_eq!(users.values().map(|u| u.id).unique().count(), users.len(), "Duplicate user IDs");
     Ok(users)
 }
 
@@ -145,7 +151,7 @@ fn parse_cwms(conn: &Connection,
     while let Some(row) = conv_rows.next()? {
         let chat_uuid_string = row.get::<_, String>("id")?;
         let chat_uuid = Uuid::parse_str(&chat_uuid_string)?;
-        let chat_id = ChatId(uuid_to_u32(chat_uuid)? as i64);
+        let chat_id = ChatId(uuid_to_i64_pos(chat_uuid)?);
 
         let user_uuid = row.get::<_, String>("serviceId")?;
         let user_uuid = Uuid::parse_str(&user_uuid)?;
@@ -166,7 +172,7 @@ fn parse_cwms(conn: &Connection,
         while let Some(row) = msg_rows.next()? {
             let source_uuid = row.get::<_, String>("id")?;
             let source_uuid = Uuid::parse_str(&source_uuid)?;
-            let source_id = uuid_to_u32(source_uuid)? as i64;
+            let source_id = uuid_to_i64_pos(source_uuid)?;
 
             let direction = row.get::<_, String>("type")?;
 
@@ -233,9 +239,9 @@ fn parse_cwms(conn: &Connection,
                 _ => bail!("Unknown message direction: {direction}"),
             };
 
-            // Note: This is timestamp in millis, not in seconds! This will be fixed later,
-            // as it's needed to resolve replies.
-            let timestamp = get_field_i64!(json, "<root>", "timestamp");
+            // Note: This is timestamp in millis, not in seconds! This is needed to resolve replies, and is
+            // divided by 1000 further down.
+            let timestamp_ms = get_field_i64!(json, "<root>", "timestamp");
 
             let is_deleted = row.get::<_, i32>("isErased")? == 1;
 
@@ -277,9 +283,8 @@ fn parse_cwms(conn: &Connection,
 
                 let mut contents = vec![];
                 for attachment in attachments {
-                    if let Some(c) = decrypt_attachment(attachment, attachments_path.unwrap(), attachments_decrypt_path.unwrap())? {
-                        contents.push(c);
-                    }
+                    let c = decrypt_attachment(attachment, attachments_path.unwrap(), attachments_decrypt_path.unwrap())?;
+                    contents.push(c);
                 }
 
                 message_regular! {
@@ -294,7 +299,7 @@ fn parse_cwms(conn: &Connection,
             messages.push(Message::new(
                 *NO_INTERNAL_ID, // Will be set later
                 Some(source_id),
-                timestamp,
+                timestamp_ms, // Will be corrected later
                 from_id,
                 text,
                 typed,
@@ -327,53 +332,49 @@ fn parse_cwms(conn: &Connection,
     Ok(cwms)
 }
 
-fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> Result<Option<Content>> {
-    if let Some(path) = decrypt_linked_file(a.name.as_deref(), &a.file_info, src_path, dst_path)? {
-        let path_option = Some(path);
-        let file_name_option = a.name;
-        let mime_type = a.file_info.mime_type;
-        let result = if mime_type.starts_with("image/") {
-            content!(Photo {
-                path_option,
-                width: a.file_info.width.unwrap_or(0),
-                height: a.file_info.height.unwrap_or(0),
-                mime_type_option: Some(mime_type),
-                is_one_time: false,
-            })
-        } else if mime_type.starts_with("video/") {
-            let thumbnail_path_option =
-                if let Some(screenshot) = a.screenshot {
-                    decrypt_linked_file(Some("screenshot"), &screenshot, src_path, dst_path)?
-                } else if let Some(thumbnail) = a.thumbnail {
-                    decrypt_linked_file(Some("thumbnail"), &thumbnail, src_path, dst_path)?
-                } else { None };
+fn decrypt_attachment(a: LinkedAttachment, src_path: &Path, dst_path: &Path) -> Result<Content> {
+    let path_option = decrypt_linked_file(a.name.as_deref(), &a.file_info, src_path, dst_path)?;
+    let file_name_option = a.name;
+    let mime_type = a.file_info.mime_type;
+    let result = if mime_type.starts_with("image/") {
+        content!(Photo {
+            path_option,
+            width: a.file_info.width.unwrap_or(0),
+            height: a.file_info.height.unwrap_or(0),
+            mime_type_option: Some(mime_type),
+            is_one_time: false,
+        })
+    } else if mime_type.starts_with("video/") {
+        let thumbnail_path_option =
+            if let Some(screenshot) = a.screenshot {
+                decrypt_linked_file(Some("screenshot"), &screenshot, src_path, dst_path)?
+            } else if let Some(thumbnail) = a.thumbnail {
+                decrypt_linked_file(Some("thumbnail"), &thumbnail, src_path, dst_path)?
+            } else { None };
 
-            content!(Video {
-                path_option,
-                file_name_option,
-                title_option: None,
-                performer_option: None,
-                width: a.file_info.width.unwrap_or(0),
-                height: a.file_info.height.unwrap_or(0),
-                mime_type,
-                duration_sec_option: None,
-                thumbnail_path_option,
-                is_one_time: false,
-            })
-        } else if mime_type.starts_with("audio/") {
-            content!(VoiceMsg {
-                path_option,
-                file_name_option,
-                mime_type,
-                duration_sec_option: None,
-            })
-        } else {
-            bail!("Unsupported attachment MIME type: {mime_type}")
-        };
-        Ok(Some(result))
+        content!(Video {
+            path_option,
+            file_name_option,
+            title_option: None,
+            performer_option: None,
+            width: a.file_info.width.unwrap_or(0),
+            height: a.file_info.height.unwrap_or(0),
+            mime_type,
+            duration_sec_option: None,
+            thumbnail_path_option,
+            is_one_time: false,
+        })
+    } else if mime_type.starts_with("audio/") {
+        content!(VoiceMsg {
+            path_option,
+            file_name_option,
+            mime_type,
+            duration_sec_option: None,
+        })
     } else {
-        Ok(None)
-    }
+        bail!("Unsupported attachment MIME type: {mime_type}")
+    };
+    Ok(result)
 }
 
 /// Returns relative path to decrypted file
@@ -501,20 +502,19 @@ fn get_myself(conn: &Connection) -> Result<UserId> {
     let idx = idx + PATTERN.len() + 1;
     let uuid = &json[idx..idx + 36];
     let uuid = Uuid::parse_str(uuid).map_err(|_| anyhow!("Malformed uuid_id JSON!"))?;
-    let id = UserId(uuid_to_u32(uuid)? as i64);
+    let id = UserId(uuid_to_i64_pos(uuid)?);
     return Ok(id);
 }
 
-fn uuid_to_u32(uuid: Uuid) -> Result<u32> {
+fn uuid_to_i64_pos(uuid: Uuid) -> Result<i64> {
     let uuid_bytes = uuid.as_bytes();
-    let uuid_parts: Vec<[u8; 4]> = vec![
-        uuid_bytes[0..4].try_into()?,
-        uuid_bytes[4..8].try_into()?,
-        uuid_bytes[8..12].try_into()?,
-        uuid_bytes[12..16].try_into()?
+    let uuid_parts: Vec<[u8; 8]> = vec![
+        uuid_bytes[0..8].try_into()?,
+        uuid_bytes[8..16].try_into()?
     ];
-    let uuid_parts = uuid_parts.iter().map(|bs| u32::from_le_bytes(*bs)).collect_vec();
-    Ok(uuid_parts.iter().cloned().reduce(|a, b| a.wrapping_add(b)).unwrap())
+    let uuid_parts = uuid_parts.iter().map(|bs| u64::from_le_bytes(*bs)).collect_vec();
+    let res_u64 = uuid_parts.iter().cloned().reduce(|a, b| a.wrapping_add(b)).unwrap();
+    Ok((res_u64 / 2) as i64)
 }
 
 struct LinkedAttachment {

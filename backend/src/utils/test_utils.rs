@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use pretty_assertions::assert_eq;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 pub use chat_history_manager_core::utils::test_utils::*;
@@ -103,6 +104,72 @@ pub fn create_random_file(parent: &Path) -> PathBuf {
     let path = parent.join(&format!("{}.bin", random_alphanumeric(30)));
     create_random_named_file(&path);
     path
+}
+
+/// Creates a SQLite database from SQL files in the given directory.
+/// For convenience, binary column values can be stored in separate binary files.
+/// For binary files, the name should be in the format `"{db_name}__{table_name}__{condition}__{column_name}.bin"`.
+pub fn create_sqlite_database(root_path: &Path,
+                              databases_rel_path: &str,
+                              target_db_ext_suffix: &str) -> TmpDir {
+    let databases = root_path.join(databases_rel_path);
+    if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
+    let db_tmp_dir = TmpDir::new_at(databases);
+
+    let files = root_path.read_dir().unwrap()
+        .map(|res| res.unwrap().path())
+        .collect_vec();
+
+    let sql_files =
+        files.iter()
+            .filter(|&child| path_file_name(child).unwrap().ends_with(".sql"))
+            .collect_vec();
+
+    for sql_file in sql_files.into_iter() {
+        let db_name = path_file_name(sql_file).unwrap().smart_slice(..-4).to_owned();
+        let target_db_path =
+            db_tmp_dir.path.join(format!("{db_name}{target_db_ext_suffix}"));
+        log::info!("Creating database {db_name}");
+        let conn = Connection::open(target_db_path).unwrap();
+        let sql = fs::read_to_string(sql_file).unwrap();
+        conn.execute_batch(&sql).unwrap();
+    }
+
+    let binary_files =
+        files.iter()
+            .filter(|child| path_file_name(child).unwrap().ends_with(".bin"))
+            .collect_vec();
+
+    for bin_file in binary_files.into_iter() {
+        let name = path_file_name(bin_file).unwrap();
+        let (db_name, table_name, condition, column_name) =
+            name.smart_slice(..-4).split("__").collect_tuple().unwrap();
+        let (condition_key, condition_value) = condition.split('=').collect_tuple().unwrap();
+
+        let target_db_path =
+            db_tmp_dir.path.join(format!("{db_name}{target_db_ext_suffix}"));
+        log::info!("Applying binary file {name}");
+        let conn = Connection::open(target_db_path).unwrap();
+        let content = fs::read(bin_file).unwrap();
+        conn.execute(&format!("UPDATE {table_name} SET {column_name} = ?1 WHERE {condition_key} = ?2"),
+                     params![content, condition_value]).unwrap();
+    }
+
+    db_tmp_dir
+}
+
+pub fn create_databases(resource_name: &str,
+                        resource_name_suffix: &str,
+                        databases_rel_path: &str,
+                        target_db_ext_suffix: &str,
+                        main_db_filename: &str) -> (PathBuf, TmpDir) {
+    let folder = resource(&format!("{}_{}", resource_name, resource_name_suffix));
+    assert!(folder.exists());
+
+    let tmp_dir =
+        create_sqlite_database(&folder, databases_rel_path, target_db_ext_suffix);
+
+    (tmp_dir.path.join(main_db_filename), tmp_dir)
 }
 
 /// Returns paths to all files referenced by entities of this dataset. Some might not exist.
@@ -343,61 +410,13 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 }
 
 pub mod test_android {
-    use rusqlite::{Connection, params};
-
     use super::*;
 
     pub fn create_databases(name: &str,
                             name_suffix: &str,
                             target_db_ext_suffix: &str,
                             db_filename: &str) -> (PathBuf, TmpDir) {
-        let folder = resource(&format!("{}_{}", name, name_suffix));
-        assert!(folder.exists());
-
-        let databases = folder.join(loader::android::DATABASES);
-        if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
-        let databases = TmpDir::new_at(databases);
-
-        let files = folder.read_dir().unwrap()
-            .map(|res| res.unwrap().path())
-            .collect_vec();
-
-        let sql_files =
-            files.iter()
-                .filter(|&child| path_file_name(child).unwrap().ends_with(".sql"))
-                .collect_vec();
-
-        for sql_file in sql_files.into_iter() {
-            let db_name = path_file_name(sql_file).unwrap().smart_slice(..-4).to_owned();
-            let target_db_path =
-                databases.path.join(format!("{db_name}{target_db_ext_suffix}"));
-            log::info!("Creating database {db_name}");
-            let conn = Connection::open(target_db_path).unwrap();
-            let sql = fs::read_to_string(sql_file).unwrap();
-            conn.execute_batch(&sql).unwrap();
-        }
-
-        let binary_files =
-            files.iter()
-                .filter(|child| path_file_name(child).unwrap().ends_with(".bin"))
-                .collect_vec();
-
-        for bin_file in binary_files.into_iter() {
-            let name = path_file_name(bin_file).unwrap();
-            let (db_name, table_name, condition, column_name) =
-                name.smart_slice(..-4).split("__").collect_tuple().unwrap();
-            let (condition_key, condition_value) = condition.split('=').collect_tuple().unwrap();
-
-            let target_db_path =
-                databases.path.join(format!("{db_name}{target_db_ext_suffix}"));
-            log::info!("Applying binary file {name}");
-            let conn = Connection::open(target_db_path).unwrap();
-            let content = fs::read(bin_file).unwrap();
-            conn.execute(&format!("UPDATE {table_name} SET {column_name} = ?1 WHERE {condition_key} = ?2"),
-                         params![content, condition_value]).unwrap();
-        }
-
-        (databases.path.join(db_filename), databases)
+        super::create_databases(name, name_suffix, loader::android::DATABASES, target_db_ext_suffix, db_filename)
     }
 }
 
@@ -479,7 +498,7 @@ impl TmpDir {
     }
 
     pub fn new_at(full_path: PathBuf) -> Self {
-        fs::create_dir(&full_path).expect("Can't create temp directory!");
+        fs::create_dir(&full_path).expect(&format!("Can't create temp directory '{}'!", full_path.display()));
         TmpDir { path: full_path }
     }
 }
