@@ -50,7 +50,24 @@ Using a rooted Androind phone, download the database through `adb`:
 
 Can also import a WhatsApp exported chat, a text file named `WhatsApp Chat with <name>.txt`.
 Note that this format is very limited. 
- 
+
+Signal (WIP)
+------------
+Reads (manually decrypted) Signal Desktop database and decrypts attachments.
+- On macOS, encrypted database is located in `~/Library/Application Support/Signal/sql/db.sqlite`.
+- Encrypted attachments are read from `attachments.noindex` directory if present,
+  and are decrypted into `_decrypted` (this may take a while to be processed).
+- Has only been tested with Signal Desktop v7.27 and may not work with older/newer versions.
+
+Current limitations:
+- Can't handle group chats and formatted text yet.
+- Required database to be manually decrypted via [sqlcipher](https://github.com/sqlcipher/sqlcipher/) as
+  `plaintext.sqlite`.
+- This in turn requires a password from `config.json` to be decrypted with a password from macOS Keychain -
+  refer to [this comment](https://www.reddit.com/r/signal/comments/1edkaok/comment/lfbz5kq/) for guidance.
+
+Kudos to [sigtop](https://github.com/tbvdm/sigtop) for the attachment decryption code. 
+
 Mail.Ru Agent
 -------------
 Loads histories from two database formats:
