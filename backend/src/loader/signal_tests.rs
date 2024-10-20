@@ -19,7 +19,7 @@ const RESOURCE_DIR: &str = "signal";
 //
 
 #[test]
-fn loading_2024_08_macos() -> EmptyRes {
+fn loading_v7_27_macos_plaintext() -> EmptyRes {
     let loader = SignalDataLoader;
     let (res, db_dir) =
         create_databases(RESOURCE_DIR, "2024-08-macos", "sql", ".sqlite", PLAINTEXT_DB_FILENAME);

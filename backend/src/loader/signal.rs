@@ -1,5 +1,3 @@
-///! Huge kudos to https://github.com/tbvdm/sigtop making this implementation possible!
-
 use super::DataLoader;
 use crate::prelude::client::UserInputRequester;
 use crate::prelude::*;
@@ -24,6 +22,12 @@ use uuid::Uuid;
 #[path = "signal_tests.rs"]
 mod tests;
 
+/// This loader is based on the Signal Desktop v6.18 and v7.27 for macOS.
+///
+/// Note that it cannot decrypt attachments for pre-v7 database, as the encryption key hasn't been moved
+/// to the database localKey yet, and I was too lazy to reverse engineer it.
+///
+/// Huge kudos to https://github.com/tbvdm/sigtop making this implementation possible!
 pub struct SignalDataLoader;
 
 const NAME: &'static str = "Signal";
@@ -142,7 +146,11 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
     let mut rows = stmt.query([])?;
 
     while let Some(row) = rows.next()? {
-        let uuid = row.get::<_, String>("serviceId")?;
+        // "serviceId" was called "uuid" before Signal v7 (in v6 for sure)
+        let uuid =
+            row.get::<_, String>("serviceId")
+                .or(row.get::<_, String>("uuid"))
+                .map_err(|_| anyhow!(r##"Neither "serviceId" nor "uuid" column found in table "conversations""##))?;
         let uuid = Uuid::parse_str(&uuid)?;
         let id = UserId(uuid_to_i64_pos(uuid)?);
 
@@ -182,7 +190,9 @@ fn parse_cwms(conn: &Connection,
     // NOTE: Non-private conversation types (group chats?) are not supported, and it's checked in `parse_users`
     let mut conv_stmt = conn.prepare(r"SELECT * FROM conversations WHERE type = 'private'")?;
     let mut msg_stmt = conn.prepare(r"SELECT * FROM messages WHERE conversationId = ? ORDER BY sent_at ASC, rowid asc")?;
-    let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?")?;
+
+    // Call details were embedded in JSON in Signal v6, but in v7 they're in separate table
+    let mut calls_stmt = conn.prepare(r"SELECT * FROM callsHistory WHERE callId = ?").ok();
 
     let mut conv_rows = conv_stmt.query([])?;
     while let Some(row) = conv_rows.next()? {
@@ -190,7 +200,11 @@ fn parse_cwms(conn: &Connection,
         let chat_uuid = Uuid::parse_str(&chat_uuid_string)?;
         let chat_id = ChatId(uuid_to_i64_pos(chat_uuid)?);
 
-        let user_uuid = row.get::<_, String>("serviceId")?;
+        // "serviceId" was called "uuid" before Signal v7 (in v6 for sure)
+        let user_uuid =
+            row.get::<_, String>("serviceId")
+                .or(row.get::<_, String>("uuid"))
+                .map_err(|_| anyhow!(r##"Neither "serviceId" nor "uuid" column found in table "conversations""##))?;
         let user_uuid = Uuid::parse_str(&user_uuid)?;
         let user = users.get(&user_uuid).ok_or_else(|| anyhow!("Unknown user"))?;
         let member_ids = if user.id == *myself_id {
@@ -232,22 +246,45 @@ fn parse_cwms(conn: &Connection,
                 "outgoing" => myself_id,
                 "call-history" => {
                     let call_id = row.get::<_, String>("callId")?;
-                    let mut call_row = calls_stmt.query([call_id])?;
-                    let call_row = call_row.next()?.ok_or_else(|| anyhow!("Call not found"))?;
-                    let call_direction = call_row.get::<_, String>("direction")?;
-                    let from_id = match call_direction.as_str() {
-                        "Incoming" => user.id(),
-                        "Outgoing" => myself_id,
-                        _ => bail!("Unknown call direction: {call_direction}"),
-                    };
+                    const DETAILS_KEY: &str = "callHistoryDetails";
+                    let (from_id, discard_reason) =
+                        if let Some(calls_stmt) = calls_stmt.as_mut() {
+                            let mut call_row = calls_stmt.query([call_id])?;
+                            let call_row = call_row.next()?.ok_or_else(|| anyhow!("Call not found"))?;
+                            let call_direction = call_row.get::<_, String>("direction")?;
+                            let from_id = match call_direction.as_str() {
+                                "Incoming" => user.id(),
+                                "Outgoing" => myself_id,
+                                _ => bail!("Unknown call direction: {call_direction}"),
+                            };
 
-                    let discard_reason = call_row.get::<_, String>("status")?;
-                    let discard_reason = match discard_reason.as_str() {
-                        "Accepted" => "hangup",
-                        "Declined" => "declined",
-                        "Missed" => "missed",
-                        _ => bail!("Unknown call discard reason: {discard_reason}"),
-                    };
+                            let discard_reason = call_row.get::<_, String>("status")?;
+                            let discard_reason = match discard_reason.as_str() {
+                                "Accepted" => "hangup",
+                                "Declined" => "declined",
+                                "Missed" => "missed",
+                                _ => bail!("Unknown call discard reason: {discard_reason}"),
+                            };
+
+                            (from_id, discard_reason)
+                        } else if json.contains_key(DETAILS_KEY) {
+                            let details = get_field_object!(json, "<root>", DETAILS_KEY);
+                            let was_incoming = get_field_bool!(details, DETAILS_KEY, "wasIncoming");
+
+                            let from_id = if was_incoming { user.id() } else { myself_id };
+
+                            let discard_reason = if get_field_bool!(details, DETAILS_KEY, "wasDeclined") {
+                                "declined"
+                            } else if details.contains_key("acceptedTime") {
+                                "hangup"
+                            } else {
+                                "missed"
+                            };
+
+                            (from_id, discard_reason)
+                        } else {
+                            bail!("Couldn't resolve call details for message {source_uuid}")
+                        };
 
                     service_option = Some(message_service!(ServiceSvo::PhoneCall(MessageServicePhoneCall {
                         duration_sec_option: None, // Duration is not recorded
@@ -435,45 +472,48 @@ fn decrypt_linked_file(name: Option<&str>,
 
             use cipher::*;
             // Data will be decrypted in-place
-            let mut enc_data = fs::read(full_src_path)?;
+            let mut enc_data = fs::read(&full_src_path)?;
             ensure!(enc_data.len() >= AES_BLOCK_SIZE + SHA256_SIZE, "Attachment data too short");
 
-            let key = file_info.local_key.as_deref().ok_or_else(|| anyhow!("Attachment key not found!"))?;
-            let key = BASE64_STANDARD.decode(key)?;
-            ensure!(key.len() == CIPHER_KEY_SIZE + MAC_KEY_SIZE, "Invalid key length");
+            if let Some(key) = file_info.local_key.as_deref() {
+                let key = BASE64_STANDARD.decode(key)?;
+                ensure!(key.len() == CIPHER_KEY_SIZE + MAC_KEY_SIZE, "Invalid key length");
 
-            let cipher_key = &key[..CIPHER_KEY_SIZE];
-            let mac_key = &key[CIPHER_KEY_SIZE..];
+                let cipher_key = &key[..CIPHER_KEY_SIZE];
+                let mac_key = &key[CIPHER_KEY_SIZE..];
 
-            let enc_data_len = enc_data.len();
-            let iv = enc_data[..AES_BLOCK_SIZE].to_vec();
-            let their_mac = enc_data[enc_data_len - SHA256_SIZE..].to_vec();
-            let data = &mut enc_data[AES_BLOCK_SIZE..(enc_data_len - SHA256_SIZE)];
-            ensure!(data.len() % AES_BLOCK_SIZE == 0, "Invalid attachment data length");
+                let enc_data_len = enc_data.len();
+                let iv = enc_data[..AES_BLOCK_SIZE].to_vec();
+                let their_mac = enc_data[enc_data_len - SHA256_SIZE..].to_vec();
+                let data = &mut enc_data[AES_BLOCK_SIZE..(enc_data_len - SHA256_SIZE)];
+                ensure!(data.len() % AES_BLOCK_SIZE == 0, "Invalid attachment data length");
 
-            let our_mac = {
-                let mut hmac = HmacSha256::new_from_slice(mac_key).expect("HMAC can take key of any size");
-                hmac.update(&iv);
-                hmac.update(data);
-                hmac.finalize()
-            };
-            let our_mac = our_mac.into_bytes();
-            let our_mac = our_mac.as_slice();
-            ensure!(our_mac == &their_mac, "Attachment MAC mismatch");
+                let our_mac = {
+                    let mut hmac = HmacSha256::new_from_slice(mac_key).expect("HMAC can take key of any size");
+                    hmac.update(&iv);
+                    hmac.update(data);
+                    hmac.finalize()
+                };
+                let our_mac = our_mac.into_bytes();
+                let our_mac = our_mac.as_slice();
+                ensure!(our_mac == &their_mac, "Attachment MAC mismatch");
 
-            let mut dec = Aes256CbcDecryptor::new_from_slices(cipher_key, &iv)
-                .map_err(|_| anyhow!("Invalid attachment key/IV length"))?;
+                let mut dec = Aes256CbcDecryptor::new_from_slices(cipher_key, &iv)
+                    .map_err(|_| anyhow!("Invalid attachment key/IV length"))?;
 
-            for data in data.chunks_mut(AES_BLOCK_SIZE) {
-                dec.decrypt_block_mut(Aes256CbcBlock::from_mut_slice(data));
+                for data in data.chunks_mut(AES_BLOCK_SIZE) {
+                    dec.decrypt_block_mut(Aes256CbcBlock::from_mut_slice(data));
+                }
+
+                fs::create_dir_all(full_dst_path.parent().unwrap())?;
+                fs::write(full_dst_path, data)?;
+            } else {
+                log::warn!("Local key not found, cannot decrypt attachment {}", full_src_path.display());
+                return Ok(None);
             }
-
-            fs::create_dir_all(full_dst_path.parent().unwrap())?;
-            fs::write(full_dst_path, data)?;
         } else {
             // No cheap way to compare files, so we just assume they're the same
         }
-
 
         Ok(Some(format!("{}/{path}", path_file_name(dst_path)?)))
     } else {
@@ -514,11 +554,10 @@ fn parse_linked_file_info(json: &Object, key: &str) -> Result<LinkedFileInfo> {
     let mime_type = get_field_string!(json, key, "contentType");
     let version = json.get("version").and_then(|v| v.as_i32());
     let path = json.get("path").and_then(|v| v.as_str()).map(|v| v.to_owned());
-    let size = get_field_i64!(json, key, "size") as usize;
     let local_key = json.get("localKey").and_then(|v| v.as_str()).map(|v| v.to_owned());
     let width = json.get("width").and_then(|v| v.as_i32());
     let height = json.get("height").and_then(|v| v.as_i32());
-    Ok(LinkedFileInfo { _version: version, mime_type, path, _size: size, local_key, width, height })
+    Ok(LinkedFileInfo { _version: version, mime_type, path, local_key, width, height })
 }
 
 fn get_myself(conn: &Connection) -> Result<UserId> {
@@ -567,7 +606,6 @@ struct LinkedFileInfo {
     _version: Option<i32>,
     mime_type: String,
     path: Option<String>,
-    _size: usize,
     local_key: Option<String>,
 
     width: Option<i32>,
