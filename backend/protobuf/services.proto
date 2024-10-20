@@ -16,8 +16,10 @@ option (scalapb.options) = {
 
 message Empty {}
 
-service ChooseMyselfService {
+service UserInputService {
   rpc ChooseMyself(ChooseMyselfRequest) returns (ChooseMyselfResponse) {}
+
+  rpc AskForText(TextInputRequest) returns (TextInputResponse) {}
 }
 
 message ChooseMyselfRequest {
@@ -26,6 +28,14 @@ message ChooseMyselfRequest {
 
 message ChooseMyselfResponse {
   required int32 picked_option = 1;
+}
+
+message TextInputRequest {
+  required string prompt = 1;
+}
+
+message TextInputResponse {
+  required string user_input = 1;
 }
 
 //

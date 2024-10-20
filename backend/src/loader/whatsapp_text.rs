@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::dao::in_memory_dao::InMemoryDao;
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 
@@ -39,7 +39,7 @@ impl DataLoader for WhatsAppTextDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         parse_whatsapp_text_file(path, ds)
     }
 }

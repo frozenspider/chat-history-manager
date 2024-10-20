@@ -8,7 +8,7 @@ use itertools::{Either, Itertools};
 use crate::prelude::*;
 use crate::dao::ChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::badoo_android::BadooAndroidDataLoader;
 use crate::loader::mra::MailRuAgentDataLoader;
 use crate::loader::signal::SignalDataLoader;
@@ -42,7 +42,7 @@ trait DataLoader: Send + Sync {
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
-    fn load(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         let root_path_str = ensure_file_presence(path)?;
         measure(|| {
             let now_str = Local::now().format("%Y-%m-%d");
@@ -50,11 +50,11 @@ trait DataLoader: Send + Sync {
                 uuid: PbUuid::random(),
                 alias: format!("{}, loaded @ {now_str}", self.src_alias()),
             };
-            self.load_inner(path, ds, myself_chooser)
+            self.load_inner(path, ds, user_input_requester)
         }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str))
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>>;
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>>;
 }
 
 pub struct Loader {
@@ -77,22 +77,22 @@ impl Loader {
     }
 
     /// If the given file is an internal Sqlite DB, open it, otherwise attempt to parse a file as a foreign history.
-    pub fn load(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<dyn ChatHistoryDao>> {
+    pub fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<dyn ChatHistoryDao>> {
         let filename = path_file_name(path)?;
         if filename == SqliteDao::FILENAME {
             Ok(Box::new(SqliteDao::load(path)?))
         } else {
-            Ok(self.parse(path, myself_chooser)?)
+            Ok(self.parse(path, user_input_requester)?)
         }
     }
 
     /// Parses a history in a foreign format
-    pub fn parse(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    pub fn parse(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         ensure!(path.exists(), "File not found");
         let (named_errors, loads): (Vec<_>, Vec<_>) =
             self.loaders.iter()
                 .partition_map(|loader| match loader.looks_about_right(path) {
-                    Ok(()) => Either::Right(|| loader.load(path, myself_chooser)),
+                    Ok(()) => Either::Right(|| loader.load(path, user_input_requester)),
                     Err(why) => Either::Left((loader.name(), why)),
                 });
         match loads.first() {
@@ -137,7 +137,7 @@ pub mod android {
 
     use crate::loader::DataLoader;
     use crate::prelude::*;
-    use crate::prelude::client::MyselfChooser;
+    use crate::prelude::client::UserInputRequester;
 
     pub const DATABASES: &str = "databases";
 
@@ -180,7 +180,7 @@ pub mod android {
             Ok(())
         }
 
-        fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+        fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
             parse_android_db(self, path, ds)
         }
     }

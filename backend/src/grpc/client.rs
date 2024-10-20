@@ -3,30 +3,38 @@ use tonic::transport::Endpoint;
 
 use crate::prelude::*;
 
-mod myself_chooser;
+use super::*;
 
-pub trait MyselfChooser: Send + Sync {
+mod user_input_requester;
+
+pub trait UserInputRequester: Send + Sync {
     fn choose_myself(&self, users: &[User]) -> Result<usize>;
+
+    fn ask_for_text(&self, prompt: &str) -> Result<String>;
 }
 
-pub async fn create_myself_chooser(remote_port: u16) -> Result<Box<dyn MyselfChooser>> {
+pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputRequester>> {
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
-    Ok(Box::new(myself_chooser::MyselfChooserImpl { runtime_handle, channel: lazy_channel }))
+    Ok(Box::new(user_input_requester::UserInputRequesterImpl { runtime_handle, channel: lazy_channel }))
 }
 
 #[derive(Clone, Copy)]
 pub struct NoChooser;
 
-impl MyselfChooser for NoChooser {
+impl UserInputRequester for NoChooser {
     fn choose_myself(&self, _pretty_names: &[User]) -> Result<usize> {
         err!("No way to choose myself!")
+    }
+
+    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
+        err!("No way to ask user!")
     }
 }
 
 pub async fn debug_request_myself(port: u16) -> Result<usize> {
     let conn_port = port + 1;
-    let chooser = create_myself_chooser(conn_port).await?;
+    let chooser = create_user_input_requester(conn_port).await?;
 
     let ds_uuid = PbUuid { value: "00000000-0000-0000-0000-000000000000".to_owned() };
     let chosen = chooser.choose_myself(&[

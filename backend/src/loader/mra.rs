@@ -15,7 +15,7 @@ use utf16string::{LE, WStr};
 use message_service::SealedValueOptional as ServiceSvo;
 
 use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 use crate::prelude::blob_utils::*;
@@ -60,7 +60,7 @@ impl DataLoader for MailRuAgentDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         // We're not using the supplied dataset, just the name of it
         load_mra_dbs(path, ds.alias)
     }

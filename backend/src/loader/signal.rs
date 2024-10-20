@@ -1,7 +1,7 @@
 ///! Huge kudos to https://github.com/tbvdm/sigtop making this implementation possible!
 
 use super::DataLoader;
-use crate::prelude::client::MyselfChooser;
+use crate::prelude::client::UserInputRequester;
 use crate::prelude::*;
 
 use std::fs;
@@ -45,7 +45,7 @@ impl DataLoader for SignalDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         load_sqlite(path, ds)
     }
 }

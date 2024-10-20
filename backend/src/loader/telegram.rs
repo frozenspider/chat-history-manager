@@ -14,7 +14,7 @@ use simd_json::prelude::*;
 use crate::dao::in_memory_dao::InMemoryDao;
 use crate::loader::DataLoader;
 use crate::prelude::*;
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 // Reexporting JSON utils for simplicity.
 pub use crate::utils::json_utils::*;
 
@@ -51,8 +51,8 @@ impl DataLoader for TelegramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
-        parse_telegram_file(path, ds, myself_chooser)
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+        parse_telegram_file(path, ds, user_input_requester)
     }
 }
 
@@ -166,7 +166,7 @@ fn get_real_path(path: &Path) -> PathBuf {
     }
 }
 
-fn parse_telegram_file(path: &Path, ds: Dataset, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+fn parse_telegram_file(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
     let path = get_real_path(path);
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
@@ -191,7 +191,7 @@ fn parse_telegram_file(path: &Path, ds: Dataset, myself_chooser: &dyn MyselfChoo
     let keys = root_obj.keys().map(|s| s.deref()).collect::<HashSet<_>>();
     let (users, chats_with_messages) =
         if single_chat_keys.is_superset(&keys) {
-            parser_single::parse(root_obj, &ds.uuid, &mut myself, myself_chooser)?
+            parser_single::parse(root_obj, &ds.uuid, &mut myself, user_input_requester)?
         } else {
             parser_full::parse(root_obj, &ds.uuid, &mut myself)?
         };
