@@ -14,7 +14,7 @@ use message_service::SealedValueOptional as ServiceSvo;
 use base64::prelude::*;
 use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 use hmac::Mac;
-use rusqlite::Connection;
+use rusqlite::{Connection, Error, ErrorCode};
 use simd_json::base::*;
 use simd_json::borrowed::{Object, Value};
 use simd_json::derived::*;
@@ -30,6 +30,7 @@ const NAME: &'static str = "Signal";
 
 const ENCRYPTED_DB_FILENAME: &'static str = "db.sqlite";
 const PLAINTEXT_DB_FILENAME: &'static str = "plaintext.sqlite";
+const CONFIG_FILENAME: &'static str = "config.json";
 
 const ATTACHMENTS_DIR_NAME: &'static str = "attachments.noindex";
 const DECRYPTED_ATTACHMENTS_DIR_NAME: &'static str = "_decrypted";
@@ -45,24 +46,27 @@ impl DataLoader for SignalDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
-        load_sqlite(path, ds)
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+        load_sqlite(path, ds, user_input_requester)
     }
 }
 
 type Users = HashMap<Uuid, User>;
 
-fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
-    let attachments_paths = vec![
-        path.with_file_name(ATTACHMENTS_DIR_NAME),
-        path.parent().unwrap().with_file_name(ATTACHMENTS_DIR_NAME)
+    let root_paths = vec![
+        path.parent().unwrap(),
+        path.parent().unwrap().parent().unwrap(),
     ];
 
-    let attachments_path =
-        attachments_paths.iter().find(|p| p.is_dir()).map(|p| p.as_path());
+    let attachments_path = root_paths.iter()
+        .map(|p| p.join(ATTACHMENTS_DIR_NAME))
+        .find(|p| p.is_dir());
+
+    let attachments_path = attachments_path.as_ref().map(|p| p.as_path());
 
     if attachments_path.is_none() {
         log::warn!("Attachments directory not found, attachments will not be loaded!");
@@ -71,12 +75,45 @@ fn load_sqlite(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let attachments_decrypt_path = attachments_path.map(|p| p.with_file_name(DECRYPTED_ATTACHMENTS_DIR_NAME));
     let attachments_decrypt_path = attachments_decrypt_path.as_ref().map(|p| p.as_path());
 
-    if is_encrypted {
-        // TODO: encrypted DBs
-        bail!("Encrypted Signal databases are not supported yet, decrypt it first!")
-    }
-
     let conn = Connection::open(path)?;
+
+    if is_encrypted {
+        let key_hex: String = {
+            let config_path = root_paths.iter()
+                .map(|p| p.join(CONFIG_FILENAME))
+                .find(|p| p.exists());
+            let config_path = config_path.ok_or_else(|| anyhow!("{CONFIG_FILENAME} not found"))?;
+            let mut config_bytes = fs::read(&config_path)?;
+            let config_json = simd_json::to_borrowed_value(&mut config_bytes)?;
+            let config_json = as_object!(config_json, "json");
+
+            if config_json.contains_key("key") {
+                // Config contains raw key, nothing else to do
+                get_field_string!(config_json, "<root>", "key")
+            } else if config_json.contains_key("encryptedKey") {
+                // Config contains encrypted key, decrypt it
+                let encrypted_key_hex = get_field_string!(config_json, "<root>", "encryptedKey");
+                let secure_pwd = user_input_requester.ask_for_text("\
+                    Input secure password that encrypts database's key.\n\
+                    Signal Desktop client stores password in Electron's safeStorage.\n\
+                    (e.g. on macOS, it's in 'Signal Safe Storage' entry in Keychain)\n\
+                ".trim())?;
+                cipher::decrypt_database_key(&encrypted_key_hex, &secure_pwd)?
+            } else {
+                bail!("No 'key' nor 'encryptedKey' found in {CONFIG_FILENAME}")
+            }
+        };
+
+        conn.execute_batch(&format!(r#"PRAGMA key = "x'{key_hex}'""#))?;
+
+        // Sanity check
+        conn.query_row("SELECT COUNT(*) FROM messages", [], |_| Ok(()))
+            .map_err(|e| match e {
+                Error::SqliteFailure(ffi_err, _) if ffi_err.code == ErrorCode::NotADatabase =>
+                    anyhow!("Incorrect database encryption key"),
+                _ => e.into()
+            })?;
+    }
 
     let users = parse_users(&conn, &ds.uuid)?;
     let myself_id = get_myself(&conn)?;
@@ -538,10 +575,14 @@ struct LinkedFileInfo {
 }
 
 mod cipher {
-    use aes::cipher::Block;
-    use aes::Aes256;
+    use aes::{Aes128, Aes256};
+    use anyhow::{anyhow, ensure};
+    use cbc::cipher::{Block, BlockDecryptMut, KeyIvInit};
+    use cbc::cipher::block_padding::Pkcs7;
     use cbc::Decryptor;
     use hmac::Hmac;
+    use pbkdf2::pbkdf2;
+    use sha1::Sha1;
     use sha2::Sha256;
 
     pub const CIPHER_KEY_SIZE: usize = 32;
@@ -550,8 +591,40 @@ mod cipher {
     pub const AES_BLOCK_SIZE: usize = 16;
     pub const SHA256_SIZE: usize = 32;
 
-    pub type HmacSha256 = Hmac<Sha256>;
+    // Database key encryption
+    pub type HmacSha1 = Hmac<Sha1>;
+    pub type Aes128CbcDecryptor = Decryptor<Aes128>;
 
+    // Attachments encryption
+    pub type HmacSha256 = Hmac<Sha256>;
     pub type Aes256CbcDecryptor = Decryptor<Aes256>;
     pub type Aes256CbcBlock = Block<Aes256CbcDecryptor>;
+
+    /// Returns a hex string without 0x prefix
+    pub fn decrypt_database_key(encrypted_key_hex: &str, secure_password: &str) -> super::Result<String> {
+        // (Adapted from Python script https://gist.github.com/flatz/3f242ab3c550d361f8c6d031b07fb6b1)
+        const PREFIX: &[u8] = b"v10";
+        const SALT: &str = "saltysalt";
+        const DERIVED_KEY_LEN: usize = 128 / 8;
+        const NUM_ITERATIONS: u32 = 1003;
+        const IV: &[u8] = &[b' '; 16]; // 16 spaces
+
+        let mut encrypted_key = hex::decode(encrypted_key_hex)?;
+        ensure!(encrypted_key.starts_with(PREFIX), "Invalid encrypted database key prefix");
+
+        let encrypted_key = &mut encrypted_key[PREFIX.len()..];
+
+        let mut kek = vec![0u8; DERIVED_KEY_LEN];
+
+        pbkdf2::<HmacSha1>(secure_password.as_bytes(), SALT.as_bytes(), NUM_ITERATIONS, &mut kek)?;
+
+        let cipher = Aes128CbcDecryptor::new_from_slices(&kek, IV)?;
+
+        let decrypted_key = cipher
+            .decrypt_padded_mut::<Pkcs7>(encrypted_key)
+            .map_err(|_| anyhow!("Decryption failed"))?
+            .to_vec();
+
+        Ok(String::from_utf8(decrypted_key)?)
+    }
 }
