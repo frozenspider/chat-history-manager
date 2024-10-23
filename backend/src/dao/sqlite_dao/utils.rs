@@ -146,7 +146,7 @@ pub mod user {
                                   frame: Option<&PictureFrame>,
                                   idx: usize,
                                   dst_ds_root: &DatasetRoot) -> Result<RawProfilePicture> {
-            let new_path = sqlite_dao::copy_user_profile_pic(path, None, user_id, &dst_ds_root)?
+            let new_path = sqlite_dao::copy_user_profile_pic(path, None, user_id, dst_ds_root)?
                 .expect("Filter out non-existent paths first!");
             Ok(RawProfilePicture {
                 ds_uuid: raw_ds_uuid.to_vec(),

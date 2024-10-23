@@ -245,7 +245,7 @@ fn encrypt_linked_file(path: &str,
     }
     let target_data_len = AES_BLOCK_SIZE + dst_data_len + SHA256_SIZE;
     let mut target_data = vec![0; target_data_len];
-    (&mut target_data[..AES_BLOCK_SIZE]).copy_from_slice(IV);
+    target_data[..AES_BLOCK_SIZE].copy_from_slice(IV);
     let hmac = {
         let data = &mut target_data[AES_BLOCK_SIZE..(target_data_len - SHA256_SIZE)];
         assert_eq!(data.len() % AES_BLOCK_SIZE, 0, "Invalid attachment data length");
@@ -265,7 +265,7 @@ fn encrypt_linked_file(path: &str,
         };
         hmac.into_bytes().to_vec()
     };
-    (&mut target_data[target_data_len - SHA256_SIZE..]).copy_from_slice(&hmac);
+    target_data[target_data_len - SHA256_SIZE..].copy_from_slice(&hmac);
 
     fs::create_dir_all(full_dst_path.parent().unwrap()).expect("Creating parent dir");
     fs::write(full_dst_path, &target_data).expect("Writing encrypted file");

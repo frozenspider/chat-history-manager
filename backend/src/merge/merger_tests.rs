@@ -174,7 +174,7 @@ fn merge_multiple_datasets() -> EmptyRes {
         }],
     );
     assert_eq!(new_dao.datasets()?.iter().sorted_by_key(|ds| &ds.uuid.value).collect_vec(),
-               vec![new_ds.clone(), other_ds.clone()].iter().sorted_by_key(|ds| &ds.uuid.value).collect_vec());
+               [new_ds.clone(), other_ds.clone()].iter().sorted_by_key(|ds| &ds.uuid.value).collect_vec());
     assert_eq!(new_dao.users(&other_ds.uuid)?,
                other_ds_users);
     assert_eq!(new_dao.chats(&other_ds.uuid)?.into_iter().map(|cwd| cwd.chat).collect_vec(),
@@ -231,7 +231,7 @@ fn merge_chats_match_single_message() -> EmptyRes {
     let new_messages = new_dao.first_messages(&new_chats[0].chat, usize::MAX)?;
     assert_eq!(new_messages, vec![Message {
         internal_id: 1,
-        source_id_option: msgs_b[0].source_id_option.clone(),
+        source_id_option: msgs_b[0].source_id_option,
         typed: Some(message_regular! {
             reply_to_message_id_option: msg_b_regular.reply_to_message_id_option,
             ..msg_a_regular.clone()

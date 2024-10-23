@@ -711,7 +711,7 @@ fn present_absent_not_downloaded() -> EmptyRes {
     let make_msg_photo = |idx: i64, is_regular: bool, photo: &ContentPhoto| {
         let typed: message::Typed = if is_regular {
             message_regular! {
-                edit_timestamp_option: Some((BASE_DATE.clone() + Duration::try_minutes(10 + idx).unwrap()).timestamp()),
+                edit_timestamp_option: Some((*BASE_DATE + Duration::try_minutes(10 + idx).unwrap()).timestamp()),
                 is_deleted: false,
                 reply_to_message_id_option: None,
                 forward_from_name_option: Some("some user".to_owned()),
@@ -731,7 +731,7 @@ fn present_absent_not_downloaded() -> EmptyRes {
             timestamp: BASE_DATE.timestamp(),
             from_id: user_id as i64,
             searchable_string: make_searchable_string(&text, &typed),
-            text: text,
+            text,
             typed: Some(typed),
         }
     };
@@ -880,11 +880,11 @@ fn present_absent_not_downloaded() -> EmptyRes {
 fn telegram_2023_11_amending_double_style_export() -> EmptyRes {
     let msgs = create_messages(src_id(0));
     let msgs_a = msgs.iter().map(|m| Message {
-        text: vec![RichText::make_bold(format!("Text in other style"))],
+        text: vec![RichText::make_bold("Text in other style".to_owned())],
         ..m.clone()
     }).collect_vec();
     let msgs_b = msgs.iter().map(|m| Message {
-        text: vec![RichText::make_italic(format!("Text in other style"))],
+        text: vec![RichText::make_italic("Text in other style".to_owned())],
         ..m.clone()
     }).collect_vec();
     let helper = MergerHelper::new_as_is(MAX_USER_ID, msgs_a, msgs_b);

@@ -124,7 +124,7 @@ fn loading_2024_07_photos() -> EmptyRes {
     let myself = dao.myself_single_ds();
     assert_eq!(myself, expected_myself(ds_uuid));
 
-    let expected_profile_pic_names = vec![
+    let expected_profile_pic_names = [
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
         "33333333-3333-3333-3333-333333333333",

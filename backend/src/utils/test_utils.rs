@@ -92,7 +92,7 @@ pub fn random_alphanumeric(length: usize) -> String {
 }
 
 pub fn create_named_file(path: &Path, content: &[u8]) {
-    let mut file = fs::File::create(&path).unwrap();
+    let mut file = fs::File::create(path).unwrap();
     file.write(content).unwrap();
 }
 
@@ -178,8 +178,7 @@ pub fn dataset_files(dao: &impl ChatHistoryDao, ds_uuid: &PbUuid) -> Vec<PathBuf
     let ds_root = dao.dataset_root(ds_uuid).unwrap();
     let cwds = dao.chats(ds_uuid).unwrap();
     let mut files: Vec<PathBuf> = cwds.iter()
-        .map(|cwd| cwd.chat.img_path_option.as_deref())
-        .flatten()
+        .filter_map(|cwd| cwd.chat.img_path_option.as_deref())
         .map(|f| ds_root.to_absolute(f)).collect();
     for cwd in cwds.iter() {
         let msgs = dao.first_messages(&cwd.chat, usize::MAX).unwrap();
@@ -332,7 +331,7 @@ pub fn create_dao(
             users,
             cwms,
         )),
-        tmp_dir: tmp_dir,
+        tmp_dir,
     }
 }
 
@@ -367,12 +366,12 @@ pub fn create_group_chat(ds_uuid: &PbUuid, id: i64, name_suffix: &str, member_id
     assert!(member_ids.len() >= 2);
     Chat {
         ds_uuid: ds_uuid.clone(),
-        id: id,
+        id,
         name_option: Some(format!("Chat {}", name_suffix)),
         source_type: SourceType::Telegram as i32,
         tpe: ChatType::PrivateGroup as i32,
         img_path_option: None,
-        member_ids: member_ids,
+        member_ids,
         msg_count: msg_count as i32,
         main_chat_id: None,
     }
@@ -386,7 +385,7 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 
     let typed = message_regular! {
         edit_timestamp_option: Some(
-                (BASE_DATE.clone() + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
+                (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
             ).timestamp()),
         is_deleted: false,
         reply_to_message_id_option: reply_to_message_id_option,
@@ -401,7 +400,7 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
     Message {
         internal_id: idx as i64 * 100,
         source_id_option: Some(idx as i64),
-        timestamp: (BASE_DATE.clone() + Duration::try_minutes(idx as i64).unwrap()).timestamp(),
+        timestamp: (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap()).timestamp(),
         from_id: user_id as i64,
         text,
         searchable_string,
@@ -490,6 +489,12 @@ pub struct TmpDir {
     pub path: PathBuf,
 }
 
+impl Default for TmpDir {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TmpDir {
     pub fn new() -> Self {
         let dir_name = format!("chm-rust_{}", random_alphanumeric(10));
@@ -498,14 +503,14 @@ impl TmpDir {
     }
 
     pub fn new_at(full_path: PathBuf) -> Self {
-        fs::create_dir(&full_path).expect(&format!("Can't create temp directory '{}'!", full_path.display()));
+        fs::create_dir(&full_path).unwrap_or_else(|_| panic!("Can't create temp directory '{}'!", full_path.display()));
         TmpDir { path: full_path }
     }
 }
 
 impl Drop for TmpDir {
     fn drop(&mut self) {
-        fs::remove_dir_all(&self.path).expect(format!("Failed to remove temporary dir '{}'", self.path.to_str().unwrap()).as_str())
+        fs::remove_dir_all(&self.path).unwrap_or_else(|_| panic!("Failed to remove temporary dir '{}'", self.path.to_str().unwrap()))
     }
 }
 
@@ -522,6 +527,12 @@ pub struct MockHttpClient {
     pub calls: Arc<Mutex<RefCell<Vec<String>>>>,
 }
 
+impl Default for MockHttpClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockHttpClient {
     pub fn new() -> Self {
         MockHttpClient { calls: Arc::new(Mutex::new(RefCell::new(vec![]))) }
@@ -530,7 +541,7 @@ impl MockHttpClient {
     pub fn calls_copy(&self) -> Vec<String> {
         let lock = self.calls.lock().unwrap();
         let cell = &*lock;
-        let vec: &Vec<String> = &(*cell.borrow());
+        let vec: &Vec<String> = &cell.borrow();
         vec.clone()
     }
 }

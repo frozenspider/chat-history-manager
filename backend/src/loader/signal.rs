@@ -30,14 +30,14 @@ mod tests;
 /// Huge kudos to https://github.com/tbvdm/sigtop making this implementation possible!
 pub struct SignalDataLoader;
 
-const NAME: &'static str = "Signal";
+const NAME: &str = "Signal";
 
-const ENCRYPTED_DB_FILENAME: &'static str = "db.sqlite";
-const PLAINTEXT_DB_FILENAME: &'static str = "plaintext.sqlite";
-const CONFIG_FILENAME: &'static str = "config.json";
+const ENCRYPTED_DB_FILENAME: &str = "db.sqlite";
+const PLAINTEXT_DB_FILENAME: &str = "plaintext.sqlite";
+const CONFIG_FILENAME: &str = "config.json";
 
-const ATTACHMENTS_DIR_NAME: &'static str = "attachments.noindex";
-const DECRYPTED_ATTACHMENTS_DIR_NAME: &'static str = "_decrypted";
+const ATTACHMENTS_DIR_NAME: &str = "attachments.noindex";
+const DECRYPTED_ATTACHMENTS_DIR_NAME: &str = "_decrypted";
 
 impl DataLoader for SignalDataLoader {
     fn name(&self) -> String { NAME.to_owned() }
@@ -61,7 +61,7 @@ fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputReq
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
-    let root_paths = vec![
+    let root_paths = [
         path.parent().unwrap(),
         path.parent().unwrap().parent().unwrap(),
     ];
@@ -70,14 +70,14 @@ fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputReq
         .map(|p| p.join(ATTACHMENTS_DIR_NAME))
         .find(|p| p.is_dir());
 
-    let attachments_path = attachments_path.as_ref().map(|p| p.as_path());
+    let attachments_path = attachments_path.as_deref();
 
     if attachments_path.is_none() {
         log::warn!("Attachments directory not found, attachments will not be loaded!");
     }
 
     let attachments_decrypt_path = attachments_path.map(|p| p.with_file_name(DECRYPTED_ATTACHMENTS_DIR_NAME));
-    let attachments_decrypt_path = attachments_decrypt_path.as_ref().map(|p| p.as_path());
+    let attachments_decrypt_path = attachments_decrypt_path.as_deref();
 
     let conn = Connection::open(path)?;
 
@@ -383,7 +383,7 @@ fn parse_cwms(conn: &Connection,
         if !messages.is_empty() {
             messages.iter_mut().enumerate().for_each(|(i, m)| {
                 m.internal_id = i as i64;
-                m.timestamp = m.timestamp / 1000;
+                m.timestamp /= 1000;
             });
 
             cwms.push(ChatWithMessages {
@@ -496,7 +496,7 @@ fn decrypt_linked_file(name: Option<&str>,
                 };
                 let our_mac = our_mac.into_bytes();
                 let our_mac = our_mac.as_slice();
-                ensure!(our_mac == &their_mac, "Attachment MAC mismatch");
+                ensure!(our_mac == their_mac, "Attachment MAC mismatch");
 
                 let mut dec = Aes256CbcDecryptor::new_from_slices(cipher_key, &iv)
                     .map_err(|_| anyhow!("Invalid attachment key/IV length"))?;
@@ -579,7 +579,7 @@ fn get_myself(conn: &Connection) -> Result<UserId> {
     let uuid = &json[idx..idx + 36];
     let uuid = Uuid::parse_str(uuid).map_err(|_| anyhow!("Malformed uuid_id JSON!"))?;
     let id = UserId(uuid_to_i64_pos(uuid)?);
-    return Ok(id);
+    Ok(id)
 }
 
 fn uuid_to_i64_pos(uuid: Uuid) -> Result<i64> {

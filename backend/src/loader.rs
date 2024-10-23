@@ -197,8 +197,8 @@ pub mod android {
             path
         };
 
-        let mut users = adl.parse_users(&conn, &ds.uuid, &path)?;
-        let cwms = adl.parse_chats(&conn, &ds.uuid, &path, &mut users)?;
+        let mut users = adl.parse_users(&conn, &ds.uuid, path)?;
+        let cwms = adl.parse_chats(&conn, &ds.uuid, path, &mut users)?;
 
         let users = adl.normalize_users(users, &cwms)?;
         Ok(Box::new(InMemoryDao::new_single(

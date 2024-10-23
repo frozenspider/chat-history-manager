@@ -22,8 +22,8 @@ lazy_static! {
 /// 3. User avatars are looked up in <data_root>/files/Avatars
 pub struct WhatsAppAndroidDataLoader;
 
-const NAME: &'static str = "WhatsApp";
-pub const DB_FILENAME: &'static str = "msgstore.db";
+const NAME: &str = "WhatsApp";
+pub const DB_FILENAME: &str = "msgstore.db";
 
 type Jid = String;
 type MessageKey = String;

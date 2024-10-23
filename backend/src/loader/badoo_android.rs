@@ -15,8 +15,8 @@ pub struct BadooAndroidDataLoader;
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
 
-const NAME: &'static str = "Badoo";
-pub const DB_FILENAME: &'static str = "ChatComDatabase";
+const NAME: &str = "Badoo";
+pub const DB_FILENAME: &str = "ChatComDatabase";
 
 type EncUserId = String;
 

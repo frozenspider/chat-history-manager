@@ -19,8 +19,8 @@ const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
 /// Technically, self does have a proper key, but knowing it doesn't help us.
 const MYSELF_KEY: &str = "myself";
 
-const NAME: &'static str = "Tinder";
-pub const DB_FILENAME: &'static str = "tinder-3.db";
+const NAME: &str = "Tinder";
+pub const DB_FILENAME: &str = "tinder-3.db";
 
 type UserKey = String;
 type Users = HashMap<UserKey, User>;
@@ -71,7 +71,7 @@ impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
             for photo_url in photo_urls {
                 let (_, file_name) = photo_url.rsplit_once("/").unwrap();
                 // TODO: This can be downloaded in parallel, but slow running time isn't a big deal.
-                download_if_missing(&file_name, &downloaded_media_path, &photo_url, self.http_client)?;
+                download_if_missing(file_name, &downloaded_media_path, &photo_url, self.http_client)?;
                 profile_pictures.push(ProfilePicture {
                     path: format!("{RELATIVE_MEDIA_DIR}/{file_name}"),
                     frame_option: None,
@@ -190,10 +190,10 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
     let mut photos = vec![];
 
     fn analyze_photos_blob_recursive(user_key: &UserKey, bytes: &[u8], photos: &mut Vec<String>) -> EmptyRes {
-        let ([first_byte], bytes) = next_const_n_bytes::<1>(&bytes);
+        let ([first_byte], bytes) = next_const_n_bytes::<1>(bytes);
         let bytes = match first_byte {
             0x0A => {
-                let ([_, _, tpe], bytes) = next_const_n_bytes::<3>(&bytes);
+                let ([_, _, tpe], bytes) = next_const_n_bytes::<3>(bytes);
                 match tpe {
                     0x00 => {
                         // No more data
@@ -205,8 +205,8 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
                     }
                 }
 
-                let ([url_len], bytes) = next_const_n_bytes::<1>(&bytes);
-                let (url, mut bytes) = next_n_bytes(&bytes, url_len as usize);
+                let ([url_len], bytes) = next_const_n_bytes::<1>(bytes);
+                let (url, mut bytes) = next_n_bytes(bytes, url_len as usize);
                 let url = String::from_utf8(url.into())?;
                 photos.push(url);
 
@@ -214,57 +214,57 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
                 while !bytes.is_empty() && bytes[0] == 0x12 {
                     let mut b: u8 = 0x00;
                     while b != 0x1A {
-                        ([b], bytes) = next_const_n_bytes::<1>(&bytes);
+                        ([b], bytes) = next_const_n_bytes::<1>(bytes);
                     }
                     bytes = {
-                        let ([url_len], bytes) = next_const_n_bytes::<1>(&bytes);
-                        let (_url, bytes) = next_n_bytes(&bytes, url_len as usize);
+                        let ([url_len], bytes) = next_const_n_bytes::<1>(bytes);
+                        let (_url, bytes) = next_n_bytes(bytes, url_len as usize);
                         bytes
                     };
                 }
 
 
-                let ([separator], bytes) = next_const_n_bytes::<1>(&bytes);
+                let ([separator], bytes) = next_const_n_bytes::<1>(bytes);
                 ensure!(separator == 0x1A, "Unexpected Tinder photos BLOB format for user {user_key}");
 
-                let ([uuid_len], bytes) = next_const_n_bytes::<1>(&bytes);
-                let (_uuid, bytes) = next_n_bytes(&bytes, uuid_len as usize);
+                let ([uuid_len], bytes) = next_const_n_bytes::<1>(bytes);
+                let (_uuid, bytes) = next_n_bytes(bytes, uuid_len as usize);
 
-                let ([next_block_type], bytes) = next_const_n_bytes::<1>(&bytes);
+                let ([next_block_type], bytes) = next_const_n_bytes::<1>(bytes);
                 match next_block_type {
                     0x30 => {
                         // Final block to discard
-                        let ([_, _, block_len], bytes) = next_const_n_bytes::<3>(&bytes);
-                        let (_skip, bytes) = next_n_bytes(&bytes, block_len as usize);
+                        let ([_, _, block_len], bytes) = next_const_n_bytes::<3>(bytes);
+                        let (_skip, bytes) = next_n_bytes(bytes, block_len as usize);
                         bytes
                     }
                     0x22 => {
                         // Videos
-                        let (_skip, mut bytes) = next_n_bytes(&bytes, 7);
+                        let (_skip, mut bytes) = next_n_bytes(bytes, 7);
                         // Skipping all of them
                         let mut section: u8;
                         loop {
                             bytes = {
-                                let ([separator], bytes) = next_const_n_bytes::<1>(&bytes);
+                                let ([separator], bytes) = next_const_n_bytes::<1>(bytes);
                                 ensure!(separator == 0x1A, "Unexpected Tinder photos BLOB format for user {user_key} (video)");
-                                let ([url_len], bytes) = next_const_n_bytes::<1>(&bytes);
-                                let (_url, bytes) = next_n_bytes(&bytes, url_len as usize);
+                                let ([url_len], bytes) = next_const_n_bytes::<1>(bytes);
+                                let (_url, bytes) = next_n_bytes(bytes, url_len as usize);
                                 let url = String::from_utf8(_url.into())?;
                                 log::debug!("Skipping video URL {url}");
 
-                                let (_skip, bytes) = next_n_bytes(&bytes, 3);
-                                let ([section_inner], bytes) = next_const_n_bytes::<1>(&bytes);
+                                let (_skip, bytes) = next_n_bytes(bytes, 3);
+                                let ([section_inner], bytes) = next_const_n_bytes::<1>(bytes);
                                 section = section_inner;
 
                                 bytes
                             };
                             if section == 0x22 {
-                                (_, bytes) = next_n_bytes(&bytes, 7);
+                                (_, bytes) = next_n_bytes(bytes, 7);
                             } else { break; }
                         }
                         ensure!(section == 0x30, "Unexpected Tinder photos BLOB format for user {user_key} (video), unknown section 0x{:02X}", section);
 
-                        let (_skip, bytes) = next_n_bytes(&bytes, 3);
+                        let (_skip, bytes) = next_n_bytes(bytes, 3);
                         bytes
                     }
                     etc => {
@@ -273,8 +273,8 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
                 }
             }
             0x52 => {
-                let ([uuid_len], bytes) = next_const_n_bytes::<1>(&bytes);
-                let (_uuid, bytes) = next_n_bytes(&bytes, uuid_len as usize);
+                let ([uuid_len], bytes) = next_const_n_bytes::<1>(bytes);
+                let (_uuid, bytes) = next_n_bytes(bytes, uuid_len as usize);
                 bytes
             }
             etc => {
@@ -300,7 +300,7 @@ fn download_if_missing(file_name: &str, storage_path: &Path, url: &str, http_cli
     let file_path = storage_path.join(file_name);
     if !file_path.exists() {
         log::info!("Downloading {}", url);
-        match http_client.get_bytes(&url) {
+        match http_client.get_bytes(url) {
             Ok(HttpResponse::Ok(body)) => {
                 fs::write(&file_path, body)?
             }

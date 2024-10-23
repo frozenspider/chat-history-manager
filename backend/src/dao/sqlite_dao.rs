@@ -1231,10 +1231,8 @@ fn copy_file(src_file: &Path,
         let ext =
             if let Some(ext) = src_file.extension() {
                 Some(ext.to_str().unwrap())
-            } else if let Some(ext) = src_mime.and_then(mime2ext::mime2ext) {
-                Some(ext)
             } else {
-                None
+                src_mime.and_then(mime2ext::mime2ext)
             };
         let ext_suffix = ext.map(|ext| format!(".{ext}")).unwrap_or_default();
 

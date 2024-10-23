@@ -104,21 +104,21 @@ fn merge_inner(
     let chat_inserts = chat_merges.iter().filter_map(|cm| {
         match cm {
             ChatMergeDecision::Retain { master_chat_id } =>
-                Some((master.cwds[&master_chat_id].clone(), &master_ds_root, cm)),
+                Some((master.cwds[master_chat_id].clone(), &master_ds_root, cm)),
             ChatMergeDecision::DontMerge { chat_id } =>
-                Some((master.cwds[&chat_id].clone(), &master_ds_root, cm)),
+                Some((master.cwds[chat_id].clone(), &master_ds_root, cm)),
             ChatMergeDecision::Add { slave_chat_id } =>
-                Some((slave.cwds[&slave_chat_id].clone(), &slave_ds_root, cm)),
+                Some((slave.cwds[slave_chat_id].clone(), &slave_ds_root, cm)),
             ChatMergeDecision::DontAdd { .. } =>
                 None,
             ChatMergeDecision::Merge { chat_id, .. } => {
-                let mut chat_to_insert = slave.cwds[&chat_id].clone();
+                let mut chat_to_insert = slave.cwds[chat_id].clone();
 
                 // If slave chat has no image, preserve master image
                 let ds_root = if chat_to_insert.chat.get_img_path_option(&slave_ds_root).is_some_and(|p| p.exists()) {
                     &slave_ds_root
                 } else {
-                    let master_chat = &master.cwds[&chat_id];
+                    let master_chat = &master.cwds[chat_id];
                     chat_to_insert.chat.img_path_option = master_chat.chat.img_path_option.clone();
                     &master_ds_root
                 };
