@@ -492,7 +492,7 @@ fn parse_message(json_path: &str,
             // saved_from:     where the message was last forwarded from, could match forwarded_from (ignored)
             optional_fields: hash_set(["date_unixtime", "text_entities", "forwarded_from", "saved_from", "via_bot",
                                        "reply_to_peer_id", "reply_to_message_id", "inline_bot_buttons",
-                                       "author"]),
+                                       "author", "reactions"]),
         };
 
         static ref SERVICE_MSG_FIELDS: ExpectedMessageField<'static> = ExpectedMessageField {
@@ -631,6 +631,8 @@ fn parse_message(json_path: &str,
 fn parse_regular_message(message_json: &mut MessageJson,
                          regular_msg: &mut MessageRegular) -> EmptyRes {
     let json_path = message_json.json_path.clone();
+
+    // TODO: Reactions
 
     // Telegram has been observed to use 1970-ish edit times, probably signifying message not being edited
     const FIRST_POSSIBLE_VALID_TIMESTAMP: i64 = 650000000;
