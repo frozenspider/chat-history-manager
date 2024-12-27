@@ -26,7 +26,10 @@ enum Command {
     StartServer { server_port: Option<u16> },
     /// (For debugging purposes only) Parse and load a given file using whichever loader is appropriate,
     /// and print the result in-memory DB size to the log
-    Parse { path: String },
+    Parse {
+        path: String,
+        myself_id: Option<i64>,
+    },
     /// (For debugging purposes only) Ask UI which user is "myself" and print it to the log
     RequestMyself { port: Option<u16> },
 }
@@ -59,14 +62,27 @@ async fn execute_command(command: Command) -> EmptyRes {
             let server_port = server_port.unwrap_or(DEFAULT_SERVER_PORT);
             start_server(server_port).await?;
         }
-        Command::Parse { path } => {
+        Command::Parse { path, myself_id } => {
             let handle = Handle::current();
             let join_handle = handle.spawn_blocking(move || {
-                parse_file(&path, &client::NoChooser).with_context(|| format!("Failed to parse {path}"))
+                let chooser: Box<dyn client::UserInputRequester> =
+                    if let Some(myself_id) = myself_id {
+                        Box::new(client::PredefinedInput {
+                            myself_id: Some(myself_id),
+                            text: None,
+                        })
+                    } else {
+                        Box::new(client::NoChooser)
+                    };
+                parse_file(&path, chooser.as_ref()).with_context(|| format!("Failed to parse {path}"))
             });
             let parsed = join_handle.await??;
             let size: usize = parsed.deep_size_of();
-            log::info!("Size of parsed in-memory DB: {} MB ({} B)", size / 1024 / 1024, size);
+            log::info!(
+                "Size of parsed in-memory DB: {} MB ({} B)",
+                size / 1024 / 1024,
+                size
+            );
         }
         Command::RequestMyself { port } => {
             let port = port.unwrap_or(DEFAULT_SERVER_PORT + 1);
@@ -88,9 +104,15 @@ fn init_logger() {
             let target = record.target();
 
             let thread = std::thread::current();
-            writeln!(buf, "{} {: <5} {} - {} [{}]",
-                     timestamp, level, target, record.args(),
-                     thread.name().unwrap_or("<unnamed>"))
+            writeln!(
+                buf,
+                "{} {: <5} {} - {} [{}]",
+                timestamp,
+                level,
+                target,
+                record.args(),
+                thread.name().unwrap_or("<unnamed>")
+            )
         })
         .init();
 }

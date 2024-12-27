@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use tokio::runtime::Handle;
 use tonic::transport::Endpoint;
 
@@ -16,19 +17,54 @@ pub trait UserInputRequester: Send + Sync {
 pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputRequester>> {
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
-    Ok(Box::new(user_input_requester::UserInputRequesterImpl { runtime_handle, channel: lazy_channel }))
+    Ok(Box::new(user_input_requester::UserInputRequesterImpl {
+        runtime_handle,
+        channel: lazy_channel,
+    }))
 }
 
 #[derive(Clone, Copy)]
 pub struct NoChooser;
 
 impl UserInputRequester for NoChooser {
-    fn choose_myself(&self, _pretty_names: &[User]) -> Result<usize> {
+    fn choose_myself(&self, _users: &[User]) -> Result<usize> {
         err!("No way to choose myself!")
     }
 
     fn ask_for_text(&self, _prompt: &str) -> Result<String> {
         err!("No way to ask user!")
+    }
+}
+
+#[derive(Clone)]
+pub struct PredefinedInput {
+    pub myself_id: Option<i64>,
+    pub text: Option<String>,
+}
+
+impl UserInputRequester for PredefinedInput {
+    fn choose_myself(&self, users: &[User]) -> Result<usize> {
+        let myself_id = self
+            .myself_id
+            .ok_or_else(|| anyhow!("No user ID provided!"))?;
+        users
+            .iter()
+            .enumerate()
+            .find(|(_, u)| u.id == myself_id)
+            .map(|(idx, _)| idx)
+            .ok_or_else(|| {
+                anyhow!(
+                    "User with ID {} not found! User IDs: {}",
+                    myself_id,
+                    users.iter().map(|u| u.id).join(", ")
+                )
+            })
+    }
+
+    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
+        self.text
+            .clone()
+            .ok_or_else(|| anyhow!("No text provided!"))
     }
 }
 
