@@ -679,6 +679,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         })))
     };
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
+        message_json.add_optional("media_spoiler");
         Ok(Some(content!(Video {
             path_option: message_json.field_opt_path("file")?,
             file_name_option: message_json.field_opt_str("file_name")?,
@@ -735,7 +736,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
             })),
-        (Some("animation"), None, true, false, false, false) =>
+        (Some("animation"), None, true, false, false, false) => {
+            message_json.add_optional("media_spoiler");
             Some(content!(Video {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -747,7 +749,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            })),
+            }))
+        }
         (Some("video_file"), None, true, false, false, false) =>
             make_content_video(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("video/")) =>
@@ -764,6 +767,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             }))
         }
         (None, Some(_), false, false, false, false) => {
+            message_json.add_optional("media_spoiler");
             let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
             match self_destruct {
                 None => {
