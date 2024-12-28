@@ -33,6 +33,14 @@ macro_rules! as_i64 {
 }
 
 #[macro_export]
+macro_rules! as_bool {
+    ($v:expr, $path:expr) => {
+        $v.try_as_bool().with_context(|| format!("'{}' field conversion error", $path))?
+    };
+    ($v:expr, $path:expr, $path2:expr) => {as_bool!($v, format!("{}.{}", $path, $path2))};
+}
+
+#[macro_export]
 macro_rules! as_str_option_res {
     ($v:expr, $path:expr) => {
         $v.try_as_str().with_context(|| format!("'{}' field conversion error", $path)).map(|s|
@@ -104,6 +112,23 @@ macro_rules! get_field {
         $v.get($txt).with_context(|| format!("{}.{} field not found", $path, $txt))
     };
 }
+
+#[macro_export]
+macro_rules! get_field_object {
+    ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+}
+
+#[macro_export]
+macro_rules! get_field_i64 {
+    ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+}
+
+#[macro_export]
+macro_rules! get_field_bool {
+    ($v:expr, $path:expr, $txt:expr) => {as_bool!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+}
+
+
 #[macro_export]
 macro_rules! get_field_str {
     ($v:expr, $path:expr, $txt:expr) => {as_str!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};

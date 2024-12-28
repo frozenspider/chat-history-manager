@@ -652,14 +652,14 @@ fn file_name_diff() -> EmptyRes {
         &|is_master: bool, _ds_root: &DatasetRoot, msg: &mut Message| {
             let file_name = if is_master { "old_file_name.jpg" } else { "new_file_name.jpg" };
             let mr = coerce_enum!(msg.typed.as_mut(), Some(message::Typed::Regular(mr)) => mr);
-            mr.content_option = Some(Content {
-                sealed_value_optional: Some(content::SealedValueOptional::File(ContentFile {
+            mr.contents = vec![
+                content!(File {
                     path_option: Some("non/existent/path.jpg".to_owned()),
                     file_name_option: Some(file_name.to_owned()),
                     mime_type_option: Some("image/jpeg".to_owned()),
                     thumbnail_path_option: Some("non/existent/thumbnail_path.jpg".to_owned()),
-                })),
-            });
+                }),
+            ];
         },
     );
     let analysis = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false)?;
@@ -686,21 +686,23 @@ fn present_absent_not_downloaded() -> EmptyRes {
         path_option: Some("non/existent/path.jpg".to_owned()),
         width: 100500,
         height: 100600,
+        mime_type_option: None,
         is_one_time: false,
     };
 
-    let not_downloaded = ContentPhoto { path_option: None, ..not_found };
+    let not_downloaded = ContentPhoto { path_option: None, ..not_found.clone() };
 
     let placeholder1 = ContentPhoto {
         path_option: Some("placeholder-1".to_owned()),
         width: -1,
         height: -1,
+        mime_type_option: Some("image/lol".to_owned()),
         is_one_time: false,
     };
 
     let placeholder2 = ContentPhoto {
         path_option: Some("placeholder-2".to_owned()),
-        ..not_found
+        ..not_found.clone()
     };
 
     let placeholder1_content = random_alphanumeric(256);
@@ -709,13 +711,13 @@ fn present_absent_not_downloaded() -> EmptyRes {
     let make_msg_photo = |idx: i64, is_regular: bool, photo: &ContentPhoto| {
         let typed: message::Typed = if is_regular {
             message_regular! {
-                edit_timestamp_option: Some((BASE_DATE.clone() + Duration::try_minutes(10 + idx).unwrap()).timestamp()),
+                edit_timestamp_option: Some((*BASE_DATE + Duration::try_minutes(10 + idx).unwrap()).timestamp()),
                 is_deleted: false,
                 reply_to_message_id_option: None,
                 forward_from_name_option: Some("some user".to_owned()),
-                content_option: Some(Content {
-                    sealed_value_optional: Some(content::SealedValueOptional::Photo(photo.clone()))
-                }),
+                contents: vec![
+                    content!(Photo { ..photo.clone() })
+                ],
             }
         } else {
             message_service!(message_service::SealedValueOptional::GroupEditPhoto(
@@ -729,7 +731,7 @@ fn present_absent_not_downloaded() -> EmptyRes {
             timestamp: BASE_DATE.timestamp(),
             from_id: user_id as i64,
             searchable_string: make_searchable_string(&text, &typed),
-            text: text,
+            text,
             typed: Some(typed),
         }
     };
@@ -800,8 +802,12 @@ fn present_absent_not_downloaded() -> EmptyRes {
             use content::SealedValueOptional::*;
             use message_service::SealedValueOptional::*;
             match msg.typed_mut() {
-                message_regular_pat! { content_option: Some(Content { sealed_value_optional: Some(Photo(ref mut photo)) }), .. } => {
-                    transform(photo)
+                message_regular_pat! { contents, .. } => {
+                    for c in contents.iter_mut() {
+                        if let Content { sealed_value_optional: Some(Photo(ref mut photo)) } = c {
+                            transform(photo)
+                        }
+                    }
                 }
                 message_service_pat!(GroupEditPhoto(ref mut edit_photo)) => {
                     transform(&mut edit_photo.photo)
@@ -874,11 +880,11 @@ fn present_absent_not_downloaded() -> EmptyRes {
 fn telegram_2023_11_amending_double_style_export() -> EmptyRes {
     let msgs = create_messages(src_id(0));
     let msgs_a = msgs.iter().map(|m| Message {
-        text: vec![RichText::make_bold(format!("Text in other style"))],
+        text: vec![RichText::make_bold("Text in other style".to_owned())],
         ..m.clone()
     }).collect_vec();
     let msgs_b = msgs.iter().map(|m| Message {
-        text: vec![RichText::make_italic(format!("Text in other style"))],
+        text: vec![RichText::make_italic("Text in other style".to_owned())],
         ..m.clone()
     }).collect_vec();
     let helper = MergerHelper::new_as_is(MAX_USER_ID, msgs_a, msgs_b);

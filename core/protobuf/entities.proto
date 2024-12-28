@@ -27,6 +27,8 @@ message User {
   optional string last_name_option = 4;
   optional string username_option = 5;
   optional string phone_number_option = 6;
+
+  repeated ProfilePicture profile_pictures = 7;
 }
 
 message ChatWithMessages {
@@ -61,10 +63,25 @@ message Chat {
   optional int64 main_chat_id = 9;
 }
 
+message ProfilePicture {
+  // Path relative to data root!
+  required string path = 1;
+
+  optional PictureFrame frame_option = 2;
+}
+
+message PictureFrame {
+  required uint32 x = 1;
+  required uint32 y = 2;
+  required uint32 w = 3;
+  required uint32 h = 4;
+}
+
 enum SourceType {
   SOURCE_TYPE_TEXT_IMPORT = 0;
   SOURCE_TYPE_TELEGRAM = 1;
   SOURCE_TYPE_WHATSAPP_DB = 2;
+  SOURCE_TYPE_SIGNAL = 6;
   SOURCE_TYPE_TINDER_DB = 3;
   SOURCE_TYPE_BADOO_DB = 4;
   SOURCE_TYPE_MRA = 5;
@@ -122,7 +139,7 @@ message MessageRegular {
   optional string forward_from_name_option = 2;
   // References source ID
   optional int64 reply_to_message_id_option = 3;
-  optional Content content_option = 4;
+  repeated Content contents = 4;
 }
 
 message MessageService {
@@ -230,6 +247,8 @@ message ContentSticker {
   // 0 if unknown
   required int32 height = 3;
 
+  optional string mime_type_option = 7;
+
   // Path relative to data root!
   optional string thumbnail_path_option = 4;
   optional string emoji_option = 5;
@@ -242,6 +261,9 @@ message ContentPhoto {
   required int32 width = 2;
   // 0 if unknown
   required int32 height = 3;
+
+  optional string mime_type_option = 5;
+
   required bool is_one_time = 4;
 }
 

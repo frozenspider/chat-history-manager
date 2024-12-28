@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::dao::in_memory_dao::InMemoryDao;
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 
@@ -26,7 +26,7 @@ lazy_static! {
 pub struct WhatsAppTextDataLoader;
 
 impl DataLoader for WhatsAppTextDataLoader {
-    fn name(&self) -> &'static str { "WhatsApp (text)" }
+    fn name(&self) -> String { "WhatsApp (text)".to_owned() }
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         let filename = path_file_name(path)?;
@@ -39,7 +39,7 @@ impl DataLoader for WhatsAppTextDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         parse_whatsapp_text_file(path, ds)
     }
 }
@@ -103,6 +103,7 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     }, User {
         ds_uuid: ds_uuid.clone(),
         id: super::hash_to_id(other_name),
@@ -110,6 +111,7 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
         last_name_option: None,
         username_option: None,
         phone_number_option: if other_name.starts_with('+') { Some(other_name.to_owned()) } else { None },
+        profile_pictures: vec![],
     }))
 }
 
@@ -167,7 +169,7 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
 
                 last_internal_id = MessageInternalId(*last_internal_id + 1);
 
-                let (text, content_option) = parse_message_text(&lines)?;
+                let (text, contents) = parse_message_text(&lines)?;
                 result.push(Message::new(
                     *last_internal_id,
                     None /* source_id_option */,
@@ -179,7 +181,7 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
                         is_deleted: false,
                         forward_from_name_option: None,
                         reply_to_message_id_option: None,
-                        content_option,
+                        contents,
                     },
                 ));
                 user_id = None;
@@ -191,33 +193,32 @@ fn parse_messages(content: &str, myself: &User, other: &User) -> Result<Vec<Mess
     Ok(result)
 }
 
-fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Content>)> {
-    use content::SealedValueOptional::*;
-
+fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Vec<Content>)> {
     let (lines, content) = if let Some(attachment_captures) = ATTACHED_FILE_REGEX.captures(lines[0]) {
         // First line describes attached file, determine the type
         let tpe = attachment_captures.get(2).unwrap().as_str();
         let filename = attachment_captures.get(1).unwrap().as_str();
 
-
         let content_value = match tpe {
-            "IMG" => Photo(ContentPhoto {
+            "IMG" => content!(Photo {
                 path_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
+                mime_type_option: None,
                 is_one_time: false,
             }),
-            "STK" => Sticker(ContentSticker {
+            "STK" => content!(Sticker {
                 path_option: Some(filename.to_owned()),
                 file_name_option: Some(filename.to_owned()),
                 width: 0,
                 height: 0,
+                mime_type_option: None,
                 thumbnail_path_option: None,
                 emoji_option: None,
             }),
             "VID" => {
                 ensure!(filename.ends_with(".mp4"), "Unexpected video file extension: {}", filename);
-                Video(ContentVideo {
+                content!(Video {
                     path_option: Some(filename.to_owned()),
                     file_name_option: Some(filename.to_owned()),
                     title_option: None,
@@ -232,7 +233,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             }
             "AUD" => {
                 ensure!(filename.ends_with(".opus"), "Unexpected audio file extension: {}", filename);
-                VoiceMsg(ContentVoiceMsg {
+                content!(VoiceMsg {
                     path_option: Some(filename.to_owned()),
                     file_name_option: Some(filename.to_owned()),
                     mime_type: "audio/ogg".to_owned(),
@@ -242,17 +243,17 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
             _ => bail!("Unknown file type: {}", filename)
         };
 
-        (&lines[1..], Some(Content { sealed_value_optional: Some(content_value) }))
+        (&lines[1..], Some(content_value))
     } else if lines[0] == "null" || lines[0] == "<Media omitted>" {
         // File wasn't present - e.g. one-time photo/video.
         // Since we don't know the type, represent it as a missing file.
-        let content_value = File(ContentFile {
+        let content_value = content!(File {
             path_option: None,
             file_name_option: None,
             mime_type_option: None,
             thumbnail_path_option: None,
         });
-        (&lines[1..], Some(Content { sealed_value_optional: Some(content_value) }))
+        (&lines[1..], Some(content_value))
     } else {
         (lines, None)
     };
@@ -264,7 +265,7 @@ fn parse_message_text(lines: &[&str]) -> Result<(Vec<RichTextElement>, Option<Co
         vec![RichText::make_plain(text)]
     };
 
-    Ok((rtes, content))
+    Ok((rtes, content.into_iter().collect_vec()))
 }
 
 /// Datetime formats used by WhatsApp:

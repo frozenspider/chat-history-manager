@@ -3,24 +3,25 @@ pub use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher as StdHasher};
+use std::io;
 use std::io::{BufReader, Read};
 use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-pub use anyhow::{anyhow, bail, ensure, Context};
+pub use anyhow::{anyhow, bail, Context, ensure};
 use chrono::Local;
 use hashers::fx_hash::FxHasher;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use unicode_segmentation::UnicodeSegmentation;
 
+pub mod blob_utils;
 pub mod entity_utils;
+pub mod json_utils;
 
 #[cfg(test)]
 pub mod test_utils;
-
-pub mod json_utils;
 
 //
 // Constants
@@ -204,8 +205,9 @@ impl<T> ToResult<T> for StdResult<T, Box<dyn StdError + Send + Sync>> {
 //
 
 pub fn measure<T, AC, R>(block: T, after_call: AC) -> R
-    where T: FnOnce() -> R,
-          AC: FnOnce(&R, u128)
+where
+    T: FnOnce() -> R,
+    AC: FnOnce(&R, u128),
 {
     let start_time = Instant::now();
     let result = block();
@@ -228,7 +230,7 @@ pub fn hasher() -> Hasher {
 }
 
 /// Get a hash string (32 uppercase hex chars) of a file's content.
-pub fn file_hash(path: &Path) -> Result<String> {
+pub fn file_hash(path: &Path) -> StdResult<String, io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::with_capacity(FILE_BUF_CAPACITY, file);
     let mut buffer = [0; 512];

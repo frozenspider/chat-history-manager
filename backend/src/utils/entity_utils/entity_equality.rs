@@ -18,7 +18,7 @@ pub trait PracticalEq<Rhs/*: ?Sized*/ = Self> {
 pub struct PracticalEqTuple<'a, T: 'a> {
     pub v: &'a T,
     pub ds_root: &'a DatasetRoot,
-    pub cwd: &'a ChatWithDetails,
+    pub cwd: Option<&'a ChatWithDetails>,
 }
 
 //
@@ -29,15 +29,27 @@ type Tup<'a, T> = PracticalEqTuple<'a, T>;
 
 impl<'a, T: 'a> Tup<'a, T> {
     pub fn new(v: &'a T, ds_root: &'a DatasetRoot, cwd: &'a ChatWithDetails) -> Self {
-        Self { v, ds_root, cwd }
+        Self { v, ds_root, cwd: Some(cwd) }
+    }
+
+    pub fn new_without_cwd(v: &'a T, ds_root: &'a DatasetRoot) -> Self {
+        Self { v, ds_root, cwd: None }
     }
 
     pub fn with<U>(&self, u: &'a U) -> Tup<'a, U> {
-        Tup::new(u, self.ds_root, self.cwd)
+        if let Some(cwd) = self.cwd {
+            Tup::new(u, self.ds_root, cwd)
+        } else {
+            Tup::new_without_cwd(u, self.ds_root)
+        }
     }
 
     pub fn apply<U>(&self, f: fn(&T) -> &U) -> Tup<'a, U> {
-        Tup::new(f(self.v), self.ds_root, self.cwd)
+        if let Some(cwd) = self.cwd {
+            Tup::new(f(self.v), self.ds_root, cwd)
+        } else {
+            Tup::new_without_cwd(f(self.v), self.ds_root)
+        }
     }
 }
 
@@ -48,6 +60,23 @@ impl<'a, > PracticalEq for Tup<'a, Option<String>> {
         let lhs = self.with(self.v.as_ref().unwrap_or(&MISSING));
         let rhs = other.with(other.v.as_ref().unwrap_or(&MISSING));
         lhs.practically_equals(&rhs)
+    }
+}
+
+impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>>
+where
+        for<'b> PracticalEqTuple<'a, T>: PracticalEq,
+{
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        if self.v.len() != other.v.len() {
+            return Ok(false);
+        }
+        for (v1, v2) in self.v.iter().zip(other.v.iter()) {
+            if !self.with(v1).practically_equals(&other.with(v2))? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }
 
@@ -65,13 +94,23 @@ macro_rules! default_option_equality {
     };
 }
 
-default_option_equality!(Content);
 default_option_equality!(ContentPhoto);
 
 macro_rules! cloned_equals_without {
     ($v1:expr, $v2:expr, $T:ident, $($key:ident : $val:expr),+) => {
         $T { $( $key: $val, )* ..(*$v1).clone() } == $T { $( $key: $val, )* ..(*$v2).clone() }
     };
+}
+
+//
+// User
+//
+
+impl<'a> PracticalEq for Tup<'a, User> {
+    /// Note that we do NOT check profile pictures here!
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        Ok(cloned_equals_without!(self.v, other.v, User, profile_pictures: vec![]))
+    }
 }
 
 //
@@ -115,8 +154,8 @@ impl<'a> PracticalEq for Tup<'a, message::Typed> {
 
 impl<'a> PracticalEq for Tup<'a, MessageRegular> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
-        Ok(cloned_equals_without!(self.v, other.v, MessageRegular, forward_from_name_option: None, content_option: None) &&
-            self.apply(|v| &v.content_option).practically_equals(&other.apply(|v| &v.content_option))?)
+        Ok(cloned_equals_without!(self.v, other.v, MessageRegular, forward_from_name_option: None, contents: vec![]) &&
+            self.apply(|v| &v.contents).practically_equals(&other.apply(|v| &v.contents))?)
     }
 }
 
@@ -126,10 +165,12 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
         macro_rules! case {
             ($T:ident, $name1:ident, $name2:ident) => { (Some($T($name1)), Some($T($name2))) };
         }
+        let self_cwd = self.cwd.expect("CWD for MessageService is required");
+        let other_cwd = other.cwd.expect("CWD for MessageService is required");
         match (self.v.sealed_value_optional.as_ref(), other.v.sealed_value_optional.as_ref()) {
             case!(PhoneCall, c1, c2) => {
                 Ok(c1 == c2 &&
-                    members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd))?)
+                    members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd))?)
             }
             case!(SuggestProfilePhoto, c1, c2) => {
                 // Only need to compare photos
@@ -142,7 +183,7 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
             case!(Notice, c1, c2) => Ok(c1 == c2),
             case!(GroupCreate, c1, c2) =>
                 Ok(c1.title == c2.title &&
-                    members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd))?),
+                    members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd))?),
             case!(GroupEditTitle, c1, c2) => Ok(c1 == c2),
             case!(GroupEditPhoto, c1, c2) => {
                 // Only need to compare photos
@@ -150,9 +191,9 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
             }
             case!(GroupDeletePhoto, c1, c2) => Ok(c1 == c2),
             case!(GroupInviteMembers, c1, c2) =>
-                members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd)),
+                members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd)),
             case!(GroupRemoveMembers, c1, c2) =>
-                members_practically_equals((&c1.members, self.cwd), (&c2.members, other.cwd)),
+                members_practically_equals((&c1.members, self_cwd), (&c2.members, other_cwd)),
             case!(GroupMigrateFrom, c1, c2) => Ok(c1 == c2),
             case!(GroupMigrateTo, c1, c2) => Ok(c1 == c2),
 

@@ -1,3 +1,4 @@
+use std::io;
 use itertools::Itertools;
 
 use crate::dao::ChatHistoryDao;
@@ -72,6 +73,7 @@ pub fn merge_datasets(
             .filter(|ds_uuid| ds_uuid != &master_ds.uuid)
             .collect_vec();
         new_dao.copy_datasets_from(master_dao, &other_master_dataset_uuids)?;
+        new_dao.vacuum()?;
         Ok((new_dao, new_dataset))
     }, |_, t| log::info!("Datasets merged in {t} ms"))
 }
@@ -102,21 +104,21 @@ fn merge_inner(
     let chat_inserts = chat_merges.iter().filter_map(|cm| {
         match cm {
             ChatMergeDecision::Retain { master_chat_id } =>
-                Some((master.cwds[&master_chat_id].clone(), &master_ds_root, cm)),
+                Some((master.cwds[master_chat_id].clone(), &master_ds_root, cm)),
             ChatMergeDecision::DontMerge { chat_id } =>
-                Some((master.cwds[&chat_id].clone(), &master_ds_root, cm)),
+                Some((master.cwds[chat_id].clone(), &master_ds_root, cm)),
             ChatMergeDecision::Add { slave_chat_id } =>
-                Some((slave.cwds[&slave_chat_id].clone(), &slave_ds_root, cm)),
+                Some((slave.cwds[slave_chat_id].clone(), &slave_ds_root, cm)),
             ChatMergeDecision::DontAdd { .. } =>
                 None,
             ChatMergeDecision::Merge { chat_id, .. } => {
-                let mut chat_to_insert = slave.cwds[&chat_id].clone();
+                let mut chat_to_insert = slave.cwds[chat_id].clone();
 
                 // If slave chat has no image, preserve master image
                 let ds_root = if chat_to_insert.chat.get_img_path_option(&slave_ds_root).is_some_and(|p| p.exists()) {
                     &slave_ds_root
                 } else {
-                    let master_chat = &master.cwds[&chat_id];
+                    let master_chat = &master.cwds[chat_id];
                     chat_to_insert.chat.img_path_option = master_chat.chat.img_path_option.clone();
                     &master_ds_root
                 };
@@ -133,19 +135,37 @@ fn merge_inner(
     let slave_self = slave.dao.myself(&slave.ds.uuid)?;
     ensure!(master_self.id == slave_self.id, "Myself of merged datasets doesn't match!");
     for um in user_merges {
+        macro_rules! iter_pps_master {
+            ($user_id:ident) => { master.users[&$user_id].profile_pictures.iter().map(|pp| pp.to_absolute(&master_ds_root)) };
+        }
+        macro_rules! iter_pps_slave {
+            ($user_id:ident) => { slave.users[&$user_id].profile_pictures.iter().map(|pp| pp.to_absolute(&slave_ds_root)) };
+        }
+        // Slave pictures always go before master pics, new is good, y'know
         let user_to_insert_option = match um {
-            UserMergeDecision::Retain(user_id) => Some(master.users[&user_id].clone()),
-            UserMergeDecision::MatchOrDontReplace(user_id) => Some(master.users[&user_id].clone()),
-            UserMergeDecision::Add(user_id) => Some(slave.users[&user_id].clone()),
+            UserMergeDecision::Retain(user_id) =>
+                Some((master.users[&user_id].clone(),
+                      iter_pps_master!(user_id).collect_vec())),
+            UserMergeDecision::MatchOrDontReplace(user_id) =>
+                Some((master.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).chain(iter_pps_master!(user_id)).collect_vec())),
+            UserMergeDecision::Add(user_id) =>
+                Some((slave.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).collect_vec())),
             UserMergeDecision::DontAdd(user_id) if selected_chat_members.contains(&user_id.0) =>
                 bail!("Cannot skip user {} because it's used in a chat that wasn't skipped", user_id.0),
-            UserMergeDecision::DontAdd(_) => None,
-            UserMergeDecision::Replace(user_id) => Some(slave.users[&user_id].clone()),
+            UserMergeDecision::DontAdd(_) =>
+                None,
+            UserMergeDecision::Replace(user_id) =>
+                Some((slave.users[&user_id].clone(),
+                      iter_pps_slave!(user_id).chain(iter_pps_master!(user_id)).collect_vec())),
         };
-        if let Some(mut user) = user_to_insert_option {
+        if let Some((mut user, profile_pics)) = user_to_insert_option {
             user.ds_uuid = new_ds.uuid.clone();
             let is_myself = user.id == master_self.id;
-            new_dao.insert_user(user, is_myself)?;
+            let profile_pics = dedup_profile_pics(profile_pics)?;
+            let user = new_dao.insert_user(user, is_myself)?;
+            new_dao.update_user_profile_pics(user, profile_pics)?;
         }
     }
     let final_users = new_dao.users(&new_ds.uuid)?;
@@ -164,8 +184,8 @@ fn merge_inner(
             // Could happen e.g. if other members never wrote anything.
             if !interlocutors.is_empty() {
                 let final_user = final_users.iter().find(|u| u.id == interlocutors[0].id).with_context(||
-                    format!("User {} not found among final users! Personal chat should've been skipped",
-                            interlocutors[0].id))?;
+                format!("User {} not found among final users! Personal chat should've been skipped",
+                        interlocutors[0].id))?;
                 cwd.chat.name_option = final_user.pretty_name_option();
             }
         }
@@ -230,7 +250,7 @@ fn merge_inner(
                                         (sm, Source::Slave)
                                     }
                                 })
-                                .group_by(|(_m, src)| *src);
+                                .chunk_by(|(_m, src)| *src);
 
                             let mut data_grouped = Vec::new();
                             for (source, group) in &grouped_total_msgs {
@@ -378,11 +398,10 @@ fn update_with_slave_data(mm: &mut Message, sm: &Message) {
         (message::Typed::Regular(mmr), message::Typed::Regular(smr)) => {
             mmr.reply_to_message_id_option = smr.reply_to_message_id_option;
 
-            if let (Some(mfn_ref), Some(sfn)) = (
-                mmr.content_option.as_mut().and_then(|c| c.file_name_ref_mut()),
-                smr.content_option.as_ref().and_then(|c| c.file_name())
-            ) {
-                *mfn_ref = Some(sfn.clone());
+            for (mmrc, smrc) in mmr.contents.iter_mut().zip(smr.contents.iter()) {
+                if let (Some(mfn), Some(sfn)) = (mmrc.file_name_ref_mut(), smrc.file_name()) {
+                    *mfn = Some(sfn.clone());
+                }
             }
         }
         (message::Typed::Service(mms), message::Typed::Service(sms)) => {
@@ -394,6 +413,24 @@ fn update_with_slave_data(mm: &mut Message, sm: &Message) {
         }
         (_, _) => { unreachable!("Messages are supposed to be matching! {:?} vs {:?}", mm, sm) }
     }
+}
+
+/// Deduplicate profile pictures vec by content. Skips subsequent elements, ignoring framing.
+fn dedup_profile_pics(profile_pics: Vec<AbsoluteProfilePicture>) -> Result<Vec<AbsoluteProfilePicture>> {
+    let mut seen = HashSet::new();
+    let mut res = Vec::with_capacity(profile_pics.len());
+    for pp in profile_pics {
+        match file_hash(&pp.absolute_path) {
+            Ok(hash) => {
+                if seen.insert(hash) {
+                    res.push(pp);
+                } // else NOOP
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => { /* NOOP */}
+            Err(e) => return Err(e.into())
+        }
+    }
+    Ok(res)
 }
 
 #[derive(Debug)]

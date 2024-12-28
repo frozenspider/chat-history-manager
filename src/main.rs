@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use deepsize::DeepSizeOf;
 use log::LevelFilter;
 use mimalloc::MiMalloc;
+use tokio::runtime::Handle;
 
 use chat_history_manager_backend::prelude::*;
 
@@ -27,7 +28,10 @@ enum Command {
     StartServer,
     /// (For debugging purposes only) Parse and load a given file using whichever loader is appropriate,
     /// and print the result in-memory DB size to the log
-    Parse { path: String },
+    Parse {
+        path: String,
+        myself_id: Option<i64>,
+    },
     /// (For debugging purposes only) Ask UI which user is "myself" and print it to the log
     RequestMyself,
 }
@@ -70,10 +74,27 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
             let port = port.unwrap_or(DEFAULT_SERVER_PORT);
             start_server(port).await?;
         }
-        Some(Command::Parse { path }) => {
-            let parsed = parse_file(&path, &client::NoChooser).with_context(|| format!("Failed to parse {path}"))?;
+        Some(Command::Parse { path, myself_id }) => {
+            let handle = Handle::current();
+            let join_handle = handle.spawn_blocking(move || {
+                let chooser: Box<dyn client::UserInputRequester> =
+                    if let Some(myself_id) = myself_id {
+                        Box::new(client::PredefinedInput {
+                            myself_id: Some(myself_id),
+                            text: None,
+                        })
+                    } else {
+                        Box::new(client::NoChooser)
+                    };
+                parse_file(&path, chooser.as_ref()).with_context(|| format!("Failed to parse {path}"))
+            });
+            let parsed = join_handle.await??;
             let size: usize = parsed.deep_size_of();
-            log::info!("Size of parsed in-memory DB: {} MB ({} B)", size / 1024 / 1024, size);
+            log::info!(
+                "Size of parsed in-memory DB: {} MB ({} B)",
+                size / 1024 / 1024,
+                size
+            );
         }
         Some(Command::RequestMyself) => {
             let port = port.unwrap_or(DEFAULT_SERVER_PORT + 1);
@@ -95,9 +116,15 @@ fn init_logger() {
             let target = record.target();
 
             let thread = std::thread::current();
-            writeln!(buf, "{} {: <5} {} - {} [{}]",
-                     timestamp, level, target, record.args(),
-                     thread.name().unwrap_or("<unnamed>"))
+            writeln!(
+                buf,
+                "{} {: <5} {} - {} [{}]",
+                timestamp,
+                level,
+                target,
+                record.args(),
+                thread.name().unwrap_or("<unnamed>")
+            )
         })
         .init();
 }

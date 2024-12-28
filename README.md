@@ -64,7 +64,28 @@ Using a rooted Androind phone, download the database through `adb`:
 
 Can also import a WhatsApp exported chat, a text file named `WhatsApp Chat with <name>.txt`.
 Note that this format is very limited. 
- 
+
+Signal
+------------
+Reads a Signal Desktop database and decrypts attachment files.
+- On macOS, encrypted database is located in `~/Library/Application Support/Signal/sql/db.sqlite`.
+- Requires either Signal's `config.json` with either plaintext (legacy) or encrypted key,
+  or for database to be pre-decrypted manually.
+  - If both the database and the key are encrypted, you will be prompted for a password that you should
+    retrieve manually. E.g. on macOS, it's stored in the Keychain.
+  - To manually decrypt database, use `sqlcipher` and `sqlcipher_export` to export it as a `plaintext.sqlite` 
+    Refer to [this comment](https://www.reddit.com/r/signal/comments/1edkaok/comment/lfbz5kq/) for guidance.
+- Encrypted attachments are read from `attachments.noindex` directory if present,
+  and are decrypted into `_decrypted` (this may take a while to be processed).
+- Has only been tested with Signal Desktop v6.18 and v7.27 and may not work with older/newer versions.
+
+Current limitations:
+- Can't decrypt attachments for pre-v7 Signal database.
+- Can't handle group chats, formatted text and stickers yet.
+- Doesn't understand forwards.
+
+Kudos to [sigtop](https://github.com/tbvdm/sigtop) for the attachment decryption code. 
+
 Mail.Ru Agent
 -------------
 Loads histories from two database formats:
@@ -100,7 +121,7 @@ To download the database use `adb`:
 - Optional cleanup: `adb shell su -c 'rm -rf /storage/self/primary/Download/com.tinder'`
 - Load `./tinder-3.db`
 
-Will attempt to download GIFs to `./Media/_downloaded` if not already there.
+Will attempt to download profile pictures and GIFs to `./Media/_downloaded` if not already there.
 
 Badoo
 -----

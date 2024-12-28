@@ -1,0 +1,84 @@
+{
+ "about": "This is a minimalistic test.",
+ "personal_information": {
+  "user_id": 11111111
+ },
+ "chats": {
+  "about": "This page lists all chats from this export.",
+  "list": [
+   {
+    "name": "Dummy Supergroup",
+    "type": "private_supergroup",
+    "id": 123123123,
+    "messages": [
+     {
+      "id": 11111,
+      "type": "message",
+      "date": "2022-10-11T22:49:15",
+      "date_unixtime": "1665499755",
+      "edited": "2022-10-11T22:49:15",
+      "edited_unixtime": "1665499755",
+      "from": "Dummy Supergroup",
+      "from_id": "channel123123123",
+      "author": "Admin Nickname",
+      "text": "Admin msg!",
+      "text_entities": [
+       {
+        "type": "plain",
+        "text": "Admin msg!"
+       }
+      ]
+     },
+     {
+      "id": 11112,
+      "type": "message",
+      "date": "2022-10-11T22:49:16",
+      "date_unixtime": "1665499756",
+      "from": "Dummy Supergroup",
+      "from_id": "channel123123123",
+      "via_bot": "@SomeBot",
+      "text": "Bot msg!",
+      "text_entities": [
+       {
+        "type": "plain",
+        "text": "Bot msg!"
+       }
+      ],
+      "inline_bot_buttons": [
+       [
+        {
+         "type": "switch_inline_same",
+         "text": "Reference bot in chat",
+         "data": "‎‍‎‍: "
+        }
+       ]
+      ]
+     },
+     {
+      "id": 11113,
+      "type": "service",
+      "date": "2022-10-11T22:49:17",
+      "date_unixtime": "1665499757",
+      "actor": "Aaaaa Aaaaaaaaaaa",
+      "actor_id": "user11111111",
+      "action": "join_group_by_request",
+      "text": "",
+      "text_entities": []
+     },
+     {
+      "id": 11114,
+      "type": "message",
+      "date": "2022-10-11T22:49:18",
+      "date_unixtime": "1665499758",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "photo": "(File unavailable, please try again later)",
+      "self_destruct_period_seconds": 10,
+      "text": "",
+      "text_entities": []
+     }
+    ]
+   }
+  ]
+ }
+}

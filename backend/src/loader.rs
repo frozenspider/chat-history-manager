@@ -3,15 +3,15 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use chrono::Local;
-use const_format::concatcp;
 use itertools::{Either, Itertools};
 
 use crate::prelude::*;
 use crate::dao::ChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::badoo_android::BadooAndroidDataLoader;
 use crate::loader::mra::MailRuAgentDataLoader;
+use crate::loader::signal::SignalDataLoader;
 use crate::loader::telegram::TelegramDataLoader;
 use crate::loader::tinder_android::TinderAndroidDataLoader;
 use crate::loader::whatsapp_android::WhatsAppAndroidDataLoader;
@@ -21,14 +21,15 @@ mod telegram;
 mod tinder_android;
 mod whatsapp_android;
 mod whatsapp_text;
+mod signal;
 mod badoo_android;
 mod mra;
 
 trait DataLoader: Send + Sync {
-    fn name(&self) -> &'static str;
+    fn name(&self) -> String;
 
     /// Used in dataset alias
-    fn src_alias(&self) -> &'static str {
+    fn src_alias(&self) -> String {
         self.name()
     }
 
@@ -41,7 +42,7 @@ trait DataLoader: Send + Sync {
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
-    fn load(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         let root_path_str = ensure_file_presence(path)?;
         measure(|| {
             let now_str = Local::now().format("%Y-%m-%d");
@@ -49,11 +50,11 @@ trait DataLoader: Send + Sync {
                 uuid: PbUuid::random(),
                 alias: format!("{}, loaded @ {now_str}", self.src_alias()),
             };
-            self.load_inner(path, ds, myself_chooser)
+            self.load_inner(path, ds, user_input_requester)
         }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str))
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>>;
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>>;
 }
 
 pub struct Loader {
@@ -67,6 +68,7 @@ impl Loader {
                 Box::new(TelegramDataLoader),
                 Box::new(WhatsAppAndroidDataLoader),
                 Box::new(WhatsAppTextDataLoader),
+                Box::new(SignalDataLoader),
                 Box::new(TinderAndroidDataLoader { http_client }),
                 Box::new(BadooAndroidDataLoader),
                 Box::new(MailRuAgentDataLoader),
@@ -75,22 +77,22 @@ impl Loader {
     }
 
     /// If the given file is an internal Sqlite DB, open it, otherwise attempt to parse a file as a foreign history.
-    pub fn load(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<dyn ChatHistoryDao>> {
+    pub fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<dyn ChatHistoryDao>> {
         let filename = path_file_name(path)?;
         if filename == SqliteDao::FILENAME {
             Ok(Box::new(SqliteDao::load(path)?))
         } else {
-            Ok(self.parse(path, myself_chooser)?)
+            Ok(self.parse(path, user_input_requester)?)
         }
     }
 
     /// Parses a history in a foreign format
-    pub fn parse(&self, path: &Path, myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    pub fn parse(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         ensure!(path.exists(), "File not found");
         let (named_errors, loads): (Vec<_>, Vec<_>) =
             self.loaders.iter()
                 .partition_map(|loader| match loader.looks_about_right(path) {
-                    Ok(()) => Either::Right(|| loader.load(path, myself_chooser)),
+                    Ok(()) => Either::Right(|| loader.load(path, user_input_requester)),
                     Err(why) => Either::Left((loader.name(), why)),
                 });
         match loads.first() {
@@ -130,86 +132,82 @@ fn first_line(path: &Path) -> Result<String> {
 
 // Android-specific helpers.
 pub mod android {
+    use const_format::concatcp;
+    use rusqlite::Connection;
+
+    use crate::loader::DataLoader;
+    use crate::prelude::*;
+    use crate::prelude::client::UserInputRequester;
+
     pub const DATABASES: &str = "databases";
+
+    pub const MEDIA_DIR: &str = "Media";
+    pub const MEDIA_DOWNLOADED_SUBDIR: &str = "_downloaded";
+
+    pub const RELATIVE_MEDIA_DIR: &str = concatcp!(MEDIA_DIR, "/", MEDIA_DOWNLOADED_SUBDIR);
 
     /// Boilerplate for a data loader of salvaged Android sqlite database.
     /// First construct a custom users structure, use it to read chats, then normalize the structure into
     /// plain old Vec<User>.
     /// Produced users should have myself as a first user.
-    #[macro_export]
-    macro_rules! android_sqlite_loader {
-        (
-            $loader_name:ident $(<
-                $(
-                    $generic_type_name:ident
-                    $(: $generic_type_bound:ident $(+ $generic_type_bound2:ident)* )?
-                ),+
-            >)?,
-            $name:literal,
-            $db_filename:literal
-        ) => {
-            #[allow(dead_code)]
-            const DB_FILENAME: &str = $db_filename;
+    pub trait AndroidDataLoader: Send + Sync {
+        const NAME: &'static str;
+        const DB_FILENAME: &'static str;
 
-            const MEDIA_DIR: &str = "Media";
-            const MEDIA_DOWNLOADED_SUBDIR: &str = "_downloaded";
+        type Users;
 
-            #[allow(dead_code)]
-            const RELATIVE_MEDIA_DIR: &str = concatcp!(MEDIA_DIR, "/", MEDIA_DOWNLOADED_SUBDIR);
+        fn tweak_conn(&self, _path: &Path, conn: &Connection) -> EmptyRes;
 
-            impl$(
-                <$(
-                    $generic_type_name
-                    $(: $generic_type_bound $(+ $generic_type_bound2:ident)* )?
-                ),*>
-            )? DataLoader for $loader_name$(<$($generic_type_name),*>)? {
-                fn name(&self) -> &'static str { concatcp!($name, " (db)") }
+        fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path) -> Result<Self::Users>;
 
-                fn src_alias(&self) -> &'static str { self.name() }
+        fn normalize_users(&self, users: Self::Users, cwms: &[ChatWithMessages]) -> Result<Vec<User>>;
 
-                fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
-                    let filename = path_file_name(path)?;
-                    if filename != $db_filename {
-                        bail!("File is not {}", $db_filename);
-                    }
-                    Ok(())
-                }
+        fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Self::Users)
+                       -> Result<Vec<ChatWithMessages>>;
+    }
 
-                fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
-                    parse_android_db(self, path, ds)
-                }
-            }
+    impl<ADL> DataLoader for ADL
+    where
+        ADL: AndroidDataLoader,
+    {
+        fn name(&self) -> String { format!("{} (db)", ADL::NAME) }
 
-            fn parse_android_db$(
-                <$(
-                    $generic_type_name
-                    $(: $generic_type_bound $(+ $generic_type_bound2:ident)* )?
-                ),*>
-            )? (this: &$loader_name$(<$($generic_type_name),*>)?, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
-                let path = path.parent().unwrap();
+        fn src_alias(&self) -> String { self.name() }
 
-                let conn = Connection::open(path.join($db_filename))?;
-                this.tweak_conn(path, &conn)?;
+        fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
+            let filename = path_file_name(path)?;
+            if filename != ADL::DB_FILENAME { bail!("File is not {}", ADL::DB_FILENAME); }
+            Ok(())
+        }
 
-                let path = if path_file_name(path)? == android::DATABASES {
-                    path.parent().unwrap()
-                } else {
-                    path
-                };
+        fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+            parse_android_db(self, path, ds)
+        }
+    }
 
-                let mut users = this.parse_users(&conn, &ds.uuid)?;
-                let cwms = this.parse_chats(&conn, &ds.uuid, &mut users, &path)?;
+    fn parse_android_db<ADL: AndroidDataLoader>(adl: &ADL, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+        let path = path.parent().unwrap();
 
-                let users = this.normalize_users(users, &cwms)?;
-                Ok(Box::new(InMemoryDao::new_single(
-                    format!("{} ({})", $name, path_file_name(path)?),
-                    ds,
-                    path.to_path_buf(),
-                    users[0].id(),
-                    users,
-                    cwms,
-                )))
-            }
+        let conn = Connection::open(path.join(ADL::DB_FILENAME))?;
+        adl.tweak_conn(path, &conn)?;
+
+        let path = if path_file_name(path)? == DATABASES {
+            path.parent().unwrap()
+        } else {
+            path
         };
+
+        let mut users = adl.parse_users(&conn, &ds.uuid, path)?;
+        let cwms = adl.parse_chats(&conn, &ds.uuid, path, &mut users)?;
+
+        let users = adl.normalize_users(users, &cwms)?;
+        Ok(Box::new(InMemoryDao::new_single(
+            format!("{} ({})", ADL::NAME, path_file_name(path)?),
+            ds,
+            path.to_path_buf(),
+            users[0].id(),
+            users,
+            cwms,
+        )))
     }
 }

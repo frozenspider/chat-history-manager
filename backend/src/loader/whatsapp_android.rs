@@ -5,11 +5,8 @@ use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension, Row, Statement};
-
-use crate::dao::in_memory_dao::InMemoryDao;
-use crate::loader::DataLoader;
-
 use super::*;
+use super::android::AndroidDataLoader;
 
 #[cfg(test)]
 #[path = "whatsapp_android_tests.rs"]
@@ -25,13 +22,14 @@ lazy_static! {
 /// 3. User avatars are looked up in <data_root>/files/Avatars
 pub struct WhatsAppAndroidDataLoader;
 
-android_sqlite_loader!(WhatsAppAndroidDataLoader, "WhatsApp", "msgstore.db");
+const NAME: &str = "WhatsApp";
+pub const DB_FILENAME: &str = "msgstore.db";
 
 type Jid = String;
 type MessageKey = String;
 
 #[derive(Default)]
-struct Users {
+pub struct Users {
     jids: HashMap<Jid, UserId>,
     id_to_user: HashMap<UserId, User, Hasher>,
     occupied_user_ids: HashSet<UserId, Hasher>,
@@ -53,7 +51,12 @@ impl Users {
     }
 }
 
-impl WhatsAppAndroidDataLoader {
+impl AndroidDataLoader for WhatsAppAndroidDataLoader {
+    const NAME: &'static str = NAME;
+    const DB_FILENAME: &'static str = DB_FILENAME;
+
+    type Users = Users;
+
     fn tweak_conn(&self, path: &Path, conn: &Connection) -> EmptyRes {
         conn.execute(r#"ATTACH DATABASE ?1 AS wa_db"#, [path_to_str(&path.join("wa.db"))?])?;
         Ok(())
@@ -75,7 +78,7 @@ impl WhatsAppAndroidDataLoader {
         Ok(users)
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
+    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
         let mut users: Users = Default::default();
 
         // 1-on-1 chat users
@@ -120,6 +123,7 @@ impl WhatsAppAndroidDataLoader {
             last_name_option: None,
             username_option: None,
             phone_number_option: None,
+            profile_pictures: vec![],
         });
 
         Ok(users)
@@ -128,8 +132,8 @@ impl WhatsAppAndroidDataLoader {
     fn parse_chats(&self,
                    conn: &Connection,
                    ds_uuid: &PbUuid,
-                   users: &mut Users,
-                   _path: &Path) -> Result<Vec<ChatWithMessages>> {
+                   _path: &Path,
+                   users: &mut Users) -> Result<Vec<ChatWithMessages>> {
         parse_chats(conn, ds_uuid, users)
     }
 }
@@ -168,6 +172,7 @@ fn parse_users_from_stmt(stmt: &mut Statement, ds_uuid: &PbUuid, users: &mut Use
             last_name_option: None, // Last name is unreliable
             username_option,
             phone_number_option,
+            profile_pictures: vec![], // TODO
         });
     }
     Ok(())
@@ -615,6 +620,7 @@ fn parse_system_message<'a>(
                             path_option: None,
                             width: 0,
                             height: 0,
+                            mime_type_option: None,
                             is_one_time: false,
                         }
                     })
@@ -675,7 +681,6 @@ fn parse_regular_message(
     msg_tpe: MessageType,
     msg_key_to_source_id: &HashMap<MessageKey, i64, Hasher>,
 ) -> Result<Option<(message::Typed, Option<&'static str>)>> {
-    use content::SealedValueOptional::*;
     let mut text_column = Some(columns::message::TEXT);
 
     macro_rules! get_mandatory_int {
@@ -688,74 +693,79 @@ fn parse_regular_message(
         let path: Option<String> = row.get(columns::message_media::FILE_PATH)?;
         let name: Option<String> = row.get(columns::message_media::NAME)?;
         let name = name.or_else(||
-            path.as_ref().map(|p| p.rsplit_once('/').unwrap_or(("", p)).1.to_owned()));
+        path.as_ref().map(|p| p.rsplit_once('/').unwrap_or(("", p)).1.to_owned()));
         Ok((path, name))
     }
 
+    let mime_type_option =
+        row.get::<_, Option<String>>(columns::message_media::MIME_TYPE)?
+            .and_then(|s| if s.is_empty() { None } else { Some(s) });
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
-    let content_option = match msg_tpe {
-        MessageType::Text => None,
+    let contents = match msg_tpe {
+        MessageType::Text => vec![],
         MessageType::Picture =>
-            Some(Photo(ContentPhoto {
+            vec![content!(Photo  {
                 path_option: row.get(columns::message_media::FILE_PATH)?, // TODO: One-time photos
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
+                mime_type_option,
                 is_one_time: false,
-            })),
+            })],
         MessageType::OneTimePhoto => {
             text_column = None;
-            Some(Photo(ContentPhoto {
+            vec![content!(Photo {
                 path_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
+                mime_type_option,
                 is_one_time: true,
-            }))
+            })]
         }
         MessageType::Audio => {
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
-            Some(VoiceMsg(ContentVoiceMsg {
+            vec![content!(VoiceMsg {
                 path_option,
                 file_name_option,
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
-            }))
+            })]
         }
         MessageType::Video | MessageType::AnimatedGif => {
             text_column = None;
             // TODO: One-time videos
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
-            Some(VideoMsg(ContentVideoMsg {
+            vec![content!(VideoMsg {
                 path_option,
                 file_name_option,
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: false,
-            }))
+            })]
         }
         MessageType::OneTimeVideo =>
-            Some(VideoMsg(ContentVideoMsg {
+            vec![content!(VideoMsg {
                 path_option: None, // TODO!
                 file_name_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type: mime_type_option.expect("MIME type missing"),
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: true,
-            })),
+            })],
         MessageType::Document => {
             // For some reason, text is moved here
             text_column = Some(columns::message_media::CAPTION);
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
-            Some(File(ContentFile {
+            vec![content!(File {
                 path_option,
                 file_name_option,
-                mime_type_option: row.get(columns::message_media::MIME_TYPE)?,
+                mime_type_option,
                 thumbnail_path_option: None,
-            }))
+            })]
         }
         MessageType::AnimatedSticker => {
             let (mut w, mut h) = (
@@ -768,18 +778,20 @@ fn parse_regular_message(
                 h *= 2;
             }
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
-            Some(Sticker(ContentSticker {
+            vec![content!(Sticker {
                 path_option,
                 file_name_option,
                 width: w,
                 height: h,
+                mime_type_option,
                 thumbnail_path_option: None,
                 emoji_option: None,
-            }))
+            })]
         }
         MessageType::ContactVcard => {
             text_column = None; // Text is a contact name, we have it already
-            Some(SharedContact(parse_vcard(&row.get::<_, String>("vcard")?)?))
+            let vcard = parse_vcard(&row.get::<_, String>("vcard")?)?;
+            vec![content!(SharedContact { ..vcard })]
         }
         MessageType::StaticLocation | MessageType::LiveLocation => {
             // Since there's no point in having more than 8 precision digits, we're only storing 8.
@@ -790,17 +802,17 @@ fn parse_regular_message(
                     _ => str
                 }
             }
-            Some(Location(ContentLocation {
+            vec![content!(Location {
                 title_option: row.get(columns::message_location::NAME)?,
                 address_option: row.get(columns::message_location::ADDR)?,
                 lat_str: reduce_precision(row.get(columns::message_location::LAT)?),
                 lon_str: reduce_precision(row.get(columns::message_location::LON)?),
                 duration_sec_option: row.get(columns::message_location::DURATION)?,
-            }))
+            })]
         }
         MessageType::Deleted => {
             // No content available.
-            None
+            vec![]
         }
         // We're not interested in these
         MessageType::WaitingForMessage | MessageType::BusinessItem | MessageType::BusinessItemTemplated |
@@ -809,7 +821,7 @@ fn parse_regular_message(
         MessageType::System => unreachable!(),
         MessageType::MissedCall => unreachable!(),
         MessageType::VideoCall => unreachable!(),
-    }.map(|c| Content { sealed_value_optional: Some(c) });
+    };
 
     // WhatsApp does not preserve real source
     let forward_from_name_option = row.get::<_, Option<i64>>("forward_score")?
@@ -832,7 +844,7 @@ fn parse_regular_message(
         is_deleted,
         forward_from_name_option,
         reply_to_message_id_option,
-        content_option,
+        contents,
     }, text_column)))
 }
 

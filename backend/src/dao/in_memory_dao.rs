@@ -295,6 +295,10 @@ impl MutableChatHistoryDao for InMemoryDao {
         err!("InMemoryDao does not implement updating users")
     }
 
+    fn update_user_profile_pics(&mut self, _user: User, _new_profile_pics: Vec<AbsoluteProfilePicture>) -> Result<User> {
+        err!("InMemoryDao does not implement updating user profile pictures")
+    }
+
     fn insert_chat(&mut self, _chat: Chat, _src_ds_root: &DatasetRoot) -> Result<Chat> {
         err!("InMemoryDao does not implement inserting chats")
     }

@@ -99,6 +99,7 @@ fn loading_2023_10() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: Some("+11111".to_owned()),
+        profile_pictures: vec![],
     };
 
     assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
@@ -153,7 +154,7 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: Some(SOMEONE.to_owned()),
                 reply_to_message_id_option: msgs[0].source_id_option,
-                content_option: None,
+                contents: vec![],
             }),
         });
     }
@@ -188,15 +189,15 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Location(ContentLocation {
+                contents: vec![
+                    content!(Location {
                         title_option: Some("New Bahari".to_owned()),
                         address_option: Some("Jl. Gurita No.21x, Denpasar, Bali".to_owned()),
                         lat_str: "-8.70385650".to_string(),
                         lon_str: "115.21673666".to_string(),
                         duration_sec_option: Some(123),
-                    }))
-                }),
+                    })
+                ],
             }),
         });
 
@@ -212,7 +213,7 @@ fn loading_2023_10() -> EmptyRes {
                 is_deleted: true,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
     }
@@ -231,6 +232,7 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: None,
         username_option: None,
         phone_number_option: Some("+00000".to_owned()),
+        profile_pictures: vec![],
     }
 }
 

@@ -59,6 +59,7 @@ fn load_account(
         last_name_option: None,
         username_option: Some(myself_username.to_owned()),
         phone_number_option: None,
+        profile_pictures: vec![],
     };
 
     // Read whole files into the memory
@@ -699,16 +700,17 @@ fn convert_message(
                 }
             };
             (vec![], message_regular! {
-                content_option: Some(Content {
-                    sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
+                contents: vec![
+                    content!(Sticker {
                         path_option: None,
                         file_name_option: None,
                         width: 0,
                         height: 0,
+                        mime_type_option: None,
                         thumbnail_path_option: None,
                         emoji_option: None,
-                    }))
-                }),
+                    })
+                ],
                 ..Default::default()
             })
         }
@@ -742,9 +744,7 @@ fn convert_message(
 
             (vec![RichText::make_plain("(Location changed)".to_owned())],
              message_regular! {
-                 content_option: Some(Content {
-                     sealed_value_optional: Some(ContentSvo::Location(location.unwrap()))
-                 }),
+                 contents: vec![content!(Location { ..location.unwrap() })],
                  ..Default::default()
              })
         }

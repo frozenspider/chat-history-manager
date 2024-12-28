@@ -17,7 +17,7 @@ use super::*;
 const TELEGRAM_DIR: &str = "telegram_2020-01";
 
 thread_local! {
-    static LOADER: Loader = Loader::new::<MockHttpClient>(&HTTP_CLIENT);
+    static LOADER: Loader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
 }
 
 type Tup<'a, T> = PracticalEqTuple<'a, T>;
@@ -72,8 +72,8 @@ fn fetching() -> EmptyRes {
         assert_eq!(daos.dst_dao.chat_option(&daos.ds_uuid, dst_cwd.chat.id)?, Some(dst_cwd.clone()));
 
         let practically_eq = |src_msgs: &Vec<Message>, dst_msgs: &Vec<Message>| {
-            Tup::new(src_msgs, &daos.src_ds_root, &src_cwd)
-                .practically_equals(&Tup::new(dst_msgs, &daos.dst_ds_root, &dst_cwd))
+            Tup::new(src_msgs, &daos.src_ds_root, src_cwd)
+                .practically_equals(&Tup::new(dst_msgs, &daos.dst_ds_root, dst_cwd))
         };
         let practically_eq_abbrev = |src: &(Vec<Message>, usize, Vec<Message>), dst: &(Vec<Message>, usize, Vec<Message>)| {
             let left_eq = practically_eq(&src.0, &dst.0)?;
@@ -91,20 +91,20 @@ fn fetching() -> EmptyRes {
         let last_idx = all_src_msgs.len() - 1;
 
         let fetch = |f: &dyn Fn(&dyn ChatHistoryDao, &ChatWithDetails, &[Message]) -> Result<Vec<Message>>| {
-            let src_msgs = f(daos.src_dao.as_ref(), &src_cwd, &all_src_msgs)?;
-            let dst_msgs = f(&daos.dst_dao, &dst_cwd, &all_dst_msgs)?;
+            let src_msgs = f(daos.src_dao.as_ref(), src_cwd, &all_src_msgs)?;
+            let dst_msgs = f(&daos.dst_dao, dst_cwd, &all_dst_msgs)?;
             ok((src_msgs, dst_msgs))
         };
         let fetch_abbrev = |f: &dyn Fn(&dyn ChatHistoryDao, &ChatWithDetails, &[Message]) -> Result<(Vec<Message>, usize, Vec<Message>)>| {
-            let src_res = f(daos.src_dao.as_ref(), &src_cwd, &all_src_msgs)?;
-            let dst_res = f(&daos.dst_dao, &dst_cwd, &all_dst_msgs)?;
+            let src_res = f(daos.src_dao.as_ref(), src_cwd, &all_src_msgs)?;
+            let dst_res = f(&daos.dst_dao, dst_cwd, &all_dst_msgs)?;
             ok((src_res, dst_res))
         };
 
         // An unfortunate shortcoming of Rust not supporting generics for closures
         let count = |f: &dyn Fn(&dyn ChatHistoryDao, &ChatWithDetails, &[Message]) -> Result<usize>| {
-            let src_msgs = f(daos.src_dao.as_ref(), &src_cwd, &all_src_msgs)?;
-            let dst_msgs = f(&daos.dst_dao, &dst_cwd, &all_dst_msgs)?;
+            let src_msgs = f(daos.src_dao.as_ref(), src_cwd, &all_src_msgs)?;
+            let dst_msgs = f(&daos.dst_dao, dst_cwd, &all_dst_msgs)?;
             ok((src_msgs, dst_msgs))
         };
 
@@ -335,8 +335,8 @@ fn inserts() -> EmptyRes {
         assert_eq!(dst_cwd.members, src_cwd.members);
         assert_eq!(dst_cwd.last_msg_option, None);
 
-        let dst_pet = Tup::new(&dst_cwd.chat, &dst_ds_root, &dst_cwd);
-        let src_pet = Tup::new(&src_cwd.chat, &src_ds_root, &src_cwd);
+        let dst_pet = Tup::new(&dst_cwd.chat, &dst_ds_root, dst_cwd);
+        let src_pet = Tup::new(&src_cwd.chat, &src_ds_root, src_cwd);
         assert!(dst_pet.practically_equals(&src_pet)?);
 
         // Inserting messages
@@ -350,8 +350,8 @@ fn inserts() -> EmptyRes {
         assert_eq!(dst_dao.last_messages(&dst_cwd.chat, usize::MAX)?.len(), src_msgs.len());
 
         for (dst_msg, src_msg) in dst_dao.first_messages(&dst_cwd.chat, usize::MAX)?.iter().zip(src_msgs.iter()) {
-            let dst_pet = Tup::new(dst_msg, &dst_ds_root, &dst_cwd);
-            let src_pet = Tup::new(src_msg, &src_ds_root, &src_cwd);
+            let dst_pet = Tup::new(dst_msg, &dst_ds_root, dst_cwd);
+            let src_pet = Tup::new(src_msg, &src_ds_root, src_cwd);
             assert!(dst_pet.practically_equals(&src_pet)?);
         }
     }
@@ -389,7 +389,7 @@ fn delete_dataset() -> EmptyRes {
 
     // Files must be moved to backup dir
     let specific_backup_paths: Vec<_> =
-        dao.backup_path().read_dir()?.into_iter().map(|e| e.map(|e| e.path())).try_collect()?;
+        dao.backup_path().read_dir()?.map(|e| e.map(|e| e.path())).try_collect()?;
     assert_eq!(specific_backup_paths.len(), 1);
     let specific_backup_path = &specific_backup_paths[0];
     assert!(path_file_name(specific_backup_path)?.starts_with(BACKUP_NAME_PREFIX));
@@ -397,7 +397,7 @@ fn delete_dataset() -> EmptyRes {
     let storage_path_str = path_to_str(dao.storage_path())?;
     for f in dst_files.iter() {
         assert!(!f.exists());
-        let moved_f = Path::new(&path_to_str(&f)?
+        let moved_f = Path::new(&path_to_str(f)?
             .replace(storage_path_str, path_to_str(specific_backup_path)?)).to_path_buf();
         assert!(moved_f.exists());
     }
@@ -550,14 +550,14 @@ fn update_user_change_id() -> EmptyRes {
         .filter(|m| m.from_id == *old_id).collect_vec();
     let old_personal_user_msgs = dao.first_messages(&old_personal_cwd.chat, usize::MAX)?.into_iter()
         .filter(|m| m.from_id == *old_id).collect_vec();
-    assert!(old_group_user_msgs.len() > 0 && old_personal_user_msgs.len() > 0);
+    assert!(!old_group_user_msgs.is_empty() && !old_personal_user_msgs.is_empty());
 
     assert_eq!(dao.chats(&dst_ds.uuid)?.len(), 4);
 
     dao.update_user(old_id, User { id: *new_id, ..old_user.clone() })?;
     assert_eq!(dao.users(&dst_ds.uuid)?.len(), 9);
 
-    assert!(dao.users(&dst_ds.uuid)?.into_iter().find(|u| u.id() == old_id).is_none());
+    assert!(!dao.users(&dst_ds.uuid)?.into_iter().any(|u| u.id() == old_id));
     let new_user = dao.users(&dst_ds.uuid)?.into_iter().find(|u| u.id() == new_id).unwrap();
     assert_eq!(new_user, User { id: *new_id, ..old_user.clone() });
 
@@ -600,7 +600,7 @@ fn update_chat_change_id() -> EmptyRes {
 
     let old_files = dao.first_messages(&cwd.chat, usize::MAX)?.iter()
         .flat_map(|m| m.files(&daos.dst_ds_root)).collect_vec();
-    assert!(old_files.len() > 0);
+    assert!(!old_files.is_empty());
     let hashes: HashMap<_, _> = old_files.iter()
         .map(|f| (path_file_name(f).unwrap().to_owned(), file_hash(f).unwrap())).collect();
 
@@ -660,14 +660,14 @@ fn delete_chat() -> EmptyRes {
         .find(|cwd| cwd.chat.tpe == ChatType::PrivateGroup as i32).unwrap();
     let files = dao.first_messages(&cwd.chat, usize::MAX)?.iter()
         .flat_map(|m| m.files(&daos.dst_ds_root)).collect_vec();
-    assert!(files.len() > 0);
+    assert!(!files.is_empty());
 
     dao.delete_chat(cwd.chat)?;
     assert_eq!(dao.chats(&dst_ds.uuid)?.len(), 3);
 
     // Files must be moved to backup dir
     let specific_backup_paths: Vec<_> =
-        dao.backup_path().read_dir()?.into_iter().map(|e| e.map(|e| e.path())).try_collect()?;
+        dao.backup_path().read_dir()?.map(|e| e.map(|e| e.path())).try_collect()?;
     assert_eq!(specific_backup_paths.len(), 1);
     let specific_backup_path = &specific_backup_paths[0];
     assert!(path_file_name(specific_backup_path)?.starts_with(BACKUP_NAME_PREFIX));
@@ -675,7 +675,7 @@ fn delete_chat() -> EmptyRes {
     let storage_path_str = path_to_str(dao.storage_path())?;
     for f in files.iter() {
         assert!(!f.exists());
-        let moved_f = Path::new(&path_to_str(&f)?
+        let moved_f = Path::new(&path_to_str(f)?
             .replace(storage_path_str, path_to_str(specific_backup_path)?)).to_path_buf();
         assert!(moved_f.exists());
     }
@@ -793,8 +793,8 @@ fn shift_dataset_time() -> EmptyRes {
         for (src_msg, dst_msg) in all_src_msgs.iter().zip(all_dst_msgs.iter()) {
             assert_eq!(dst_msg.timestamp - src_msg.timestamp, TIMESTAMP_DIFF);
 
-            let src_pet = Tup::new(src_msg, &daos.src_ds_root, &src_cwd);
-            let dst_pet = Tup::new(dst_msg, &daos.dst_ds_root, &dst_cwd);
+            let src_pet = Tup::new(src_msg, &daos.src_ds_root, src_cwd);
+            let dst_pet = Tup::new(dst_msg, &daos.dst_ds_root, dst_cwd);
             assert!(!src_pet.practically_equals(&dst_pet)?, "Src: {src_msg:?}\nDst: {dst_msg:?}");
 
             let mut dst_msg = dst_msg.clone();
@@ -804,7 +804,7 @@ fn shift_dataset_time() -> EmptyRes {
                         }) = dst_msg.typed {
                 *edit_timestamp -= TIMESTAMP_DIFF;
             }
-            let dst_pet = Tup::new(&dst_msg, &daos.dst_ds_root, &dst_cwd);
+            let dst_pet = Tup::new(&dst_msg, &daos.dst_ds_root, dst_cwd);
             assert!(src_pet.practically_equals(&dst_pet)?, "Src: {src_msg:?}\nDst: {dst_msg:?}");
         }
     }

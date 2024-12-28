@@ -41,6 +41,7 @@ fn loading_2023_12() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
 
     assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
@@ -86,7 +87,7 @@ fn loading_2023_12() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: Some(4313483375),
-                content_option: None,
+                contents: vec![],
             }),
         });
         assert_eq!(msgs[2], Message {
@@ -101,14 +102,14 @@ fn loading_2023_12() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(VoiceMsg(ContentVoiceMsg {
+                contents: vec![
+                    content!(VoiceMsg {
                         path_option: None,
                         file_name_option: None,
                         mime_type: "".to_owned(),
                         duration_sec_option: Some(23),
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -137,5 +138,6 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     }
 }

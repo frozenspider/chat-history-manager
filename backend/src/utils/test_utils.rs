@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use pretty_assertions::assert_eq;
 use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 pub use chat_history_manager_core::utils::test_utils::*;
@@ -33,11 +34,8 @@ lazy_static! {
         is_deleted: false,
         forward_from_name_option: None,
         reply_to_message_id_option: None,
-        content_option: None,
+        contents: vec![],
     };
-
-    // TODO: Do we need cleanup?
-    pub static ref HTTP_CLIENT: MockHttpClient = MockHttpClient::new();
 }
 
 thread_local! {
@@ -94,7 +92,7 @@ pub fn random_alphanumeric(length: usize) -> String {
 }
 
 pub fn create_named_file(path: &Path, content: &[u8]) {
-    let mut file = fs::File::create(&path).unwrap();
+    let mut file = fs::File::create(path).unwrap();
     file.write(content).unwrap();
 }
 
@@ -108,14 +106,79 @@ pub fn create_random_file(parent: &Path) -> PathBuf {
     path
 }
 
+/// Creates a SQLite database from SQL files in the given directory.
+/// For convenience, binary column values can be stored in separate binary files.
+/// For binary files, the name should be in the format `"{db_name}__{table_name}__{condition}__{column_name}.bin"`.
+pub fn create_sqlite_database(root_path: &Path,
+                              databases_rel_path: &str,
+                              target_db_ext_suffix: &str) -> TmpDir {
+    let databases = root_path.join(databases_rel_path);
+    if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
+    let db_tmp_dir = TmpDir::new_at(databases);
+
+    let files = root_path.read_dir().unwrap()
+        .map(|res| res.unwrap().path())
+        .collect_vec();
+
+    let sql_files =
+        files.iter()
+            .filter(|&child| path_file_name(child).unwrap().ends_with(".sql"))
+            .collect_vec();
+
+    for sql_file in sql_files.into_iter() {
+        let db_name = path_file_name(sql_file).unwrap().smart_slice(..-4).to_owned();
+        let target_db_path =
+            db_tmp_dir.path.join(format!("{db_name}{target_db_ext_suffix}"));
+        log::info!("Creating database {db_name}");
+        let conn = Connection::open(target_db_path).unwrap();
+        let sql = fs::read_to_string(sql_file).unwrap();
+        conn.execute_batch(&sql).unwrap();
+    }
+
+    let binary_files =
+        files.iter()
+            .filter(|child| path_file_name(child).unwrap().ends_with(".bin"))
+            .collect_vec();
+
+    for bin_file in binary_files.into_iter() {
+        let name = path_file_name(bin_file).unwrap();
+        let (db_name, table_name, condition, column_name) =
+            name.smart_slice(..-4).split("__").collect_tuple().unwrap();
+        let (condition_key, condition_value) = condition.split('=').collect_tuple().unwrap();
+
+        let target_db_path =
+            db_tmp_dir.path.join(format!("{db_name}{target_db_ext_suffix}"));
+        log::info!("Applying binary file {name}");
+        let conn = Connection::open(target_db_path).unwrap();
+        let content = fs::read(bin_file).unwrap();
+        conn.execute(&format!("UPDATE {table_name} SET {column_name} = ?1 WHERE {condition_key} = ?2"),
+                     params![content, condition_value]).unwrap();
+    }
+
+    db_tmp_dir
+}
+
+pub fn create_databases(resource_name: &str,
+                        resource_name_suffix: &str,
+                        databases_rel_path: &str,
+                        target_db_ext_suffix: &str,
+                        main_db_filename: &str) -> (PathBuf, TmpDir) {
+    let folder = resource(&format!("{}_{}", resource_name, resource_name_suffix));
+    assert!(folder.exists());
+
+    let tmp_dir =
+        create_sqlite_database(&folder, databases_rel_path, target_db_ext_suffix);
+
+    (tmp_dir.path.join(main_db_filename), tmp_dir)
+}
+
 /// Returns paths to all files referenced by entities of this dataset. Some might not exist.
 /// Files order matches the chats and messages order returned by DAO.
 pub fn dataset_files(dao: &impl ChatHistoryDao, ds_uuid: &PbUuid) -> Vec<PathBuf> {
     let ds_root = dao.dataset_root(ds_uuid).unwrap();
     let cwds = dao.chats(ds_uuid).unwrap();
     let mut files: Vec<PathBuf> = cwds.iter()
-        .map(|cwd| cwd.chat.img_path_option.as_deref())
-        .flatten()
+        .filter_map(|cwd| cwd.chat.img_path_option.as_deref())
         .map(|f| ds_root.to_absolute(f)).collect();
     for cwd in cwds.iter() {
         let msgs = dao.first_messages(&cwd.chat, usize::MAX).unwrap();
@@ -268,7 +331,7 @@ pub fn create_dao(
             users,
             cwms,
         )),
-        tmp_dir: tmp_dir,
+        tmp_dir,
     }
 }
 
@@ -280,6 +343,7 @@ pub fn create_user(ds_uuid: &PbUuid, id: i64) -> User {
         last_name_option: Some(id.to_string()),
         username_option: Some(format!("user{id}")),
         phone_number_option: Some("xxx xx xx".replace("x", &id.to_string())),
+        profile_pictures: vec![],
     }
 }
 
@@ -302,12 +366,12 @@ pub fn create_group_chat(ds_uuid: &PbUuid, id: i64, name_suffix: &str, member_id
     assert!(member_ids.len() >= 2);
     Chat {
         ds_uuid: ds_uuid.clone(),
-        id: id,
+        id,
         name_option: Some(format!("Chat {}", name_suffix)),
         source_type: SourceType::Telegram as i32,
         tpe: ChatType::PrivateGroup as i32,
         img_path_option: None,
-        member_ids: member_ids,
+        member_ids,
         msg_count: msg_count as i32,
         main_chat_id: None,
     }
@@ -321,16 +385,14 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 
     let typed = message_regular! {
         edit_timestamp_option: Some(
-                (BASE_DATE.clone() + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
+                (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
             ).timestamp()),
         is_deleted: false,
         reply_to_message_id_option: reply_to_message_id_option,
         forward_from_name_option: Some(format!("u{user_id}")),
-        content_option: Some(Content {
-            sealed_value_optional: Some(
-                content::SealedValueOptional::Poll(ContentPoll { question: format!("Hey, {idx}!") })
-            )
-        }),
+        contents: vec![
+            content!(Poll { question: format!("Hey, {idx}!") })
+        ],
     };
 
     let text = vec![RichText::make_plain(format!("Hello there, {idx}!"))];
@@ -338,7 +400,7 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
     Message {
         internal_id: idx as i64 * 100,
         source_id_option: Some(idx as i64),
-        timestamp: (BASE_DATE.clone() + Duration::try_minutes(idx as i64).unwrap()).timestamp(),
+        timestamp: (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap()).timestamp(),
         from_id: user_id as i64,
         text,
         searchable_string,
@@ -347,40 +409,13 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 }
 
 pub mod test_android {
-    use rusqlite::Connection;
-
     use super::*;
 
     pub fn create_databases(name: &str,
                             name_suffix: &str,
                             target_db_ext_suffix: &str,
                             db_filename: &str) -> (PathBuf, TmpDir) {
-        let folder = resource(&format!("{}_{}", name, name_suffix));
-        assert!(folder.exists());
-
-        let databases = folder.join(loader::android::DATABASES);
-        if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
-        let databases = TmpDir::new_at(databases);
-
-        let files: Vec<(String, PathBuf)> =
-            folder.read_dir().unwrap()
-                .map(|res| res.unwrap().path())
-                .filter(|child| path_file_name(child).unwrap().ends_with(".sql"))
-                .map(|child| {
-                    (path_file_name(&child).unwrap().smart_slice(..-4).to_owned(), child.clone())
-                })
-                .collect_vec();
-
-        for (table_name, file) in files.into_iter() {
-            let target_db_path =
-                databases.path.join(format!("{table_name}{target_db_ext_suffix}"));
-            log::info!("Creating table {}", table_name);
-            let conn = Connection::open(target_db_path).unwrap();
-            let sql = fs::read_to_string(&file).unwrap();
-            conn.execute_batch(&sql).unwrap();
-        }
-
-        (databases.path.join(db_filename), databases)
+        super::create_databases(name, name_suffix, loader::android::DATABASES, target_db_ext_suffix, db_filename)
     }
 }
 
@@ -449,24 +484,15 @@ impl MsgVec for Vec<Message> {
     }
 }
 
-
-impl<'a, T> PracticalEq for PracticalEqTuple<'a, Vec<T>> where for<'b> PracticalEqTuple<'a, T>: PracticalEq {
-    fn practically_equals(&self, other: &Self) -> Result<bool> {
-        if self.v.len() != other.v.len() {
-            return Ok(false);
-        }
-        for (v1, v2) in self.v.iter().zip(other.v.iter()) {
-            if !self.with(v1).practically_equals(&other.with(v2))? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-}
-
 #[must_use]
 pub struct TmpDir {
     pub path: PathBuf,
+}
+
+impl Default for TmpDir {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TmpDir {
@@ -477,19 +503,34 @@ impl TmpDir {
     }
 
     pub fn new_at(full_path: PathBuf) -> Self {
-        fs::create_dir(&full_path).expect("Can't create temp directory!");
+        fs::create_dir(&full_path).unwrap_or_else(|_| panic!("Can't create temp directory '{}'!", full_path.display()));
         TmpDir { path: full_path }
     }
 }
 
 impl Drop for TmpDir {
     fn drop(&mut self) {
-        fs::remove_dir_all(&self.path).expect(format!("Failed to remove temporary dir '{}'", self.path.to_str().unwrap()).as_str())
+        fs::remove_dir_all(&self.path).unwrap_or_else(|_| panic!("Failed to remove temporary dir '{}'", self.path.to_str().unwrap()))
+    }
+}
+
+pub struct NoopHttpClient;
+
+impl HttpClient for NoopHttpClient {
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse> {
+        log::info!("Mocking request to {}", url);
+        Ok(HttpResponse::Ok(Vec::from(url.as_bytes())))
     }
 }
 
 pub struct MockHttpClient {
     pub calls: Arc<Mutex<RefCell<Vec<String>>>>,
+}
+
+impl Default for MockHttpClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockHttpClient {
@@ -500,17 +541,17 @@ impl MockHttpClient {
     pub fn calls_copy(&self) -> Vec<String> {
         let lock = self.calls.lock().unwrap();
         let cell = &*lock;
-        let vec: &Vec<String> = &(*cell.borrow());
+        let vec: &Vec<String> = &cell.borrow();
         vec.clone()
     }
 }
 
 impl HttpClient for MockHttpClient {
-    fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
+    fn get_bytes(&self, url: &str) -> Result<HttpResponse> {
         log::info!("Mocking request to {}", url);
         let lock = self.calls.lock().unwrap();
         let cell = &*lock;
         cell.borrow_mut().push(url.to_owned());
-        Ok(Vec::from(url.as_bytes()))
+        Ok(HttpResponse::Ok(Vec::from(url.as_bytes())))
     }
 }

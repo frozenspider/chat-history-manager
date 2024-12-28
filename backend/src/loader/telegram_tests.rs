@@ -4,7 +4,6 @@ use chrono::prelude::*;
 use pretty_assertions::assert_eq;
 
 use crate::dao::ChatHistoryDao;
-use crate::protobuf::history::content::SealedValueOptional::*;
 use crate::protobuf::history::message::*;
 use crate::protobuf::history::message_service::SealedValueOptional::*;
 use crate::protobuf::history::User;
@@ -39,6 +38,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Www".to_owned()),
             username_option: None,
             phone_number_option: Some("+998 90 9998877".to_owned()),
+            profile_pictures: vec![],
         },
         member.to_user(ds_uuid),
         User {
@@ -48,6 +48,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Eeeeeeeeee".to_owned()),
             username_option: None,
             phone_number_option: Some("+7 999 333 44 55".to_owned()),
+            profile_pictures: vec![],
         },
         ShortUser::new_name_str(UserId(310242343), "Vlllllll").to_user(ds_uuid),
         ShortUser::new_name_str(UserId(333333333), "Ddddddd Uuuuuuuu").to_user(ds_uuid),
@@ -58,6 +59,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: None,
             username_option: None,
             phone_number_option: Some("+998 90 1112233".to_owned()),
+            profile_pictures: vec![],
         },
         ShortUser::new_name_str(UserId(666666666), "Iiiii Kkkkkkkkkk").to_user(ds_uuid),
         User {
@@ -67,6 +69,7 @@ fn loading_2020_01() -> EmptyRes {
             last_name_option: Some("Vvvvvvvvv".to_owned()),
             username_option: None,
             phone_number_option: Some("+7 951 123 45 67".to_owned()),
+            profile_pictures: vec![],
         },
     ];
 
@@ -141,6 +144,7 @@ fn loading_2021_05() -> EmptyRes {
         last_name_option: Some("Www".to_owned()),
         username_option: None,
         phone_number_option: Some("+998 90 9998877".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     let member2 = User {
         ds_uuid: ds_uuid.clone(),
@@ -149,6 +153,7 @@ fn loading_2021_05() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 4);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &service_member, &member1, &member2]);
@@ -268,7 +273,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
 
@@ -289,7 +294,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -304,14 +309,14 @@ fn loading_2021_06_supergroup() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(SharedContact(ContentSharedContact {
+                contents: vec![
+                    content!(SharedContact {
                         first_name_option: myself.first_name_option.to_owned(),
                         last_name_option: None,
                         phone_number_option: Some(myself.phone_number_option.to_owned().unwrap()),
                         vcard_path_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
     };
@@ -337,6 +342,7 @@ fn loading_2021_07() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &member]);
@@ -417,6 +423,7 @@ fn loading_2023_01() -> EmptyRes {
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
         phone_number_option: Some("+7 999 333 44 55".to_owned()), // Taken from contacts list
+        profile_pictures: vec![],
     };
     let channel_user = User {
         ds_uuid: ds_uuid.clone(),
@@ -425,6 +432,7 @@ fn loading_2023_01() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 3);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &member, &channel_user]);
@@ -508,7 +516,7 @@ fn loading_2023_01() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -543,6 +551,7 @@ fn loading_2023_01() -> EmptyRes {
                     path_option: None,
                     width: 640,
                     height: 640,
+                    mime_type_option: None,
                     is_one_time: false,
                 }
             }))),
@@ -570,6 +579,7 @@ fn loading_2023_08() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &unnamed_user]);
@@ -629,7 +639,7 @@ fn loading_2023_08() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: None,
+                contents: vec![],
             }),
         });
     };
@@ -655,6 +665,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
         last_name_option: None,
         username_option: None,
         phone_number_option: None,
+        profile_pictures: vec![],
     };
     assert_eq!(dao.users_single_ds().len(), 2);
     assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &unnamed_user]);
@@ -695,8 +706,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Audio(ContentAudio {
+                contents: vec![
+                    content!(Audio {
                         path_option: Some("audio_file.mp3".to_owned()),
                         file_name_option: None, // Old format
                         title_option: None,
@@ -704,8 +715,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         mime_type: "audio/mpeg".to_owned(),
                         duration_sec_option: None,
                         thumbnail_path_option: None,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[1], Message {
@@ -720,8 +731,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Audio(ContentAudio {
+                contents: vec![
+                    content!(Audio {
                         path_option: Some("audio_file.mp3".to_owned()),
                         file_name_option: None, // Old format
                         title_option: Some("Song Name".to_string()),
@@ -729,8 +740,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         mime_type: "audio/mpeg".to_owned(),
                         duration_sec_option: Some(123),
                         thumbnail_path_option: Some("audio_file.mp3_thumb.jpg".to_owned()),
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[2], Message {
@@ -745,8 +756,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Video(ContentVideo {
+                contents: vec![
+                    content!(Video {
                         path_option: Some("video_file.mp4".to_owned()),
                         file_name_option: None, // Old format
                         title_option: None,
@@ -757,8 +768,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         duration_sec_option: Some(111),
                         thumbnail_path_option: Some("video_file.mp4_thumb.jpg".to_owned()),
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
         assert_eq!(msgs[3], Message {
@@ -773,8 +784,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Video(ContentVideo {
+                contents: vec![
+                    content!(Video {
                         path_option: Some("video_file.mp4".to_owned()),
                         file_name_option: None, // Old format
                         title_option: Some("Clip Name".to_string()),
@@ -785,8 +796,8 @@ fn loading_2023_10_audio_video() -> EmptyRes {
                         duration_sec_option: Some(111),
                         thumbnail_path_option: Some("video_file.mp4_thumb.jpg".to_owned()),
                         is_one_time: false,
-                    }))
-                }),
+                    })
+                ],
             }),
         });
     };
@@ -868,7 +879,7 @@ fn loading_2024_02() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: Some("Forwarded From Name".to_owned()),
             reply_to_message_id_option: None,
-            content_option: None,
+            contents: vec![],
         }),
     });
 
@@ -900,14 +911,14 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(File(ContentFile {
-                        path_option: None,
-                        file_name_option: Some("my-file.jpg".to_owned()),
-                        mime_type_option: Some("image/jpeg".to_owned()),
-                        thumbnail_path_option: None,
-                    }))
-                }),
+            contents: vec![
+                content!(File {
+                    path_option: None,
+                    file_name_option: Some("my-file.jpg".to_owned()),
+                    mime_type_option: Some("image/jpeg".to_owned()),
+                    thumbnail_path_option: None,
+                })
+            ],
         }),
     });
 
@@ -923,16 +934,17 @@ fn loading_2024_05() -> EmptyRes {
             is_deleted: false,
             forward_from_name_option: None,
             reply_to_message_id_option: None,
-                content_option: Some(Content {
-                    sealed_value_optional: Some(Sticker(ContentSticker {
-                        path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
-                        file_name_option: Some("sticker.webm".to_owned()),
-                        width: 0, // Not known!
-                        height: 0, // Not known!
-                        thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
-                        emoji_option: Some("😱".to_owned()),
-                    }))
-                }),
+            contents: vec![
+                content!(Sticker {
+                    path_option: Some("chats/chat_001/stickers/sticker.webm".to_owned()),
+                    file_name_option: Some("sticker.webm".to_owned()),
+                    width: 0, // Not known!
+                    height: 0, // Not known!
+                    mime_type_option: None,
+                    thumbnail_path_option: Some("chats/chat_001/stickers/sticker.webm_thumb.jpg".to_owned()),
+                    emoji_option: Some("😱".to_owned()),
+                })
+            ],
         }),
     });
 
@@ -944,6 +956,120 @@ fn loading_2024_05() -> EmptyRes {
         text: vec![RichText::make_plain("Group boosted by 123".to_owned())],
         searchable_string: "Group boosted by 123".to_owned(),
         typed: Some(message_service!(Notice(MessageServiceNotice {}))),
+    });
+
+    Ok(())
+}
+
+#[test]
+fn loading_2024_06() -> EmptyRes {
+    let res = resource("telegram_2024-06_blockquote-collapsed");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 1);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![RichText::make_blockquote("Blockquote with collapsed property".to_owned())],
+        searchable_string: "Blockquote with collapsed property".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499755),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    Ok(())
+}
+
+#[test]
+fn loading_2024_08() -> EmptyRes {
+    let res = resource("telegram_2024-08");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 4);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Admin msg!".to_owned())],
+        searchable_string: "Admin msg!".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499755),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Bot msg!".to_owned())],
+        searchable_string: "Bot msg!".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499757,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "Aaaaa Aaaaaaaaaaa".to_owned(),
+        typed: Some(message_service!(GroupInviteMembers(MessageServiceGroupInviteMembers {
+            members: vec!["Aaaaa Aaaaaaaaaaa".to_owned()]
+        }))),
+    });
+
+    assert_eq!(msgs[3], Message {
+        internal_id: 3,
+        source_id_option: Some(11114),
+        timestamp: 1665499758,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(Photo {
+                    path_option: None,
+                    width: 0,
+                    height: 0,
+                    mime_type_option: None,
+                    is_one_time: true,
+                })
+            ],
+        }),
     });
 
     Ok(())
@@ -1004,5 +1130,6 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         last_name_option: Some("Aaaaaaaaaaa".to_owned()),
         username_option: Some("@frozenspider".to_owned()),
         phone_number_option: Some("+998 91 1234567".to_owned()),
+        profile_pictures: vec![],
     }
 }

@@ -42,7 +42,6 @@ impl SqliteDao {
         Self::create_load_inner(db_file)
     }
 
-    #[allow(unused)]
     pub fn load(db_file: &Path) -> Result<Self> {
         ensure!(db_file.exists(), "File {} does not exist!", db_file.display());
         Self::create_load_inner(db_file)
@@ -137,19 +136,37 @@ impl SqliteDao {
 
                     let raw_ds = utils::dataset::serialize(src_ds);
 
+                    let src_ds_root = src.dataset_root(ds_uuid)?;
+                    let dst_ds_root = self.dataset_root(ds_uuid)?;
+
                     conn.transaction(|txn| {
                         insert_into(dataset::table).values(&raw_ds).execute(txn)?;
 
-                        let raw_users: Vec<RawUser> = src.users(ds_uuid)?.iter().map(|u| {
-                            ensure!(u.id > 0, "IDs should be positive!");
-                            Ok(utils::user::serialize(u, *u == src_myself, &raw_ds.uuid))
-                        }).try_collect()?;
+                        let raw_users_with_pictures: Vec<(RawUser, Vec<RawProfilePicture>)> =
+                            src.users(ds_uuid)?.iter().map(|u| {
+                                ensure!(u.id > 0, "IDs should be positive!");
+                                let raw_user = utils::user::serialize(u, *u == src_myself, &raw_ds.uuid);
+                                let raw_pictures: Vec<RawProfilePicture> =
+                                    u.profile_pictures.iter()
+                                        .map(|pp| (pp, src_ds_root.to_absolute(&pp.path)))
+                                        .filter(|(_, path)| path.exists())
+                                        .enumerate()
+                                        .map(|(idx, (pp, path))| {
+                                            utils::user::profile_picture::serialize_and_copy(
+                                                u.id(), &raw_ds.uuid, &path,
+                                                pp.frame_option.as_ref(), idx, &dst_ds_root,
+                                            )
+                                        })
+                                        .try_collect()?;
+                                Ok((raw_user, raw_pictures))
+                            }).try_collect()?;
+                        let (raw_users, raw_pictures): (Vec<RawUser>, Vec<Vec<RawProfilePicture>>) =
+                            raw_users_with_pictures.into_iter().unzip();
+                        let raw_pictures = raw_pictures.into_iter().flatten().collect_vec();
                         insert_into(user::table).values(&raw_users).execute(txn)?;
+                        insert_into(profile_picture::table).values(&raw_pictures).execute(txn)?;
                         ok(())
                     })?;
-
-                    let src_ds_root = src.dataset_root(ds_uuid)?;
-                    let dst_ds_root = self.dataset_root(ds_uuid)?;
 
                     for src_cwd in src.chats(ds_uuid)?.iter() {
                         ensure!(src_cwd.chat.id > 0, "IDs should be positive!");
@@ -160,8 +177,8 @@ impl SqliteDao {
                             let mut raw_chat = utils::chat::serialize(&src_cwd.chat, &raw_ds.uuid)?;
                             if let Some(ref img) = src_cwd.chat.img_path_option {
                                 raw_chat.img_path =
-                                    copy_file(img, &None, &subpaths::ROOT,
-                                              src_cwd.chat.id, &src_ds_root, &dst_ds_root)?;
+                                    copy_chat_file(img, None, None, &subpaths::ROOT,
+                                                   src_cwd.chat.id, &src_ds_root, &dst_ds_root)?;
                             }
                             insert_into(chat::table).values(raw_chat).execute(txn)?;
                             insert_into(chat_member::table)
@@ -194,6 +211,9 @@ impl SqliteDao {
                             offset += BATCH_SIZE;
                         }
                     }
+
+                    vacuum(&mut conn)?;
+
                     Ok(())
                 }, |_, t| log::info!("Dataset '{}' inserted in {t} ms", ds_uuid.value))?;
             }
@@ -212,11 +232,11 @@ impl SqliteDao {
         }, |_, t| log::info!("Dao '{}' fully copied {t} ms", src.name()))
     }
 
-    fn fetch_messages<F>(&self, get_raw_messages_with_content: F) -> Result<Vec<Message>>
-        where F: Fn(&mut SqliteConnection) -> Result<Vec<(RawMessage, Option<RawMessageContent>)>>
+    fn fetch_messages<F>(&self, get_raw_messages: F) -> Result<Vec<Message>>
+        where F: Fn(&mut SqliteConnection) -> Result<Vec<RawMessage>>
     {
         let mut conn = self.get_conn()?;
-        utils::message::fetch(&mut conn, get_raw_messages_with_content)
+        utils::message::fetch(&mut conn, get_raw_messages)
     }
 
     fn copy_messages(&self,
@@ -249,8 +269,8 @@ impl SqliteDao {
         let mut raw_mcs = vec![];
         let mut raw_rtes = vec![];
         for (mut raw, internal_id) in full_raw_msgs.into_iter().zip(internal_ids) {
-            if let Some(mut mc) = raw.mc {
-                mc.message_internal_id = internal_id;
+            for mut mc in raw.mc.into_iter() {
+                mc.message_internal_id = Some(internal_id);
                 raw_mcs.push(mc);
             }
 
@@ -260,6 +280,12 @@ impl SqliteDao {
 
         insert_into(message_content::table).values(raw_mcs).execute(conn)?;
         insert_into(message_text_element::table).values(raw_rtes).execute(conn)?;
+        Ok(())
+    }
+
+    pub fn vacuum(&self) -> EmptyRes {
+        let mut conn = self.get_conn()?;
+        vacuum(&mut conn)?;
         Ok(())
     }
 }
@@ -283,16 +309,26 @@ impl WithCache for SqliteDao {
         let ds_uuids = inner.datasets.iter().map(|ds| ds.uuid.clone()).collect_vec();
         for ds_uuid in ds_uuids {
             let uuid = Uuid::parse_str(&ds_uuid.value)?;
-            let rows: Vec<(User, bool)> = user::table
+            let raw_users = user::table
                 .filter(user::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .select(RawUser::as_select())
-                .load_iter(&mut conn)?
-                .flatten()
-                .map(utils::user::deserialize)
+                .load(&mut conn)?;
+            let raw_pictures = profile_picture::table
+                .filter(profile_picture::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .filter(profile_picture::columns::user_id.eq_any(raw_users.iter().map(|u| u.id)))
+                .select(RawProfilePicture::as_select())
+                .load(&mut conn)?;
+            let mut raw_pictures: HashMap<i64, Vec<_>> = raw_pictures.into_iter()
+                .into_group_map_by(|raw_p| raw_p.user_id);
+            let users: Vec<(User, bool)> = raw_users.into_iter()
+                .map(|raw_user| {
+                    let id = raw_user.id;
+                    utils::user::deserialize(raw_user, raw_pictures.remove(&id).unwrap_or_default())
+                })
                 .try_collect()?;
             let (mut myselves, mut users): (Vec<_>, Vec<_>) =
-                rows.into_iter().partition_map(|(users, is_myself)|
-                    if is_myself { Either::Left(users) } else { Either::Right(users) });
+                users.into_iter().partition_map(|(users, is_myself)|
+                if is_myself { Either::Left(users) } else { Either::Right(users) });
             ensure!(!myselves.is_empty(), "Myself not found!");
             ensure!(myselves.len() < 2, "More than one myself found!");
             let myself = myselves.remove(0);
@@ -356,10 +392,9 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .filter(message::columns::chat_id.eq(chat.id))
                 .order_by(message::columns::internal_id.asc())
-                .left_join(message_content::table)
                 .offset(offset as i64)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })
     }
@@ -372,9 +407,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .filter(message::columns::chat_id.eq(chat.id))
                 .order_by(message::columns::internal_id.desc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })?;
         msgs.reverse();
@@ -390,9 +424,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::internal_id.lt(*msg_id))
                 .order_by(message::columns::internal_id.desc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })?;
         msgs.reverse();
@@ -408,9 +441,8 @@ impl ChatHistoryDao for SqliteDao {
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::internal_id.gt(*msg_id))
                 .order_by(message::columns::internal_id.asc())
-                .left_join(message_content::table)
                 .limit(limit as i64)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         })
     }
@@ -432,9 +464,8 @@ impl ChatHistoryDao for SqliteDao {
                     .filter(message::columns::internal_id.ge(*first_id))
                     .filter(message::columns::internal_id.le(*msg2_id))
                     .order_by(message::columns::internal_id.asc())
-                    .left_join(message_content::table)
                     .limit(BATCH_SIZE as i64)
-                    .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                    .select(RawMessage::as_select())
                     .load(conn)?)
             })
         };
@@ -466,9 +497,8 @@ impl ChatHistoryDao for SqliteDao {
                         .filter(message::columns::chat_id.eq(chat.id))
                         .filter($cond)
                         .order_by(message::columns::internal_id.$order())
-                        .left_join(message_content::table)
                         .limit($limit as i64)
-                        .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                        .select(RawMessage::as_select())
                         .load(conn)?)
                 })
             };
@@ -520,9 +550,8 @@ impl ChatHistoryDao for SqliteDao {
             Ok(message::table
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::source_id.eq(Some(*source_id)))
-                .left_join(message_content::table)
                 .limit(1)
-                .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                .select(RawMessage::as_select())
                 .load(conn)?)
         }).map(|mut v| v.pop())
     }
@@ -587,7 +616,7 @@ impl MutableChatHistoryDao for SqliteDao {
                             .open(archive_path)?;
                         let mut zip = zip::ZipWriter::new(&mut archive);
 
-                        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+                        let options = zip::write::FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
                         zip.start_file(path_file_name(&backup_file)?, options)?;
                         let mut buf = backup_bytes.as_slice();
                         while !buf.is_empty() {
@@ -714,16 +743,22 @@ impl MutableChatHistoryDao for SqliteDao {
         })
     }
 
-    fn insert_user(&mut self, user: User, is_myself: bool) -> Result<User> {
+    fn insert_user(&mut self, mut user: User, is_myself: bool) -> Result<User> {
+        user.profile_pictures = vec![];
+
         self.invalidate_cache()?;
         let mut conn = self.get_conn()?;
 
         let uuid = Uuid::parse_str(&user.ds_uuid.value).expect("Invalid UUID!");
-        let raw_user = utils::user::serialize(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()));
+        let raw_user =
+            utils::user::serialize(&user, is_myself, &Vec::from(uuid.as_bytes().as_slice()));
 
-        insert_into(schema::user::dsl::user)
-            .values(raw_user)
-            .execute(&mut conn)?;
+        conn.transaction(|conn| {
+            insert_into(schema::user::dsl::user)
+                .values(raw_user)
+                .execute(conn)?;
+            ok(())
+        })?;
 
         Ok(user)
     }
@@ -731,6 +766,7 @@ impl MutableChatHistoryDao for SqliteDao {
     fn update_user(&mut self, old_id: UserId, user: User) -> Result<User> {
         let ds_uuid = &user.ds_uuid;
         let is_myself = user.id() == self.myself(ds_uuid)?.id();
+        let ds_root = self.dataset_root(&user.ds_uuid)?;
 
         let old_name = self.get_cache()?.users[ds_uuid].user_by_id[&old_id].pretty_name_option();
 
@@ -751,6 +787,13 @@ impl MutableChatHistoryDao for SqliteDao {
                 .set((user::columns::id.eq(user.id), &raw_user))
                 .execute(conn)?;
             ensure!(updated_rows == 1, "{updated_rows} rows changed when updaing user {:?}", user);
+
+            // We assume profile pictures didn't change
+            let src_profile_pics_path = ds_root.to_absolute(&user_root_rel_path(old_id));
+            if id_changed && src_profile_pics_path.exists() {
+                fs::rename(&src_profile_pics_path,
+                           ds_root.to_absolute(&user_root_rel_path(user.id())))?;
+            }
 
             // After changing user, rename private chat(s) with him accordingly. If user is self, do nothing.
             if !is_myself {
@@ -820,11 +863,43 @@ impl MutableChatHistoryDao for SqliteDao {
         Ok(user)
     }
 
+    fn update_user_profile_pics(&mut self, user: User, new_profile_pics: Vec<AbsoluteProfilePicture>) -> Result<User> {
+        let dst_ds_root = self.dataset_root(&user.ds_uuid)?;
+
+        let uuid = Uuid::parse_str(&user.ds_uuid.value).expect("Invalid UUID!");
+        let raw_uuid = Vec::from(uuid.as_bytes().as_slice());
+
+        let raw_pics: Vec<_> = new_profile_pics
+            .into_iter()
+            .filter(|pic| pic.absolute_path.exists())
+            .enumerate()
+            .map(|(idx, pic)| {
+                utils::user::profile_picture::serialize_and_copy(
+                    user.id(), &raw_uuid, &pic.absolute_path, pic.frame_option.as_ref(), idx, &dst_ds_root)
+            })
+            .try_collect()?;
+
+        self.invalidate_cache()?;
+        let mut conn = self.get_conn()?;
+
+        conn.transaction(|conn| {
+            insert_into(schema::profile_picture::dsl::profile_picture)
+                .values(raw_pics)
+                .execute(conn)?;
+
+            ok(())
+        })?;
+
+        let user = self.user_option(&user.ds_uuid, user.id)?.expect("User went missing!");
+
+        Ok(user)
+    }
+
     fn insert_chat(&mut self, mut chat: Chat, src_ds_root: &DatasetRoot) -> Result<Chat> {
         if let Some(ref img) = chat.img_path_option {
             let dst_ds_root = self.dataset_root(&chat.ds_uuid)?;
-            chat.img_path_option = copy_file(img, &None, &subpaths::ROOT,
-                                             chat.id, src_ds_root, &dst_ds_root)?;
+            chat.img_path_option = copy_chat_file(img, None, None, &subpaths::ROOT,
+                                                  chat.id, src_ds_root, &dst_ds_root)?;
         }
 
         let uuid = Uuid::parse_str(&chat.ds_uuid.value).expect("Invalid UUID!");
@@ -1114,6 +1189,10 @@ fn chat_root_rel_path(chat_id: i64) -> String {
     format!("chat_{chat_id}")
 }
 
+fn user_root_rel_path(user_id: UserId) -> String {
+    format!("user_{}", user_id.0)
+}
+
 /// Subpath inside a directory, suffixed by " / " to be concatenated.
 struct Subpath {
     path_fragment: &'static str,
@@ -1131,42 +1210,55 @@ mod subpaths {
     pub(super) static VIDEO_MESSAGES: Subpath = Subpath { path_fragment: "video_messages", use_hashing: true };
     pub(super) static VIDEOS: Subpath = Subpath { path_fragment: "videos", use_hashing: true };
     pub(super) static FILES: Subpath = Subpath { path_fragment: "files", use_hashing: false };
+    pub(super) static PROFILE_PICTURES: Subpath = Subpath { path_fragment: "profile_pictures", use_hashing: true };
 }
 
-fn copy_file(src_rel_path: &str,
-             thumbnail_dst_main_path: &Option<String>,
+/// Copy file to dataset root, returning relative path to it.
+/// If source file doesn't exist, return None.
+/// If destination file already exists, check if it's the same as source file.
+/// If source file doesn't have an extension, use MIME type to determine and add it.
+fn copy_file(src_file: &Path,
+             src_mime: Option<&str>,
+             thumbnail_dst_main_path: Option<&str>,
+             subpath_prefix: &str,
              subpath: &Subpath,
-             chat_id: i64,
-             src_ds_root: &DatasetRoot,
              dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
-    let src_file = src_ds_root.to_absolute(src_rel_path);
-    let src_absolute_path = path_to_str(&src_file)?;
-    let src_meta = fs::metadata(&src_file);
+    let src_absolute_path = path_to_str(src_file)?;
+    let src_meta = fs::metadata(src_file);
     if let Ok(src_meta) = src_meta {
         ensure!(src_meta.is_file(), "Not a file: {src_absolute_path}");
-        let ext_suffix = src_file.extension().map(|ext| format!(".{}", ext.to_str().unwrap())).unwrap_or_default();
+
+        let ext =
+            if let Some(ext) = src_file.extension() {
+                Some(ext.to_str().unwrap())
+            } else {
+                src_mime.and_then(mime2ext::mime2ext)
+            };
+        let ext_suffix = ext.map(|ext| format!(".{ext}")).unwrap_or_default();
 
         let dst_rel_path: String =
             if let Some(main_path) = thumbnail_dst_main_path {
                 let full_name = main_path.rsplit('/').next().unwrap();
-                format!("{}{full_name}_thumb{ext_suffix}", main_path.as_str().smart_slice(..-(full_name.len() as i32)))
+                format!("{}{full_name}_thumb{ext_suffix}", main_path.smart_slice(..-(full_name.len() as i32)))
             } else {
                 let inner_path = if subpath.use_hashing {
-                    let hash = file_hash(&src_file)?;
+                    let hash = file_hash(src_file)?;
                     // Using first two characters of hash as a prefix for better file distribution, same what git does
                     let (prefix, name) = hash.split_at(2);
                     format!("{prefix}/{name}{ext_suffix}")
+                } else if let Some(ext) = ext {
+                    path_file_name(&src_file.with_extension(ext)).unwrap().to_owned()
                 } else {
-                    src_file.file_name().unwrap().to_str().unwrap().to_owned()
+                    path_file_name(src_file).unwrap().to_owned()
                 };
-                format!("{}/{}/{inner_path}", chat_root_rel_path(chat_id), subpath.path_fragment)
+                format!("{subpath_prefix}/{}/{inner_path}", subpath.path_fragment)
             };
         let dst_file = dst_ds_root.to_absolute(&dst_rel_path);
         fs::create_dir_all(dst_file.parent().unwrap()).context("Can't create dataset root path")?;
 
         if dst_file.exists() {
             // Assume hash collisions don't exist
-            ensure!(subpath.use_hashing || files_are_equal(&src_file, &dst_file)?,
+            ensure!(subpath.use_hashing || files_are_equal(src_file, &dst_file)?,
                     "File already exists: {}, and it doesn't match source {}",
                     dst_file.display(), src_absolute_path)
         } else {
@@ -1175,12 +1267,36 @@ fn copy_file(src_rel_path: &str,
 
         Ok(Some(dst_rel_path))
     } else {
-        log::info!("Referenced file does not exist: {src_rel_path}");
+        log::info!("Referenced file does not exist: {}", src_file.display());
         Ok(None)
     }
 }
 
+fn copy_chat_file(src_rel_path: &str,
+                  src_mime: Option<&str>,
+                  thumbnail_dst_main_path: Option<&str>,
+                  subpath: &Subpath,
+                  chat_id: i64,
+                  src_ds_root: &DatasetRoot,
+                  dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
+    copy_file(&src_ds_root.to_absolute(src_rel_path), src_mime, thumbnail_dst_main_path,
+              &chat_root_rel_path(chat_id), subpath, dst_ds_root)
+}
+
+fn copy_user_profile_pic(src_file: &Path,
+                         src_mime: Option<&str>,
+                         user_id: UserId,
+                         dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
+    copy_file(src_file, src_mime, None,
+              &user_root_rel_path(user_id), &subpaths::PROFILE_PICTURES, dst_ds_root)
+}
+
 fn defer_fk(conn: &mut SqliteConnection) -> EmptyRes {
+    sql_query("PRAGMA defer_foreign_keys = true").execute(conn)?;
+    ok(())
+}
+
+fn vacuum(conn: &mut SqliteConnection) -> EmptyRes {
     sql_query("PRAGMA defer_foreign_keys = true").execute(conn)?;
     ok(())
 }

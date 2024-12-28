@@ -12,13 +12,13 @@ use num_traits::FromPrimitive;
 use regex::{Captures, Regex};
 use utf16string::{LE, WStr};
 
-use content::SealedValueOptional as ContentSvo;
 use message_service::SealedValueOptional as ServiceSvo;
 
 use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
-use crate::grpc::client::MyselfChooser;
+use crate::grpc::client::UserInputRequester;
 use crate::loader::DataLoader;
 use crate::prelude::*;
+use crate::prelude::blob_utils::*;
 
 mod mra_dbs;
 mod db;
@@ -49,9 +49,9 @@ lazy_static! {
 }
 
 impl DataLoader for MailRuAgentDataLoader {
-    fn name(&self) -> &'static str { "Mail.Ru Agent" }
+    fn name(&self) -> String { "Mail.Ru Agent".to_owned() }
 
-    fn src_alias(&self) -> &'static str { "MRA" }
+    fn src_alias(&self) -> String { "MRA".to_owned() }
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes {
         if path_file_name(path)? != MRA_DBS {
@@ -60,7 +60,7 @@ impl DataLoader for MailRuAgentDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _myself_chooser: &dyn MyselfChooser) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
         // We're not using the supplied dataset, just the name of it
         load_mra_dbs(path, ds.alias)
     }
@@ -271,16 +271,17 @@ fn convert_cartoon(src: &str) -> Result<TextAndTyped> {
     };
 
     Ok((vec![], message_regular! {
-        content_option: Some(Content {
-            sealed_value_optional: Some(ContentSvo::Sticker(ContentSticker {
+        contents: vec![
+            content!(Sticker {
                 path_option: None,
                 file_name_option: None,
                 width: 0,
                 height: 0,
+                mime_type_option: None,
                 thumbnail_path_option: None,
                 emoji_option,
-            }))
-        }),
+            })
+        ],
         ..Default::default()
     }))
 }
@@ -319,14 +320,14 @@ fn convert_file_transfer(text: &str) -> Result<TextAndTyped> {
         Some(file_paths.iter().join(", "))
     };
     Ok((vec![], message_regular! {
-        content_option: Some(Content {
-            sealed_value_optional: Some(ContentSvo::File(ContentFile {
+        contents: vec![
+            content!(File {
                 path_option: None,
                 file_name_option,
                 mime_type_option: None,
                 thumbnail_path_option: None,
-            }))
-        }),
+            })
+        ],
         ..Default::default()
     }))
 }
@@ -561,6 +562,7 @@ fn upsert_user(users: &mut HashMap<String, User>,
         last_name_option: None,
         username_option: Some(username.to_owned()),
         phone_number_option: None,
+        profile_pictures: vec![],
     });
 
     if user.first_name_option.is_none() && first_name_or_email.as_ref().is_some_and(|v| v != username) {
@@ -570,12 +572,8 @@ fn upsert_user(users: &mut HashMap<String, User>,
 
 // All read functions read in Little Endian
 
-fn read_n_bytes<const N: usize>(bytes: &[u8], shift: usize) -> [u8; N] {
-    bytes[shift..(shift + N)].try_into().unwrap()
-}
-
 fn read_u32(bytes: &[u8], shift: usize) -> u32 {
-    u32::from_le_bytes(read_n_bytes(bytes, shift))
+    u32::from_le_bytes(read_const_n_bytes_at(bytes, shift))
 }
 
 fn next_u32(bytes: &[u8]) -> (u32, &[u8]) {
@@ -583,7 +581,8 @@ fn next_u32(bytes: &[u8]) -> (u32, &[u8]) {
 }
 
 fn next_u32_size(bytes: &[u8]) -> (usize, &[u8]) {
-    (read_u32(bytes, 0) as usize, &bytes[4..])
+    let (u32_bytes, rest) = next_const_n_bytes::<4>(bytes);
+    (u32::from_le_bytes(u32_bytes) as usize, rest)
 }
 
 /// Assumes the next 4 payload bytes to specify the size of the chunk. Read and return it, and the rest of the payload.

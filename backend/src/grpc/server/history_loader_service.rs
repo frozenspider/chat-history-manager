@@ -17,7 +17,7 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
                 return Ok(LoadResponse { name: dao.name().to_owned() });
             }
 
-            let dao = self_clone.loader.load(&path, self_clone.myself_chooser.as_ref())?;
+            let dao = self_clone.loader.load(&path, self_clone.user_input_requester.as_ref())?;
             let response = LoadResponse { name: dao.name().to_owned() };
             write_or_status(&self_clone.loaded_daos)?.insert(req.key.clone(), DaoRwLock::new(dao));
             Ok(response)

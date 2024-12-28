@@ -14,7 +14,9 @@ use crate::protobuf::history::history_dao_service_server::HistoryDaoServiceServe
 use crate::protobuf::history::history_loader_service_server::HistoryLoaderServiceServer;
 use crate::protobuf::history::merge_service_server::MergeServiceServer;
 
-use super::client::{self, MyselfChooser};
+use super::*;
+
+use super::client::{self, UserInputRequester};
 
 mod history_loader_service;
 mod history_dao_service;
@@ -22,9 +24,6 @@ mod merge_service;
 
 pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
     tonic::include_file_descriptor_set!("grpc_reflection_descriptor");
-
-type StatusResult<T> = StdResult<T, Status>;
-type TonicResult<T> = StatusResult<Response<T>>;
 
 // Abosulte path to data source
 type DaoKey = String;
@@ -34,16 +33,16 @@ type DaoRwLock = RwLock<Box<dyn ChatHistoryDao>>;
 pub struct ChatHistoryManagerServer {
     tokio_handle: Handle,
     loader: Loader,
-    myself_chooser: Box<dyn MyselfChooser>,
+    user_input_requester: Box<dyn UserInputRequester>,
     loaded_daos: RwLock<IndexMap<DaoKey, DaoRwLock>>,
 }
 
 impl ChatHistoryManagerServer {
-    pub fn new_wrapped(tokio_handle: Handle, loader: Loader, myself_chooser: Box<dyn MyselfChooser>) -> Arc<Self> {
+    pub fn new_wrapped(tokio_handle: Handle, loader: Loader, user_input_requester: Box<dyn UserInputRequester>) -> Arc<Self> {
         Arc::new(ChatHistoryManagerServer {
             tokio_handle,
             loader,
-            myself_chooser,
+            user_input_requester,
             loaded_daos: RwLock::new(IndexMap::new()),
         })
     }
@@ -129,8 +128,8 @@ pub async fn start_server(port: u16, loader: Loader) -> EmptyRes {
     let remote_port = port + 1;
 
     let handle = Handle::current();
-    let myself_chooser = client::create_myself_chooser(remote_port).await?;
-    let chm_server = ChatHistoryManagerServer::new_wrapped(handle, loader, myself_chooser);
+    let user_input_requester = client::create_user_input_requester(remote_port).await?;
+    let chm_server = ChatHistoryManagerServer::new_wrapped(handle, loader, user_input_requester);
 
     log::info!("Server listening on {}", addr);
 

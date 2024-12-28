@@ -66,6 +66,7 @@ impl_enum_serialization!(SourceType, {
     TextImport  => "text_import",
     Telegram    => "telegram",
     WhatsappDb  => "whatsapp",
+    Signal      => "signal",
     TinderDb    => "tinder",
     BadooDb     => "badoo",
     Mra         => "mra"
@@ -102,7 +103,7 @@ pub mod dataset {
 pub mod user {
     use super::*;
 
-    pub fn deserialize(raw: RawUser) -> Result<(User, bool)> {
+    pub fn deserialize(raw: RawUser, picts: Vec<RawProfilePicture>) -> Result<(User, bool)> {
         Ok((User {
             ds_uuid: PbUuid { value: Uuid::from_slice(&raw.ds_uuid)?.to_string() },
             id: raw.id,
@@ -110,6 +111,17 @@ pub mod user {
             last_name_option: raw.last_name,
             username_option: raw.username,
             phone_number_option: raw.phone_numbers,
+            profile_pictures: picts.into_iter()
+                .sorted_by_key(|p| p.order)
+                .map(|p| ProfilePicture {
+                    path: p.path,
+                    frame_option: match (p.frame_x, p.frame_y, p.frame_w, p.frame_h) {
+                        (Some(x), Some(y), Some(w), Some(h)) =>
+                            Some(PictureFrame { x: x as u32, y: y as u32, w: w as u32, h: h as u32 }),
+                        _ =>
+                            None
+                    },
+                }).collect(),
         }, deserialize_bool(raw.is_myself)))
     }
 
@@ -122,6 +134,30 @@ pub mod user {
             username: user.username_option.clone(),
             phone_numbers: user.phone_number_option.clone(),
             is_myself: serialize_bool(is_myself),
+        }
+    }
+
+    pub mod profile_picture {
+        use super::*;
+
+        pub fn serialize_and_copy(user_id: UserId,
+                                  raw_ds_uuid: &[u8],
+                                  path: &Path,
+                                  frame: Option<&PictureFrame>,
+                                  idx: usize,
+                                  dst_ds_root: &DatasetRoot) -> Result<RawProfilePicture> {
+            let new_path = sqlite_dao::copy_user_profile_pic(path, None, user_id, dst_ds_root)?
+                .expect("Filter out non-existent paths first!");
+            Ok(RawProfilePicture {
+                ds_uuid: raw_ds_uuid.to_vec(),
+                user_id: user_id.0,
+                path: new_path,
+                order: idx as i32,
+                frame_x: frame.map(|f| f.x as i32),
+                frame_y: frame.map(|f| f.y as i32),
+                frame_w: frame.map(|f| f.w as i32),
+                frame_h: frame.map(|f| f.h as i32),
+            })
         }
     }
 }
@@ -190,8 +226,7 @@ pub mod chat {
                 Ok(message::fetch(conn, |conn| {
                     Ok(schema::message::table
                         .filter(schema::message::columns::internal_id.eq(last_message_internal_id))
-                        .left_join(schema::message_content::table)
-                        .select((RawMessage::as_select(), Option::<RawMessageContent>::as_select()))
+                        .select(RawMessage::as_select())
                         .load(conn)?)
                 })?.remove(0))
             }))?;
@@ -237,29 +272,38 @@ pub mod message {
     // clousre, typechecker went into infinite recursion.
     // As such, more boilerplate is needed now.
     pub fn fetch<F>(conn: &mut SqliteConnection,
-                    get_raw_messages_with_content: F) -> Result<Vec<Message>>
-        where F: Fn(&mut SqliteConnection) -> Result<Vec<(RawMessage, Option<RawMessageContent>)>>
+                    get_raw_messages: F) -> Result<Vec<Message>>
+        where F: Fn(&mut SqliteConnection) -> Result<Vec<RawMessage>>
     {
-        let raw_messages_with_content: Vec<(RawMessage, Option<RawMessageContent>)> =
-            get_raw_messages_with_content(conn)?;
+        let raw_messages: Vec<RawMessage> =
+            get_raw_messages(conn)?;
 
-        let raw_messages: Vec<&RawMessage> =
-            raw_messages_with_content.iter().map(|pair| &pair.0).collect();
+        let raw_messages_content: Vec<RawMessageContent> =
+            RawMessageContent::belonging_to(&raw_messages)
+                .select(RawMessageContent::as_select())
+                .load(conn)?;
+
+        let mut raw_messages_content_grouped = raw_messages_content.grouped_by(&raw_messages);
+        for group in raw_messages_content_grouped.iter_mut() {
+            // TODO: This may be redundant
+            group.sort_by_key(|rte| rte.id)
+        }
 
         let raw_message_rtes: Vec<RawRichTextElement> =
             RawRichTextElement::belonging_to(&raw_messages)
                 .select(RawRichTextElement::as_select())
                 .load(conn)?;
 
-        let mut grouped = raw_message_rtes.grouped_by(&raw_messages);
-        for group in grouped.iter_mut() {
+        let mut raw_message_rtes_grouped = raw_message_rtes.grouped_by(&raw_messages);
+        for group in raw_message_rtes_grouped.iter_mut() {
             // TODO: This may be redundant
             group.sort_by_key(|rte| rte.id)
         }
 
-        let messages: Vec<Message> = grouped.into_iter()
-            .zip(raw_messages_with_content)
-            .map(|(rtes, (m, mc))| FullRawMessage { m, mc, rtes })
+        let messages: Vec<Message> = raw_messages.into_iter()
+            .zip(raw_messages_content_grouped)
+            .zip(raw_message_rtes_grouped)
+            .map(|((m, mc), rtes)| FullRawMessage { m, mc, rtes })
             .map(deserialize)
             .try_collect()?;
 
@@ -275,9 +319,11 @@ pub mod message {
         let (tpe, subtype, mc, time_edited, is_deleted, forward_from_name, reply_to_message_id) =
             match m.typed.as_ref().unwrap() {
                 crate::message::Typed::Regular(mr) => {
-                    let content = mr.content_option.as_ref()
+                    let content: Result<Vec<_>> = mr.contents.iter()
                         .map(|mc| serialize_content_and_copy_files(mc.sealed_value_optional.as_ref().unwrap(),
-                                                                   chat_id, src_ds_root, dst_ds_root)).transpose()?;
+                                                                   chat_id, src_ds_root, dst_ds_root))
+                        .collect();
+                    let content = content?;
                     ("regular",
                      None,
                      content,
@@ -288,7 +334,7 @@ pub mod message {
                 }
                 message_service_pat!(ms) => {
                     let (subtype, mc) = serialize_service_and_copy_files(ms, chat_id, src_ds_root, dst_ds_root)?;
-                    ("service", Some(subtype), mc, None, serialize_bool(false), None, None)
+                    ("service", Some(subtype), mc.into_iter().collect_vec(), None, serialize_bool(false), None, None)
                 }
                 message_service_pat_unreachable!() => { unreachable!() }
             };
@@ -319,22 +365,23 @@ pub mod message {
                                         dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         use content::SealedValueOptional::*;
         macro_rules! copy_path {
-            ($obj:ident.$field:ident, $thumb:expr, $subpath:expr) => {
+            ($obj:ident.$field:ident, $mime:expr, $thumb:expr, $subpath:expr) => {
                 $obj.$field.as_ref().map(|v|
-                    sqlite_dao::copy_file(&v, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
+                    sqlite_dao::copy_chat_file(&v, $mime, $thumb, $subpath,chat_id, src_ds_root, dst_ds_root)
                 ).transpose()?.flatten()
             };
         }
         Ok(match mc {
             Sticker(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::STICKERS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::STICKERS);
+                let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::STICKERS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::STICKERS);
                 RawMessageContent {
                     element_type: "sticker".to_owned(),
                     path,
                     file_name: v.file_name_option.clone(),
                     width: Some(v.width),
                     height: Some(v.height),
+                    mime_type: v.mime_type_option.clone(),
                     thumbnail_path,
                     emoji: v.emoji_option.clone(),
                     ..Default::default()
@@ -342,7 +389,7 @@ pub mod message {
             }
             Photo(v) => serialize_photo_and_copy_files(v, chat_id, src_ds_root, dst_ds_root)?,
             VoiceMsg(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VOICE_MESSAGES);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VOICE_MESSAGES);
                 RawMessageContent {
                     element_type: "voice_message".to_owned(),
                     path,
@@ -353,8 +400,8 @@ pub mod message {
                 }
             }
             Audio(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::AUDIOS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::AUDIOS);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::AUDIOS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::AUDIOS);
                 RawMessageContent {
                     element_type: "audio".to_owned(),
                     path,
@@ -368,8 +415,8 @@ pub mod message {
                 }
             }
             VideoMsg(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VIDEO_MESSAGES);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::VIDEO_MESSAGES);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VIDEO_MESSAGES);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::VIDEO_MESSAGES);
                 RawMessageContent {
                     element_type: "video_message".to_owned(),
                     path,
@@ -384,8 +431,8 @@ pub mod message {
                 }
             }
             Video(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::VIDEOS);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::VIDEOS);
+                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VIDEOS);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::VIDEOS);
                 RawMessageContent {
                     element_type: "video".to_owned(),
                     path,
@@ -402,8 +449,8 @@ pub mod message {
                 }
             }
             File(v) => {
-                let path = copy_path!(v.path_option, &None, &subpaths::FILES);
-                let thumbnail_path = copy_path!(v.thumbnail_path_option, &path, &subpaths::FILES);
+                let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::FILES);
+                let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::FILES);
                 RawMessageContent {
                     element_type: "file".to_owned(),
                     path,
@@ -428,7 +475,7 @@ pub mod message {
                 ..Default::default()
             },
             SharedContact(v) => {
-                let path = copy_path!(v.vcard_path_option, &None, &subpaths::FILES);
+                let path = copy_path!(v.vcard_path_option, None, None, &subpaths::FILES);
                 RawMessageContent {
                     element_type: "shared_contact".to_owned(),
                     path,
@@ -446,14 +493,15 @@ pub mod message {
                                       src_ds_root: &DatasetRoot,
                                       dst_ds_root: &DatasetRoot) -> Result<RawMessageContent> {
         let path = photo.path_option.as_ref().map(|path|
-            sqlite_dao::copy_file(path, &None, &subpaths::PHOTOS,
-                                  chat_id, src_ds_root, dst_ds_root)
+            sqlite_dao::copy_chat_file(path, photo.mime_type_option.as_deref(), None, &subpaths::PHOTOS,
+                                       chat_id, src_ds_root, dst_ds_root)
         ).transpose()?.flatten();
         Ok(RawMessageContent {
             element_type: "photo".to_owned(),
             path,
             width: Some(photo.width),
             height: Some(photo.height),
+            mime_type: photo.mime_type_option.clone(),
             is_one_time: Some(serialize_bool(photo.is_one_time)),
             ..Default::default()
         })
@@ -579,18 +627,27 @@ pub mod message {
     pub fn deserialize(raw: FullRawMessage) -> Result<Message> {
         let text = raw.rtes.into_iter().map(deserialize_rte).try_collect()?;
         let typed = match raw.m.tpe.as_str() {
-            "regular" => message_regular! {
-                edit_timestamp_option: raw.m.time_edited,
-                is_deleted: deserialize_bool(raw.m.is_deleted),
-                forward_from_name_option: raw.m.forward_from_name,
-                reply_to_message_id_option: raw.m.reply_to_message_id,
-                content_option: raw.mc.map(|mc| ok(Content {
-                    sealed_value_optional: Some(deserialize_content(mc)?)
-                })).transpose()?,
+            "regular" => {
+                let contents: Result<Vec<_>> = raw.mc.into_iter()
+                    .map(|mc| ok(Content {
+                        sealed_value_optional: Some(deserialize_content(mc)?)
+                    }))
+                    .collect();
+                let contents = contents?;
+                message_regular! {
+                    edit_timestamp_option: raw.m.time_edited,
+                    is_deleted: deserialize_bool(raw.m.is_deleted),
+                    forward_from_name_option: raw.m.forward_from_name,
+                    reply_to_message_id_option: raw.m.reply_to_message_id,
+                    contents,
+                }
             },
-            "service" => message_service!(deserialize_service(
+            "service" => {
+                assert!(raw.mc.len() <= 1);
+                message_service!(deserialize_service(
                     raw.m.subtype.as_deref().expect("Service message subtype is empty!"),
-                    raw.mc)?),
+                    raw.mc.into_iter().next())?)
+            },
             tpe => bail!("Unknown message type {}!", tpe)
         };
         Ok(Message::new(
@@ -616,6 +673,7 @@ pub mod message {
                 file_name_option: raw.file_name,
                 width: get_or_bail!(raw.width),
                 height: get_or_bail!(raw.height),
+                mime_type_option: raw.mime_type,
                 thumbnail_path_option: raw.thumbnail_path,
                 emoji_option: raw.emoji,
             }),
@@ -692,6 +750,7 @@ pub mod message {
             path_option: raw.path,
             width: get_or_bail!(raw.width),
             height: get_or_bail!(raw.height),
+            mime_type_option: raw.mime_type,
             is_one_time: deserialize_bool(get_or_bail!(raw.is_one_time)),
         })
     }
