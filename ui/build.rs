@@ -39,9 +39,9 @@ fn run_tauri_before_build_command() -> Result<(), Box<dyn std::error::Error>> {
         warn!("stderr: {}", stderr);
         Err("Failed to run before build command".into())
     } else {
-        println!("Tauri before build command");
-        println!("stdout: {}", stdout);
-        println!("stderr: {}", stderr);
+        warn!("Tauri before build command");
+        warn!("stdout: {}", stdout);
+        warn!("stderr: {}", stderr);
         Ok(())
     }
 }

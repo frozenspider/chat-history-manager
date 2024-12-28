@@ -220,11 +220,12 @@ function MessageTypedRegular(args: {
     }
   }
 
+  // TODO: Support multiple contents!
   return (
     <>
       {fwdFrom}
       {replyTo}
-      <MessageContent content={GetNonDefaultOrNull(args.msg.contentOption)} chatState={args.chatState}/>
+      <MessageContent content={GetNonDefaultOrNull(args.msg.contents[0])} chatState={args.chatState}/>
     </>
   )
 }

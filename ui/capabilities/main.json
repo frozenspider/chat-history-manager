@@ -6,16 +6,6 @@
     "*"
   ],
   "permissions": [
-    "app:default",
-    "dialog:default",
-    "event:default",
-    "fs:allow-open",
-    "image:default",
-    "menu:default",
-    "path:default",
-    "resources:default",
-    "tray:default",
-    "webview:default",
-    "window:default"
+    "core:default"
   ]
 }

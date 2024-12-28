@@ -12,10 +12,10 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-
+use tauri_plugin_fs::FilePath;
 use chat_history_manager_backend::prelude::*;
 use chat_history_manager_backend::prelude::client::ChatHistoryManagerGrpcClients;
 
@@ -163,8 +163,8 @@ async fn on_menu_event_open(
         .set_title("Open one of the supported file types (see README.md)")
         .blocking_pick_file();
     match picked {
-        Some(picked) => {
-            let path = path_to_str(&picked.path)?.to_owned();
+        Some(FilePath::Path(picked)) => {
+            let path = path_to_str(&picked)?.to_owned();
             let key = path.clone();
             let _response = clients.grpc(|loader, _| loader.load(LoadRequest { key, path })).await?;
             refresh_opened_files_list(app_handle, clients, true).await?;

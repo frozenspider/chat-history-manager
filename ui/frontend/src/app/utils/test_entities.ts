@@ -20,7 +20,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: "Myself",
       lastNameOption: undefined,
       usernameOption: undefined,
-      phoneNumberOption: undefined
+      phoneNumberOption: undefined,
+      profilePictures: []
     },
     {
       dsUuid: TestDataset.uuid,
@@ -28,7 +29,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: "John",
       lastNameOption: "Doe",
       usernameOption: "jdoe",
-      phoneNumberOption: undefined
+      phoneNumberOption: undefined,
+      profilePictures: []
     },
     {
       dsUuid: TestDataset.uuid,
@@ -36,7 +38,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: "Jane",
       lastNameOption: "Smith",
       usernameOption: undefined,
-      phoneNumberOption: "+0 (00) 000-00-00"
+      phoneNumberOption: "+0 (00) 000-00-00",
+      profilePictures: []
     },
     {
       dsUuid: TestDataset.uuid,
@@ -44,7 +47,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: "Single First Name",
       lastNameOption: undefined,
       usernameOption: undefined,
-      phoneNumberOption: undefined
+      phoneNumberOption: undefined,
+      profilePictures: []
     },
     {
       dsUuid: TestDataset.uuid,
@@ -52,7 +56,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: undefined,
       lastNameOption: undefined,
       usernameOption: "username",
-      phoneNumberOption: undefined
+      phoneNumberOption: undefined,
+      profilePictures: []
     },
     {
       dsUuid: TestDataset.uuid,
@@ -60,7 +65,8 @@ const TestUsers: User[] = (() => {
       firstNameOption: undefined,
       lastNameOption: undefined,
       usernameOption: undefined,
-      phoneNumberOption: "+1 (23) 456-78-90"
+      phoneNumberOption: "+1 (23) 456-78-90",
+      profilePictures: []
     }
   ];
 })()
