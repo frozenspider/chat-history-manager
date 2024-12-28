@@ -200,7 +200,10 @@ function MessageTypedRegular(args: {
   let fwdFrom = <></>
   if (fwdFromName) {
     let colorClass = NameColorClassFromPrettyName(fwdFromName, args.chatState.cc.members).text
-    fwdFrom = <p><span className="text-gray-400">Forwarded from</span> <ColoredName name={fwdFromName} colorClass={colorClass}/></p>
+    fwdFrom = <p>
+      <span className="text-gray-400">Forwarded from</span>
+      <ColoredName name={fwdFromName} colorClass={colorClass}/>
+    </p>
   }
 
   let replyToId = GetNonDefaultOrNull(args.msg.replyToMessageIdOption)
@@ -220,12 +223,17 @@ function MessageTypedRegular(args: {
     }
   }
 
-  // TODO: Support multiple contents!
+  let contents = args.msg.contents.map((content, idx) => {
+    return <MessageContent key={"content_" + idx}
+                           content={GetNonDefaultOrNull(content)}
+                           chatState={args.chatState}/>
+  })
+
   return (
     <>
       {fwdFrom}
       {replyTo}
-      <MessageContent content={GetNonDefaultOrNull(args.msg.contents[0])} chatState={args.chatState}/>
+      {contents}
     </>
   )
 }

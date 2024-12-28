@@ -131,7 +131,6 @@ function GetMessageSimpleText(msg: Message): string {
       if (regular.isDeleted)
         return "(message deleted)"
 
-      // TODO: Support multiple contents!
       let sealed = regular.contents.length > 0 ? regular.contents[0].sealedValueOptional! : null;
       if (!sealed || !sealed?.$case)
         return msg.searchableString
