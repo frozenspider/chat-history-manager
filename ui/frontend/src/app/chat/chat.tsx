@@ -86,9 +86,19 @@ function Avatar(args: {
   chat: Chat,
   dsState: DatasetState
 }) {
+  let relativePath = GetNonDefaultOrNull(args.chat.imgPathOption)
+  if (!relativePath && args.chat.tpe == ChatType.PERSONAL) {
+    let otherMemberIds = args.chat.memberIds.filter(id => id != args.dsState.myselfId)
+    // Could be that no other members are known - might happen e.g. when interlocutor didn't write anything
+    if (otherMemberIds.length == 1) {
+      let otherMemberId = otherMemberIds[0]
+      let user = args.dsState.users.get(otherMemberId)
+      relativePath = user && user.profilePictures.length > 0 ? user.profilePictures[0].path : null
+    }
+  }
   return (
     <TauriImage elementName="Avatar"
-                relativePath={GetNonDefaultOrNull(args.chat.imgPathOption)}
+                relativePath={relativePath}
                 dsRoot={args.dsState.dsRoot}
                 width={50}
                 height={50}
