@@ -80,7 +80,9 @@ export function MessageContentSticker(args: {
                   height={h}
                   mimeType={null /* unknown */}
                   dsRoot={args.dsRoot}
-                  altText={content.emojiOption}/>
+                  additional={{
+                    altText: content.emojiOption
+                  }}/>
     </>
   } else if (path?.endsWith(".webm")) {
     return VideoComponent(
@@ -100,7 +102,9 @@ export function MessageContentSticker(args: {
                   width={w}
                   height={h}
                   mimeType={null /* unknown */}
-                  altText={content.emojiOption}/>
+                  additional={{
+                    altText: content.emojiOption
+                  }}/>
     )
   }
 }
@@ -213,7 +217,9 @@ function VideoComponent(
                 width={width}
                 height={height}
                 mimeType={null /* thumbnail mime unknown */}
-                altText={elementName + " thumbnail"}/>
+                additional={{
+                  altText: elementName + " thumbnail"
+                }}/>
   )
 }
 

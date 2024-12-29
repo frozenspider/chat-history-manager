@@ -50,6 +50,7 @@ struct MenuDbSeparatorIds {
     after: MenuId,
 }
 
+// These constans are duplicated in the JS part of the application
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_BUSY: &str = "busy";
@@ -236,9 +237,9 @@ async fn refresh_opened_files_list(
 // Commands
 //
 
+// TODO: Remove?
 #[tauri::command]
-fn open_popup(app_handle: AppHandle) {
-    let file_path = "popup";
+fn open_popup(app_handle: AppHandle, file_path: String) {
     let _settings_window = tauri::WebviewWindowBuilder::new(
         &app_handle,
         "my-popup", /* the unique window label */

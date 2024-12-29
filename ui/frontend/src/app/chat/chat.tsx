@@ -1,6 +1,12 @@
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  GetNonDefaultOrNull,
+  SpawnPopup,
+  Unreachable
+} from "@/app/utils/utils";
 import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
@@ -59,8 +65,8 @@ export default function ChatComponent(args: {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => console.log("Clicked")}>
-            Details [NYI]
+          <ContextMenuItem onClick={() => ShowChatDetailsPopup(args.cc, args.dsState)}>
+            Details
           </ContextMenuItem>
           <ContextMenuSeparator/>
           <ContextMenuItem>
@@ -103,9 +109,11 @@ function Avatar(args: {
                 width={50}
                 height={50}
                 mimeType={null}
-                altText="User Avatar"
-                keepPlaceholderOnNull={true}
-                addedClasses="rounded-md"/>
+                additional={{
+                  altText: "User Avatar",
+                  keepPlaceholderOnNull: true,
+                  addedClasses: "rounded-md",
+                }}/>
   )
 }
 
@@ -217,3 +225,11 @@ function GetMessageSimpleText(msg: Message): string {
   }
 }
 
+function ShowChatDetailsPopup(cc: CombinedChat, dsState: DatasetState) {
+  const setStatePromise = async () => {
+    let state = [cc, dsState]
+    // Cannot pass the payload directly because of BigInt not being serializable by default
+    return JSON.stringify(state, (_, v) => typeof v === 'bigint' ? v.toString() : v)
+  }
+  SpawnPopup<string>("details-window", "/chat/details", 600, 800, setStatePromise())
+}

@@ -6,9 +6,26 @@ import StaticPlaceholderImage from '../../../public/placeholder.svg'
 
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
 
-import { Chat, ContentSharedContact, Message, User } from "@/protobuf/core/protobuf/entities";
+import {
+  Chat,
+  ChatType,
+  chatTypeToJSON,
+  ContentSharedContact,
+  Message,
+  SourceType,
+  sourceTypeToJSON,
+  User
+} from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import { AssertDefined, Deduplicate, GetNonDefaultOrNull, ObjAsc, ObjDesc } from "@/app/utils/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  Deduplicate,
+  GetNonDefaultOrNull,
+  ObjAsc,
+  ObjDesc,
+  ReportError
+} from "@/app/utils/utils";
 
 export const PlaceholderImageSvg: StaticImport = StaticPlaceholderImage
 
@@ -121,6 +138,13 @@ export class CombinedChat {
     this.cwds = [mainCwd, ...sortedCwds]
   }
 
+  /** Used after JSON deserialization, inefficient */
+  static fromObject(obj: any): CombinedChat {
+    let mainCwd = obj.cwds.find((cwd: any) => cwd.chat!.id === obj.mainChatId)!
+    let slaveCwds = obj.cwds.filter((cwd: any) => cwd.chat!.id !== obj.mainChatId)
+    return new CombinedChat(mainCwd, slaveCwds)
+  }
+
   get dsUuid(): string {
     return this.mainCwd.chat!.dsUuid!.value
   }
@@ -153,4 +177,46 @@ export function ChatAndMessageAsc(lhs: ChatAndMessage, rhs: ChatAndMessage): num
       ? (msg => msg.internalId)
       : (msg => msg.timestamp)
   return ObjAsc(get)(lhs[1], rhs[1])
+}
+
+export function IdToReadable(id: bigint): string {
+  return id.toString().split("").reverse().join("").match(/.{1,3}/g)!.join(" ").split("").reverse().join("")
+}
+
+export function ChatTypeToString(tpe: ChatType): string {
+  switch (tpe) {
+    case ChatType.PERSONAL:
+      return "Personal (1 to 1)"
+    case ChatType.PRIVATE_GROUP:
+      return "Private Group"
+    case ChatType.UNRECOGNIZED:
+      ReportError(`Unrecognized chat type: ${chatTypeToJSON(tpe)}`);
+      return "";
+    default:
+      AssertUnreachable(tpe)
+  }
+}
+
+export function ChatSourceTypeToString(sourceType: SourceType): string {
+  switch (sourceType) {
+    case SourceType.TEXT_IMPORT:
+      return "Text import"
+    case SourceType.TELEGRAM:
+      return "Telegram"
+    case SourceType.WHATSAPP_DB:
+      return "WhatsApp"
+    case SourceType.SIGNAL:
+      return "Signal"
+    case SourceType.TINDER_DB:
+      return "Tinder"
+    case SourceType.BADOO_DB:
+      return "Badoo"
+    case SourceType.MRA:
+      return "Mail.Ru Agent"
+    case SourceType.UNRECOGNIZED:
+      ReportError(`Unrecognized chat source type: ${sourceTypeToJSON(sourceType)}`);
+      return "";
+    default:
+      AssertUnreachable(sourceType)
+  }
 }

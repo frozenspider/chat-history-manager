@@ -6,6 +6,9 @@
     "*"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "core:webview:allow-create-webview",
+    "core:webview:allow-create-webview-window",
+    "dialog:default"
   ]
 }

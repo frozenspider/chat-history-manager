@@ -18,9 +18,8 @@ export default function TauriImage(args: {
   width: number,
   height: number,
   mimeType: string | null,
-  altText?: string | null,
-  keepPlaceholderOnNull?: boolean,
-  addedClasses?: string
+  // Optional properties, grouped together for the ease of use
+  additional?: TauriImageAdditionalProps
 }): React.JSX.Element {
   let mimeType = args.mimeType
   if (!mimeType) {
@@ -41,6 +40,9 @@ export default function TauriImage(args: {
       mimeType = "image/jpeg"
   }
 
+  let maxWidth = args.additional?.maxWidth ?? MaxWidth
+  let maxHeight = args.additional?.maxHeight ?? MaxHeight
+
   return LazyContent(
     args.elementName,
     args.relativePath,
@@ -56,15 +58,15 @@ export default function TauriImage(args: {
         // TODO: Allow clicking to show full-size image
         let width = args.width
         let height = args.height
-        while (width > MaxWidth || height > MaxHeight) {
+        while (width > maxWidth || height > maxHeight) {
           width /= 2
           height /= 2
         }
         // TODO: This sometimes triggers warning
         return (
           <Image src={srcToUse}
-                 alt={args.altText ?? args.relativePath!}
-                 className={args.addedClasses}
+                 alt={args.additional?.altText ?? args.relativePath!}
+                 className={args.additional?.addedClasses}
                  width={width}
                  height={height}
                  style={{
@@ -77,11 +79,11 @@ export default function TauriImage(args: {
         // https://nextjs.org/docs/pages/api-reference/components/image#responsive-image-with-fill
         // TODO: Doesn't look good! Image is too large
         return (
-          <div style={{ position: "relative", width: MaxWidth + "px", height: MaxHeight + "px" }}>
+          <div style={{ position: "relative", width: maxWidth + "px", height: maxHeight + "px" }}>
             <Image src={srcToUse}
-                   alt={args.altText ?? args.relativePath!}
-                   className={args.addedClasses}
-                   sizes={`${MaxWidth}px`}
+                   alt={args.additional?.altText ?? args.relativePath!}
+                   className={args.additional?.addedClasses}
+                   sizes={`${maxWidth}px`}
                    style={{
                      objectFit: "contain",
                      objectPosition: "left",
@@ -92,7 +94,15 @@ export default function TauriImage(args: {
         )
       }
     },
-    args.keepPlaceholderOnNull,
+    args.additional?.keepPlaceholderOnNull,
     false
   )
+}
+
+export interface TauriImageAdditionalProps {
+  altText?: string,
+  keepPlaceholderOnNull?: boolean,
+  addedClasses?: string
+  maxWidth?: number,
+  maxHeight?: number
 }

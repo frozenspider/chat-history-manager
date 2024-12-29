@@ -2,7 +2,9 @@
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
 import { listen, EventCallback, UnlistenFn, EventName } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ClientError } from "nice-grpc-common";
+import { PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 
 export function Assert(cond: boolean, message?: string): asserts cond {
   if (!cond) throw new Error(message ?? "Assertion failed")
@@ -86,6 +88,28 @@ export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise
     return () => {
       // NOOP
     }
+  }
+}
+
+export function SpawnPopup<T>(
+  windowLabel: string,
+  pageUrl: string,
+  w: number,
+  h: number,
+  setState?: Promise<T>
+) {
+  if (!IsTauriAvailable()) {
+    ReportError("Can't create a popup without Tauri!")
+    return
+  }
+
+  const webview = new WebviewWindow(windowLabel, { url: pageUrl, width: w, height: h });
+
+  if (setState) {
+    PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError((async () => {
+      const state = await setState
+      await webview.emit(SetPopupStateEventName, state);
+    })())))
   }
 }
 
