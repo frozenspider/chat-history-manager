@@ -43,6 +43,7 @@ export async function PromiseCatchReportError<T>(p: Promise<T>): Promise<T | voi
       message = reason.toString()
     }
     ReportError(message)
+    throw reason
   })
 }
 

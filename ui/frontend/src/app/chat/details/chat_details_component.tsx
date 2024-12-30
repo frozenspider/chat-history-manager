@@ -4,8 +4,8 @@ import {
   ChatSourceTypeToString,
   ChatTypeToString,
   CombinedChat,
-  IdToReadable,
-  Unnamed
+  GetChatPrettyName,
+  IdToReadable
 } from "@/app/utils/entity_utils";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
@@ -61,7 +61,7 @@ export default function ChatDetailsComponent(args: {
                     }}/>
       </div>
 
-      <Row uniqId="chat-name" label="Chat Name" value={mainChat.nameOption ?? Unnamed}/>
+      <Row uniqId="chat-name" label="Chat Name" value={GetChatPrettyName(mainChat)}/>
       <Row uniqId="chat-id" label="Chat ID" value={IdToReadable(mainChat.id)}/>
       <Row uniqId="chat-type" label="Type" value={ChatTypeToString(mainChat.tpe)}/>
       <Row uniqId="msgs" label="# Messages" value={mainChat.msgCount.toString()}/>

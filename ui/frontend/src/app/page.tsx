@@ -1,6 +1,7 @@
 'use client'
 
 import React from "react";
+import { emit } from "@tauri-apps/api/event";
 
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
@@ -16,6 +17,7 @@ import {
   ServicesContextType
 } from "@/app/utils/state";
 import { ChatState, ClearCachedChatState } from "@/app/utils/chat_state";
+import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
 
@@ -125,7 +127,11 @@ export default function Home() {
               <ScrollArea className="h-full w-full rounded-md border">
                 {loaded ?
                   <ChatList fileState={currentFileState}
-                            setChatState={setCurrentChatState}/> :
+                            setChatState={setCurrentChatState}
+                            deleteChatCallback={(cc, dsState) =>
+                              DeleteChat(cc, dsState, services, openFiles,
+                                setOpenFiles, setCurrentFileState, setCurrentChatState)
+                            }/> :
                   <LoadSpinner center={true} text="Loading..."/>}
 
               </ScrollArea>
@@ -231,6 +237,67 @@ async function LoadExistingData(
     })
     return newOpenFiles
   })
+}
+
+function DeleteChat(
+  cc: CombinedChat,
+  dsState: DatasetState,
+  services: ServicesContextType,
+  openFiles: LoadedFileState[],
+  setOpenFiles: (openFiles: LoadedFileState[]) => void,
+  setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
+  setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    ClearCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId)
+
+    let removedChatIds = new Set(cc.cwds.map(cwd => cwd.chat!.id))
+
+    for (let cwd of cc.cwds) {
+      await services.daoClient.deleteChat({
+        key: dsState.fileKey,
+        chat: cwd.chat
+      })
+    }
+
+    let oldOpenFile = openFiles
+      .find(f => f.key == dsState.fileKey)!
+
+    let newDsState: DatasetState = {
+      ...dsState,
+      cwds: dsState.cwds.filter(cwd => !removedChatIds.has(cwd.chat!.id))
+    }
+
+    let newOpenFile: LoadedFileState = {
+      ...oldOpenFile,
+      datasets: oldOpenFile.datasets.map(oldDsState =>
+        oldDsState.ds.uuid!.value == newDsState.ds.uuid!.value ? newDsState : oldDsState)
+    }
+
+    let newOpenFiles = openFiles
+      .map(oldOpenFile => oldOpenFile.key == newOpenFile.key ? newOpenFile : oldOpenFile)
+
+    setCurrentChatState(chatState => {
+      // If the deleted chat is selected, deselect it
+      if (
+        chatState?.dsState.fileKey == newDsState.fileKey &&
+        chatState.dsState.ds.uuid!.value == newDsState.ds.uuid!.value &&
+        chatState.cc.mainChatId == cc.mainChatId
+      ) {
+        return null
+      }
+      return chatState
+    })
+
+    setCurrentFileState(currentFile => currentFile?.key == newOpenFile.key ? newOpenFile : currentFile)
+
+    setOpenFiles(newOpenFiles)
+  }
+
+  PromiseCatchReportError(innerAsync())
+    .finally(() => emit("busy", false))
 }
 
 function SaveAsComponent(args: {

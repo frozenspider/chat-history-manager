@@ -1,13 +1,7 @@
 import React from "react";
 
 import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SpawnPopup, Unreachable } from "@/app/utils/utils";
-import {
-  CombinedChat,
-  GetChatPrettyName,
-  GetUserPrettyName,
-  NameColorClassFromNumber,
-  Unnamed
-} from "@/app/utils/entity_utils";
+import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 
@@ -22,13 +16,15 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { ChatState } from "@/app/utils/chat_state";
+import { ask } from "@tauri-apps/plugin-dialog";
 
 export default function ChatComponent(args: {
   cc: CombinedChat,
   dsState: DatasetState,
   setChatState: (s: ChatState) => void,
   isSelected: boolean,
-  onClick: (cc: CombinedChat, dsState: DatasetState) => void
+  onClick: (cc: CombinedChat, dsState: DatasetState) => void,
+  deleteChatCallback: () => void
 }): React.JSX.Element {
   let mainChat = args.cc.mainCwd.chat
   AssertDefined(mainChat)
@@ -79,8 +75,8 @@ export default function ChatComponent(args: {
             Export As HTML [NYI]
           </ContextMenuItem>
           <ContextMenuSeparator/>
-          <ContextMenuItem className="text-red-600">
-            Delete [NYI]
+          <ContextMenuItem className="text-red-600" onClick={() => DeleteClicked(args.cc, args.deleteChatCallback)}>
+            Delete
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -231,6 +227,22 @@ function ShowChatDetailsPopup(cc: CombinedChat, dsState: DatasetState) {
     // Cannot pass the payload directly because of BigInt not being serializable by default
     return JSON.stringify(state, (_, v) => typeof v === 'bigint' ? v.toString() : v)
   }
-  let name = cc.mainCwd.chat?.nameOption ?? Unnamed
+  let name = GetChatPrettyName(cc.mainCwd.chat!)
   SpawnPopup<string>("details-window", name, "/chat/details", 600, 800, setStatePromise())
+}
+
+function DeleteClicked(cc: CombinedChat, deleteChatCallback: () => void) {
+  let name = GetChatPrettyName(cc.mainCwd.chat!)
+
+  let inner = async () => {
+    const agreed = await ask(`Are you sure you want to delete a chat '${name}'?`, {
+      title: 'Delete Chat',
+      kind: 'warning',
+    });
+
+    if (agreed) {
+      deleteChatCallback()
+    }
+  }
+  inner()
 }
