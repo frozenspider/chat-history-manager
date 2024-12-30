@@ -302,6 +302,14 @@ pub struct PathsWrapper {
     pub thumbnail_path: Option<String>,
 }
 
+/// Needed specifically for selecting user IDs through sql_query.
+#[derive(Debug, PartialEq, QueryableByName)]
+#[diesel(table_name = schema::user)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct UserIdWrapper {
+    pub id: i64,
+}
+
 #[derive(Debug, PartialEq, Identifiable, Selectable, Queryable, Insertable, Associations)]
 #[diesel(belongs_to(RawMessage, foreign_key = message_internal_id))]
 #[diesel(table_name = schema::message_text_element)]

@@ -20,6 +20,10 @@ thread_local! {
     static LOADER: Loader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
 }
 
+/// Chat to be deleted in delete tests. It has an image and orphan users with profile pics, so deleting it is
+/// a bit trickier than the rest.
+const CHAT_ID_TO_DELETE: ChatId = ChatId(8123123123 + 0x100000000_i64 * 2);
+
 type Tup<'a, T> = PracticalEqTuple<'a, T>;
 
 #[test]
@@ -658,9 +662,15 @@ fn delete_chat() -> EmptyRes {
     assert_eq!(dao.chats(&dst_ds.uuid)?.len(), 4);
     let cwd = dao.chats(&dst_ds.uuid)?.into_iter()
         .find(|cwd| cwd.chat.tpe == ChatType::PrivateGroup as i32).unwrap();
-    let files = dao.first_messages(&cwd.chat, usize::MAX)?.iter()
+    assert_eq!(cwd.id(), CHAT_ID_TO_DELETE);
+
+    let mut files = dao.first_messages(&cwd.chat, usize::MAX)?.iter()
         .flat_map(|m| m.files(&daos.dst_ds_root)).collect_vec();
     assert!(!files.is_empty());
+    files.extend(cwd.members.iter()
+        .flat_map(|u| u.profile_pictures.iter()
+            .map(|pp| pp.to_absolute(&daos.dst_ds_root).absolute_path)));
+    files.push(cwd.chat.get_img_path_option(&daos.dst_ds_root).unwrap());
 
     dao.delete_chat(cwd.chat)?;
     assert_eq!(dao.chats(&dst_ds.uuid)?.len(), 3);
@@ -679,7 +689,6 @@ fn delete_chat() -> EmptyRes {
             .replace(storage_path_str, path_to_str(specific_backup_path)?)).to_path_buf();
         assert!(moved_f.exists());
     }
-
 
     // Other chats must remain unaffected
     for ChatWithDetails { chat, .. } in dao.chats(&daos.ds_uuid)? {
@@ -924,7 +933,28 @@ struct TestDaos {
 
 fn init() -> TestDaos {
     let src_dir = resource(TELEGRAM_DIR);
-    let src_dao = LOADER.with(|loader| loader.parse(&src_dir, &client::NoChooser).unwrap());
+    let mut src_dao = LOADER.with(|loader| loader.parse(&src_dir, &client::NoChooser).unwrap());
+
+    {
+        // Amend user with profile pic
+        let cache = src_dao.get_cache_mut_unchecked();
+        let mut cache = cache.inner.write().unwrap();
+        let users_cache = cache.users.values_mut().next().unwrap();
+        // User only participates in a group chat
+        let user = users_cache.user_by_id.get_mut(&UserId(44444444)).unwrap();
+        user.profile_pictures = vec![ProfilePicture {
+            path: "_artificial/profile_pics/user_44444444.jpg".to_owned(),
+            frame_option: None,
+        }];
+    }
+
+    {
+        // Amend chat with chat pic
+        let cwms = src_dao.cwms.values_mut().next().unwrap();
+        let cwm = cwms.iter_mut().find(|cwm| cwm.chat.id() == CHAT_ID_TO_DELETE).unwrap();
+        cwm.chat.img_path_option = Some("_artificial/chat_imgs/chat_8123123123.jpg".to_owned())
+    }
+
     init_from(src_dao, src_dir, None)
 }
 
