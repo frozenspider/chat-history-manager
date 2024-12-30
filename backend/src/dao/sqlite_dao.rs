@@ -1084,13 +1084,36 @@ impl MutableChatHistoryDao for SqliteDao {
             ensure!(deleted_rows == 1, "{deleted_rows} rows changed when deleting chat {}", chat.qualified_name());
 
             // Orphan users
-            sql_query(r"
-                DELETE FROM user
+            let orphan_user_ids = sql_query(r"
+                SELECT id FROM user
                 WHERE ds_uuid = ? AND id NOT IN (
                     SELECT cm.user_id FROM chat_member cm
                     WHERE cm.ds_uuid = user.ds_uuid
                 )
-            ").bind::<sql_types::Binary, _>(uuid.as_bytes().as_slice()).execute(conn)?;
+            ")
+                .bind::<sql_types::Binary, _>(uuid.as_bytes().as_slice())
+                .load::<UserIdWrapper>(conn)?
+                .into_iter()
+                .map(|w| w.id)
+                .collect_vec();
+
+            let raw_pictures = profile_picture::table
+                .filter(profile_picture::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .filter(profile_picture::columns::user_id.eq_any(&orphan_user_ids))
+                .select(RawProfilePicture::as_select())
+                .load(conn)?;
+
+            relative_paths.extend(raw_pictures.into_iter().map(|p| p.path));
+
+            delete(profile_picture::dsl::profile_picture)
+                .filter(profile_picture::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .filter(profile_picture::columns::user_id.eq_any(&orphan_user_ids))
+                .execute(conn)?;
+
+            delete(user::dsl::user)
+                .filter(user::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .filter(user::columns::id.eq_any(&orphan_user_ids))
+                .execute(conn)?;
 
             // Moving all dataset files to backup directory
             let backup_ds_root = self.choose_final_backup_path("")?.join(path_file_name(&ds_root.0)?);
