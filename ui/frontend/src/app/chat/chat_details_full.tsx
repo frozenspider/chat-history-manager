@@ -5,14 +5,14 @@ import {
   ChatTypeToString,
   CombinedChat,
   GetChatPrettyName,
+  GetCombinedChat1to1Interlocutors,
   IdToReadable
 } from "@/app/utils/entity_utils";
-import { ChatType } from "@/protobuf/core/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 
-export default function ChatDetailsComponent(args: {
+export default function ChatFullDetailsComponent(args: {
   cc: CombinedChat,
   dsState: DatasetState
 }): React.JSX.Element {
@@ -22,12 +22,10 @@ export default function ChatDetailsComponent(args: {
   let mainChat = args.cc.mainCwd.chat!
 
   let imgs = [GetNonDefaultOrNull(mainChat.imgPathOption)]
-  if (mainChat.tpe === ChatType.PERSONAL) {
-    let interlocutor = args.cc.members.find(m => m.id !== args.dsState.myselfId)
-    if (interlocutor) {
-      for (let pp of interlocutor.profilePictures) {
-        imgs.push(GetNonDefaultOrNull(pp.path))
-      }
+  let interlocutors = GetCombinedChat1to1Interlocutors(args.cc)
+  for (let interlocutor of interlocutors) {
+    for (let pp of interlocutor.profilePictures) {
+      imgs.push(GetNonDefaultOrNull(pp.path))
     }
   }
   imgs = imgs.filter(i => i)
@@ -64,7 +62,9 @@ export default function ChatDetailsComponent(args: {
       <Row uniqId="chat-name" label="Chat Name" value={GetChatPrettyName(mainChat)}/>
       <Row uniqId="chat-id" label="Chat ID" value={IdToReadable(mainChat.id)}/>
       <Row uniqId="chat-type" label="Type" value={ChatTypeToString(mainChat.tpe)}/>
-      <Row uniqId="msgs" label="# Messages" value={mainChat.msgCount.toString()}/>
+      <Row uniqId="msgs" label="# Messages" value={
+        args.cc.cwds.reduce((acc, cwd) => acc + cwd.chat!.msgCount, 0).toString()
+      }/>
       <Row uniqId="src-type" label="Source Type" value={ChatSourceTypeToString(mainChat.sourceType)}/>
 
       <hr/>

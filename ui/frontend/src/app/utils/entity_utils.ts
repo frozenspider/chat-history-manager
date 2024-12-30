@@ -21,6 +21,7 @@ import {
   AssertDefined,
   AssertUnreachable,
   Deduplicate,
+  ExpectDefined,
   GetNonDefaultOrNull,
   ObjAsc,
   ObjDesc,
@@ -116,6 +117,23 @@ export function GetUserPrettyName(user: User | ContentSharedContact | null): str
 
 export function GetChatPrettyName(chat: Chat | null): string {
   return chat?.nameOption ?? Unnamed
+}
+
+export function GetChatInterlocutor(cwd: ChatWithDetailsPB): User | null {
+  if (ExpectDefined(cwd.chat).tpe === ChatType.PERSONAL && cwd.members.length > 1) {
+    return cwd.members[1]
+  } else {
+    return null
+  }
+}
+
+export function GetCombinedChat1to1Interlocutors(cc: CombinedChat): User[] {
+  if (ExpectDefined(cc.mainCwd.chat).tpe === ChatType.PERSONAL && cc.members.length > 1) {
+    let myselfId = cc.mainCwd.chat!.memberIds[0]
+    return cc.members.filter(u => u.id !== myselfId)
+  } else {
+    return []
+  }
 }
 
 export class CombinedChat {

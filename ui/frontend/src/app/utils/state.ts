@@ -15,6 +15,12 @@ import { FileKey } from "@/app/utils/entity_utils";
 /** An event popup sends to itself after it's ready, intended to be caught by the creator. */
 export const PopupReadyEventName: EventName = "ready"
 
+/**
+ * An event popup sends to itself after user confirms selection, intended to be caught by the creator.
+ * Payload depends on the popup.
+ */
+export const PopupConfirmedEventName: EventName = "confirmed"
+
 /** An event to set a state after popup is loaded */
 export const SetPopupStateEventName: EventName = "set-state"
 //

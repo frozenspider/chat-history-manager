@@ -8,7 +8,7 @@ import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import LoadSpinner from "@/app/utils/load_spinner";
 
-import { Assert, InvokeTauri, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { Assert, ExpectDefined, InvokeTauri, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   DatasetState,
   LoadedFileState,
@@ -37,8 +37,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
 
-import { User } from "@/protobuf/core/protobuf/entities";
-import { HistoryDaoServiceDefinition, HistoryLoaderServiceDefinition } from "@/protobuf/backend/protobuf/services";
+import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
+import {
+  ChatWithDetailsPB,
+  HistoryDaoServiceDefinition,
+  HistoryLoaderServiceDefinition
+} from "@/protobuf/backend/protobuf/services";
 import { createChannel, createClient } from 'nice-grpc-web';
 
 const USE_TEST_DATA = false;
@@ -69,6 +73,17 @@ export default function Home() {
       daoClient: createClient(HistoryDaoServiceDefinition, channel)
     }
   }, [])
+
+  const reloadDatasetChats = async (fileKey: string, dsUuid: PbUuid) => {
+    let chatsResponse = await services.daoClient.chats({ key: fileKey, dsUuid })
+
+    let [_newDsState, newOpenFile, newOpenFiles] =
+      ChangeDatasetCwds(openFiles, fileKey, dsUuid, _oldCwds => chatsResponse.cwds)
+
+    setCurrentChatState(null)
+    setCurrentFileState(f => f?.key == newOpenFile.key ? newOpenFile : f)
+    setOpenFiles(newOpenFiles)
+  }
 
   // This cannot be called during prerender as it relies on window object
   React.useEffect(() => {
@@ -128,10 +143,15 @@ export default function Home() {
                 {loaded ?
                   <ChatList fileState={currentFileState}
                             setChatState={setCurrentChatState}
-                            deleteChatCallback={(cc, dsState) =>
-                              DeleteChat(cc, dsState, services, openFiles,
-                                setOpenFiles, setCurrentFileState, setCurrentChatState)
-                            }/> :
+                            callbacks={{
+                              onDeleteChat: (cc, dsState) => {
+                                DeleteChat(cc, dsState, services, openFiles,
+                                  setOpenFiles, setCurrentFileState, setCurrentChatState)
+                              },
+                              onSetSecondary: (cc, dsState, newMainId) => {
+                                SetSecondaryChat(cc, dsState, newMainId, services, reloadDatasetChats)
+                              }
+                            }}/> :
                   <LoadSpinner center={true} text="Loading..."/>}
 
               </ScrollArea>
@@ -239,6 +259,36 @@ async function LoadExistingData(
   })
 }
 
+function ChangeDatasetCwds(
+  openFiles: LoadedFileState[],
+  fileKey: string,
+  dsUuid: PbUuid,
+  change: (cwds: ChatWithDetailsPB[]) => ChatWithDetailsPB[]
+): [DatasetState, LoadedFileState, LoadedFileState[]] {
+  let oldOpenFile = ExpectDefined(openFiles.find(f => f.key == fileKey), "File not found")
+
+  let oldDsStateIdx = oldOpenFile.datasets.findIndex(ds => ds.ds.uuid!.value == dsUuid.value)
+  Assert(oldDsStateIdx >= 0, "Dataset not found")
+
+  let oldDsState = oldOpenFile.datasets[oldDsStateIdx]
+
+  let newDsState: DatasetState = {
+    ...oldDsState,
+    cwds: change(oldDsState.cwds)
+  }
+
+  let newOpenFile: LoadedFileState = {
+    ...oldOpenFile,
+    datasets: [...oldOpenFile.datasets]
+  }
+  newOpenFile.datasets[oldDsStateIdx] = newDsState
+
+  let newOpenFiles = openFiles
+    .map(oldOpenFile => oldOpenFile.key == newOpenFile.key ? newOpenFile : oldOpenFile)
+
+  return [newDsState, newOpenFile, newOpenFiles]
+}
+
 function DeleteChat(
   cc: CombinedChat,
   dsState: DatasetState,
@@ -254,6 +304,7 @@ function DeleteChat(
     ClearCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId)
 
     let removedChatIds = new Set(cc.cwds.map(cwd => cwd.chat!.id))
+    let dsUuid = dsState.ds.uuid!
 
     for (let cwd of cc.cwds) {
       await services.daoClient.deleteChat({
@@ -262,28 +313,15 @@ function DeleteChat(
       })
     }
 
-    let oldOpenFile = openFiles
-      .find(f => f.key == dsState.fileKey)!
-
-    let newDsState: DatasetState = {
-      ...dsState,
-      cwds: dsState.cwds.filter(cwd => !removedChatIds.has(cwd.chat!.id))
-    }
-
-    let newOpenFile: LoadedFileState = {
-      ...oldOpenFile,
-      datasets: oldOpenFile.datasets.map(oldDsState =>
-        oldDsState.ds.uuid!.value == newDsState.ds.uuid!.value ? newDsState : oldDsState)
-    }
-
-    let newOpenFiles = openFiles
-      .map(oldOpenFile => oldOpenFile.key == newOpenFile.key ? newOpenFile : oldOpenFile)
+    let [_newDsState, newOpenFile, newOpenFiles] =
+      ChangeDatasetCwds(openFiles, dsState.fileKey, dsUuid,
+        cwds => cwds.filter(cwd => !removedChatIds.has(cwd.chat!.id)))
 
     setCurrentChatState(chatState => {
       // If the deleted chat is selected, deselect it
       if (
-        chatState?.dsState.fileKey == newDsState.fileKey &&
-        chatState.dsState.ds.uuid!.value == newDsState.ds.uuid!.value &&
+        chatState?.dsState.fileKey == dsState.fileKey &&
+        chatState.dsState.ds.uuid!.value == dsUuid.value &&
         chatState.cc.mainChatId == cc.mainChatId
       ) {
         return null
@@ -294,6 +332,29 @@ function DeleteChat(
     setCurrentFileState(currentFile => currentFile?.key == newOpenFile.key ? newOpenFile : currentFile)
 
     setOpenFiles(newOpenFiles)
+  }
+
+  PromiseCatchReportError(innerAsync())
+    .finally(() => emit("busy", false))
+}
+
+function SetSecondaryChat(
+  cc: CombinedChat,
+  dsState: DatasetState,
+  newMainId: bigint,
+  services: ServicesContextType,
+  reload: (fileKey: string, dsUuid: PbUuid) => Promise<void>
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    ClearCachedChatState(dsState.fileKey, cc.dsUuid, newMainId)
+    ClearCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId)
+
+    let chat = cc.mainCwd.chat!
+    let masterChat = ExpectDefined(dsState.cwds.find(cwd => cwd.chat!.id === newMainId)).chat!
+    await services.daoClient.combineChats({ key: dsState.fileKey, masterChat, slaveChat: chat })
+    await reload(dsState.fileKey, dsState.ds.uuid!)
   }
 
   PromiseCatchReportError(innerAsync())

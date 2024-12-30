@@ -1,13 +1,21 @@
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SpawnPopup, Unreachable } from "@/app/utils/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  ExpectDefined,
+  GetNonDefaultOrNull,
+  SerializeJson,
+  SpawnPopup,
+  Unreachable
+} from "@/app/utils/utils";
 import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
-import { DatasetState } from "@/app/utils/state";
-import TauriImage from "@/app/utils/tauri_image";
+import { DatasetState, PopupConfirmedEventName } from "@/app/utils/state";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
 
 import ColoredName from "@/app/message/colored_name";
+import { ChatAvatar } from "@/app/chat/chat_avatar";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,8 +31,11 @@ export default function ChatComponent(args: {
   dsState: DatasetState,
   setChatState: (s: ChatState) => void,
   isSelected: boolean,
-  onClick: (cc: CombinedChat, dsState: DatasetState) => void,
-  deleteChatCallback: () => void
+  callbacks: {
+    onClick: () => void,
+    onDeleteChat: () => void
+    onSetSecondary: (newMainId: bigint) => void
+  }
 }): React.JSX.Element {
   let mainChat = args.cc.mainCwd.chat
   AssertDefined(mainChat)
@@ -44,9 +55,9 @@ export default function ChatComponent(args: {
       <ContextMenu>
         <ContextMenuTrigger>
           <div className="flex items-center space-x-3"
-               onClick={() => args.onClick(args.cc, args.dsState)}>
+               onClick={() => args.callbacks.onClick()}>
 
-            <Avatar chat={mainChat} dsState={args.dsState}/>
+            <ChatAvatar chat={mainChat} dsState={args.dsState}/>
 
             <div className="w-full">
               <ColoredName name={GetChatPrettyName(mainChat)} colorClass={colorClass}
@@ -65,51 +76,23 @@ export default function ChatComponent(args: {
             Details
           </ContextMenuItem>
           <ContextMenuSeparator/>
-          <ContextMenuItem>
-            Combine Into [NYI]
+          <ContextMenuItem onClick={() => ShowMakeSecondaryPopup(args.cc, args.dsState, args.callbacks.onSetSecondary)}
+                           disabled={args.cc.mainCwd.chat!.tpe != ChatType.PERSONAL}>
+            Make Secondary
           </ContextMenuItem>
           <ContextMenuItem>
-            Combine With [NYI]
+            Compare [NYI]
           </ContextMenuItem>
           <ContextMenuItem>
             Export As HTML [NYI]
           </ContextMenuItem>
           <ContextMenuSeparator/>
-          <ContextMenuItem className="text-red-600" onClick={() => DeleteClicked(args.cc, args.deleteChatCallback)}>
+          <ContextMenuItem className="text-red-600" onClick={() => DeleteClicked(args.cc, args.callbacks.onDeleteChat)}>
             Delete
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
     </li>
-  )
-}
-
-function Avatar(args: {
-  chat: Chat,
-  dsState: DatasetState
-}) {
-  let relativePath = GetNonDefaultOrNull(args.chat.imgPathOption)
-  if (!relativePath && args.chat.tpe == ChatType.PERSONAL) {
-    let otherMemberIds = args.chat.memberIds.filter(id => id != args.dsState.myselfId)
-    // Could be that no other members are known - might happen e.g. when interlocutor didn't write anything
-    if (otherMemberIds.length == 1) {
-      let otherMemberId = otherMemberIds[0]
-      let user = args.dsState.users.get(otherMemberId)
-      relativePath = user && user.profilePictures.length > 0 ? user.profilePictures[0].path : null
-    }
-  }
-  return (
-    <TauriImage elementName="Avatar"
-                relativePath={relativePath}
-                dsRoot={args.dsState.dsRoot}
-                width={50}
-                height={50}
-                mimeType={null}
-                additional={{
-                  altText: "User Avatar",
-                  keepPlaceholderOnNull: true,
-                  addedClasses: "rounded-md",
-                }}/>
   )
 }
 
@@ -223,12 +206,31 @@ function GetMessageSimpleText(msg: Message): string {
 
 function ShowChatDetailsPopup(cc: CombinedChat, dsState: DatasetState) {
   const setStatePromise = async () => {
-    let state = [cc, dsState]
     // Cannot pass the payload directly because of BigInt not being serializable by default
-    return JSON.stringify(state, (_, v) => typeof v === 'bigint' ? v.toString() : v)
+    return SerializeJson([cc, dsState])
   }
   let name = GetChatPrettyName(cc.mainCwd.chat!)
-  SpawnPopup<string>("details-window", name, "/chat/details", 600, 800, setStatePromise())
+  SpawnPopup<string>("details-window", name, "/chat/popup_details", 600, 800, setStatePromise())
+}
+
+function ShowMakeSecondaryPopup(
+  cc: CombinedChat,
+  dsState: DatasetState,
+  setSecondaryCallback: (newMainId: bigint) => void
+) {
+  const setStatePromise = async () => {
+    // Cannot pass the payload directly because of BigInt not being serializable by default
+    return SerializeJson([cc, dsState])
+  }
+  let name = GetChatPrettyName(cc.mainCwd.chat!)
+  let popup =
+    SpawnPopup<string>("make-secondary-window", name, "/chat/popup_make_secondary", 600, screen.availHeight - 100,
+      setStatePromise(), { y: 50 })
+
+  popup?.once(PopupConfirmedEventName, (ev) => {
+    let selectedChatId = ExpectDefined(ev.payload, "Selected main chat ID") as string
+    setSecondaryCallback(BigInt(selectedChatId))
+  })
 }
 
 function DeleteClicked(cc: CombinedChat, deleteChatCallback: () => void) {

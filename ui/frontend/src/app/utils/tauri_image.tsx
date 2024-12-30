@@ -64,15 +64,20 @@ export default function TauriImage(args: {
         }
         // TODO: This sometimes triggers warning
         return (
-          <Image src={srcToUse}
-                 alt={args.additional?.altText ?? args.relativePath!}
-                 className={args.additional?.addedClasses}
-                 width={width}
-                 height={height}
-                 style={{
-                   aspectRatio: `${width}/${height}`,
-                 }}
-                 priority={isPlaceholder}/>
+          <div className="relative inline-block" style={{ minWidth: width, minHeight: height }}>
+            <Image src={srcToUse}
+                   alt={args.additional?.altText ?? args.relativePath!}
+                   className={args.additional?.addedClasses}
+                   width={width}
+                   height={height}
+                   style={{
+                     aspectRatio: `${width}/${height}`,
+                   }}
+                   priority={isPlaceholder}/>
+            <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
+              {isPlaceholder ? args.additional?.placeholderOverlay : null}
+            </div>
+          </div>
         )
       } else {
         // Workaround as per official docs, see
@@ -101,6 +106,7 @@ export default function TauriImage(args: {
 
 export interface TauriImageAdditionalProps {
   altText?: string,
+  placeholderOverlay?: React.JSX.Element,
   keepPlaceholderOnNull?: boolean,
   addedClasses?: string
   maxWidth?: number,

@@ -46,7 +46,7 @@ const TestUsers: User[] = (() => {
       id: BigInt(4),
       firstNameOption: "Single First Name",
       lastNameOption: undefined,
-      usernameOption: undefined,
+      usernameOption: "single-first-name",
       phoneNumberOption: undefined,
       profilePictures: []
     },
@@ -87,6 +87,7 @@ const TestCwds: ChatWithDetailsPB[] = (() => {
       nameOption: "Everyone",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PRIVATE_GROUP,
+      imgPathOption: undefined,
       memberIds: TestUsers.map((u) => u.id),
       msgCount: 10,
       mainChatId: undefined
@@ -97,6 +98,7 @@ const TestCwds: ChatWithDetailsPB[] = (() => {
       nameOption: "John Doe chat one",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
+      imgPathOption: undefined,
       memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 321,
       mainChatId: undefined
@@ -107,6 +109,7 @@ const TestCwds: ChatWithDetailsPB[] = (() => {
       nameOption: "John Doe chat two",
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
+      imgPathOption: undefined,
       memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 321,
       mainChatId: BigInt(2),
@@ -119,6 +122,7 @@ const TestCwds: ChatWithDetailsPB[] = (() => {
       nameOption: "Chat " + i,
       sourceType: SourceType.TELEGRAM,
       tpe: ChatType.PERSONAL,
+      imgPathOption: undefined,
       memberIds: [TestUsers[0].id, TestUsers[1].id],
       msgCount: 100 + i,
       mainChatId: undefined

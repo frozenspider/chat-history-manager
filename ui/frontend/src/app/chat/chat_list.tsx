@@ -18,7 +18,10 @@ import { ChatState, GetCachedChatState } from "@/app/utils/chat_state";
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
   setChatState: (s: ChatState) => void,
-  deleteChatCallback: (cc: CombinedChat, dsState: DatasetState) => void,
+  callbacks: {
+    onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
+    onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void
+  }
 }): React.JSX.Element {
   let [selectedChat, setSelectedChat] =
     React.useState<CombinedChat | null>(null)
@@ -47,11 +50,18 @@ export default function ChatList(args: {
                              dsState={dsState}
                              setChatState={args.setChatState}
                              isSelected={cc.dsUuid == selectedChat?.dsUuid && cc.mainChatId == selectedChat.mainChatId}
-                             onClick={(cc, dsState) => {
-                               setSelectedChat(cc)
-                               LoadChat(cc, dsState, args.setChatState)
-                             }}
-                             deleteChatCallback={() => args.deleteChatCallback(cc, dsState)}/>
+                             callbacks={{
+                               onClick: () => {
+                                 setSelectedChat(cc)
+                                 LoadChat(cc, dsState, args.setChatState)
+                               },
+                               onDeleteChat: () => {
+                                 args.callbacks.onDeleteChat(cc, dsState)
+                               },
+                               onSetSecondary: (newMainId: bigint) => {
+                                 args.callbacks.onSetSecondary(cc, dsState, newMainId)
+                               }
+                             }}/>
             )
           })
 

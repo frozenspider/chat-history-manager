@@ -14,6 +14,11 @@ export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts 
   Assert(v !== undefined, (valueName ?? "Value") + " is undefined")
 }
 
+export function ExpectDefined<T>(v: T | undefined, valueName?: string): T {
+  AssertDefined(v, valueName)
+  return v
+}
+
 export function AssertUnreachable(_: never): never {
   Unreachable()
 }
@@ -98,14 +103,22 @@ export function SpawnPopup<T>(
   pageUrl: string,
   w: number,
   h: number,
-  setState?: Promise<T>
-) {
+  setState?: Promise<T>,
+  optional?: { x?: number, y?: number }
+): WebviewWindow | null {
   if (!IsTauriAvailable()) {
     ReportError("Can't create a popup without Tauri!")
-    return
+    return null
   }
 
-  const webview = new WebviewWindow(windowLabel, { title, url: pageUrl, width: w, height: h });
+  const webview = new WebviewWindow(windowLabel, {
+    title,
+    url: pageUrl,
+    width: w,
+    height: h,
+    x: optional?.x,
+    y: optional?.y
+  });
 
   if (setState) {
     PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError((async () => {
@@ -113,6 +126,8 @@ export function SpawnPopup<T>(
       await webview.emit(SetPopupStateEventName, state);
     })())))
   }
+
+  return webview
 }
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */
@@ -199,6 +214,31 @@ export function ForAll<T>(iter: IterableIterator<T>, pred: (t: T) => boolean): b
     if (!pred(item)) return false
   }
   return true
+}
+
+export function SerializeJson(src: any): string {
+  return JSON.stringify(src, (_, v) => {
+    switch (typeof v) {
+      case 'bigint':
+        return v.toString()
+      case 'object':
+        if (v === null) {
+          return null
+        }
+        if (v instanceof Map) {
+          return Array.from(v.entries())
+        }
+        if (v instanceof Set) {
+          return Array.from(v)
+        }
+        if (v instanceof Array) {
+          return v.map(e => typeof e === 'bigint' ? e.toString() : e)
+        }
+        return v
+      default:
+        return v
+    }
+  })
 }
 
 //
