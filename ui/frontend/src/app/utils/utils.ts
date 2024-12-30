@@ -93,6 +93,7 @@ export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise
 
 export function SpawnPopup<T>(
   windowLabel: string,
+  title: string,
   pageUrl: string,
   w: number,
   h: number,
@@ -103,7 +104,7 @@ export function SpawnPopup<T>(
     return
   }
 
-  const webview = new WebviewWindow(windowLabel, { url: pageUrl, width: w, height: h });
+  const webview = new WebviewWindow(windowLabel, { title, url: pageUrl, width: w, height: h });
 
   if (setState) {
     PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError((async () => {

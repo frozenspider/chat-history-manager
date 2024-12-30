@@ -1,13 +1,13 @@
 import React from "react";
 
+import { AssertDefined, AssertUnreachable, GetNonDefaultOrNull, SpawnPopup, Unreachable } from "@/app/utils/utils";
 import {
-  AssertDefined,
-  AssertUnreachable,
-  GetNonDefaultOrNull,
-  SpawnPopup,
-  Unreachable
-} from "@/app/utils/utils";
-import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+  CombinedChat,
+  GetChatPrettyName,
+  GetUserPrettyName,
+  NameColorClassFromNumber,
+  Unnamed
+} from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/utils/tauri_image";
 
@@ -231,5 +231,6 @@ function ShowChatDetailsPopup(cc: CombinedChat, dsState: DatasetState) {
     // Cannot pass the payload directly because of BigInt not being serializable by default
     return JSON.stringify(state, (_, v) => typeof v === 'bigint' ? v.toString() : v)
   }
-  SpawnPopup<string>("details-window", "/chat/details", 600, 800, setStatePromise())
+  let name = cc.mainCwd.chat?.nameOption ?? Unnamed
+  SpawnPopup<string>("details-window", name, "/chat/details", 600, 800, setStatePromise())
 }

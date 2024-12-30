@@ -19,7 +19,7 @@ export default function ChatDetailsComponent(args: {
   const [windowDimensions, setWindowDimensions] =
     React.useState<WindowDimensions>(getWindowDimensions());
 
-  let mainChat = args.cc.cwds.find(cwd => cwd.chat!.id === args.cc.mainChatId)!.chat!
+  let mainChat = args.cc.mainCwd.chat!
 
   let imgs = [GetNonDefaultOrNull(mainChat.imgPathOption)]
   if (mainChat.tpe === ChatType.PERSONAL) {
@@ -47,16 +47,19 @@ export default function ChatDetailsComponent(args: {
   return <>
     <div className="flex flex-col gap-2.5 p-5">
 
-      <TauriImage elementName={"Profile Picture"}
-                  relativePath={GetNonDefaultOrNull(imgs[0])}
-                  dsRoot={args.dsState.dsRoot}
-                  width={0}
-                  height={0}
-                  mimeType={null /* unknown */}
-                  additional={{
-                    maxWidth: windowDimensions.width - 100,
-                    maxHeight: 400,
-                  }}/>
+      <div style={{ width: "100%" }}>
+        <TauriImage elementName={"Image"}
+                    relativePath={GetNonDefaultOrNull(imgs[0])}
+                    dsRoot={args.dsState.dsRoot}
+                    width={0}
+                    height={0}
+                    mimeType={null /* unknown */}
+                    additional={{
+                      maxWidth: windowDimensions.width - 100,
+                      maxHeight: 400,
+                      keepPlaceholderOnNull: true
+                    }}/>
+      </div>
 
       <Row uniqId="chat-name" label="Chat Name" value={mainChat.nameOption ?? Unnamed}/>
       <Row uniqId="chat-id" label="Chat ID" value={IdToReadable(mainChat.id)}/>
