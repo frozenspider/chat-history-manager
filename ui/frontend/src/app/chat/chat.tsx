@@ -57,7 +57,7 @@ export default function ChatComponent(args: {
           <div className="flex items-center space-x-3"
                onClick={() => args.callbacks.onClick()}>
 
-            <ChatAvatar chat={mainChat} dsState={args.dsState}/>
+            <ChatAvatar cc={args.cc} dsState={args.dsState}/>
 
             <div className="w-full">
               <ColoredName name={GetChatPrettyName(mainChat)} colorClass={colorClass}

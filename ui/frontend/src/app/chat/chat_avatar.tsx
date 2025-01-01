@@ -1,28 +1,29 @@
 import React from "react";
 
-import { Chat, ChatType } from "@/protobuf/core/protobuf/entities";
+import { ChatType } from "@/protobuf/core/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import { Avatar } from "@/app/utils/avatar";
 import { Users } from "lucide-react";
-import { GetChatPrettyName } from "@/app/utils/entity_utils";
+import { CombinedChat, GetChatPrettyName, GetCombinedChat1to1Interlocutors } from "@/app/utils/entity_utils";
 
 export function ChatAvatar(args: {
-  chat: Chat,
+  cc: CombinedChat,
   dsState: DatasetState
 }) {
-  let relativePath = GetNonDefaultOrNull(args.chat.imgPathOption)
-  if (!relativePath && args.chat.tpe == ChatType.PERSONAL) {
-    let otherMemberIds = args.chat.memberIds.filter(id => id != args.dsState.myselfId)
-    // Could be that no other members are known - might happen e.g. when interlocutor didn't write anything
-    if (otherMemberIds.length == 1) {
-      let otherMemberId = otherMemberIds[0]
-      let user = args.dsState.users.get(otherMemberId)
-      relativePath = user && user.profilePictures.length > 0 ? user.profilePictures[0].path : null
+  let cwds = [args.cc.mainCwd, ...args.cc.cwds]
+  let mainChat = args.cc.mainCwd.chat!
+  let relativePath =
+    GetNonDefaultOrNull(cwds.map(cwd => cwd.chat!.imgPathOption).find(p => p))
+  if (!relativePath) {
+    let interlocutors = GetCombinedChat1to1Interlocutors(args.cc)
+    let pp = interlocutors.flatMap(i => i.profilePictures).find(pp => pp.path)
+    if (pp) {
+      relativePath = pp.path
     }
   }
-  let fallback = args.chat.tpe === ChatType.PRIVATE_GROUP ?
+  let fallback = mainChat.tpe === ChatType.PRIVATE_GROUP ?
     <Users width="50%" height="50%"/> :
-    <span className="opacity-30">{ GetChatPrettyName(args.chat).split(/[ +0-9()\[\]\\{}]/).map(word => word[0]) }</span>
+    <span className="opacity-30">{GetChatPrettyName(mainChat).split(/[ +0-9()\[\]\\{}]/).map(word => word[0])}</span>
   return <Avatar relativePath={relativePath} maxSize={50} fallback={fallback} dsState={args.dsState}/>
 }

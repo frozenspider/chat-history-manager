@@ -3,6 +3,7 @@ import React from "react";
 import {
   ChatSourceTypeToString,
   ChatTypeToString,
+  CombinedChat,
   GetChatInterlocutor,
   GetChatPrettyName,
   GetUserPrettyName,
@@ -24,6 +25,7 @@ export default function ChatShortDetailsComponent(args: {
 }): React.JSX.Element {
   const chat = args.cwd.chat!
   const name = GetChatPrettyName(chat)
+  const singleChatCc = new CombinedChat(args.cwd, [])
 
   let interlocutor = GetChatInterlocutor(args.cwd)
 
@@ -39,7 +41,7 @@ export default function ChatShortDetailsComponent(args: {
       }}
     >
 
-      <ChatAvatar chat={chat} dsState={args.dsState}/>
+      <ChatAvatar cc={singleChatCc} dsState={args.dsState}/>
 
       <div className="flex-grow">
         <div className="flex items-center justify-between">
