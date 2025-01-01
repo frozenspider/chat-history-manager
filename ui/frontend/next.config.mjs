@@ -10,17 +10,21 @@ const nextConfig = {
         // Static export builds do not allow image optimization
         unoptimized: true
     },
-    webpack: (config) => {
+    /**
+     * @param {import('webpack').Configuration} webpackConfig
+     * @returns {import('webpack').Configuration}
+     */
+    webpack(webpackConfig) {
         // Copy ogv.js files to be served as static assets
-        config.plugins.push(
+        webpackConfig.plugins.push(
             new CopyWebpackPlugin({
                 patterns: [
                     {from: "node_modules/ogv/dist", to: "../public/js/ogv"},
                 ]
             }),
         );
-        return config;
-    }
+        return webpackConfig;
+    },
 };
 
 export default nextConfig;
