@@ -23,8 +23,10 @@ const nextConfig = {
                 ]
             }),
         );
+        webpackConfig.optimization.minimize = true; // Can be disabled for debugging
         return webpackConfig;
     },
+    compress: false,
 };
 
 export default nextConfig;

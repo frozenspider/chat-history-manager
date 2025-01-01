@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { NavigationCallbacks, ServicesContext } from "@/app/utils/state";
-import { ObjAsc, ObjDesc } from "@/app/utils/utils";
+import { ObjAsc, ObjDesc, PromiseCatchReportError } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
 
 export default function NavigationBar(args: {
@@ -98,7 +98,9 @@ export default function NavigationBar(args: {
 
             <Tooltip>
               <Button size="icon" variant="ghost"
-                      onClick={() => args.navigationCallbacks?.toBeginning()}
+                      onClick={() => {
+                        args.navigationCallbacks && PromiseCatchReportError(args.navigationCallbacks.toBeginning())
+                      }}
                       disabled={!navEnabled}
                       asChild>
                 <TooltipTrigger>
@@ -112,7 +114,9 @@ export default function NavigationBar(args: {
 
             <Tooltip>
               <Button size="icon" variant="ghost"
-                      onClick={() => args.navigationCallbacks?.toEnd()}
+                      onClick={() => {
+                        args.navigationCallbacks && PromiseCatchReportError(args.navigationCallbacks.toEnd())
+                      }}
                       disabled={!navEnabled}
                       asChild>
                 <TooltipTrigger>

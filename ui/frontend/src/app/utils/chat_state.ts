@@ -94,8 +94,16 @@ export class ChatState {
   }
 
   /** Return a clean state of this chat */
-  Reset(): ChatState {
+  GetCleanCopy(): ChatState {
     return new ChatState(this.cc, this.dsState)
+  }
+
+  BeginReached(): boolean {
+    return ForAll(this.loadState.values(), state => state.beginReached)
+  }
+
+  EndReached(): boolean {
+    return ForAll(this.loadState.values(), state => state.endReached)
   }
 
   /**
@@ -261,10 +269,10 @@ export class ChatState {
       }
     )()
 
-    return PromiseCatchReportError(newChatStatePromise
+    return newChatStatePromise
       .then(([newViewState, newLoadState]) =>
         new ChatState(this.cc, this.dsState, newViewState, newLoadState, this.resolvedMessages)
-      ))
+      )
       .then(x => x ?? null)
   }
 }
@@ -273,59 +281,67 @@ export class ChatState {
 // Globally accessible cache of chat states
 //
 
-const ChatStateCache = new Map<FileKey, Map<UuidString, Map<ChatId, ChatState>>>()
+export const ChatStateCacheContext =
+  React.createContext<ChatStateCache | null>(null)
 
-/** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
-export function GetCachedChatState(
-  key: FileKey,
-  uuid: UuidString,
-  mainChatId: ChatId,
-  getDefaultValue: () => ChatState
-): ChatState {
-  let fileMap =
-    GetOrInsertDefault(ChatStateCache, key, () => new Map<UuidString, Map<ChatId, ChatState>>())
-  let uuidMap =
-    GetOrInsertDefault(fileMap, uuid, () => new Map<ChatId, ChatState>())
-  return GetOrInsertDefault(uuidMap, mainChatId, getDefaultValue)
-}
+export class ChatStateCache {
+  inner: Map<FileKey, Map<UuidString, Map<ChatId, ChatState>>>
 
-export function SetCachedChatState(
-  value: ChatState
-): void {
-  let fileMap =
-    GetOrInsertDefault(ChatStateCache, value.dsState.fileKey, () => new Map<UuidString, Map<ChatId, ChatState>>())
-  let uuidMap =
-    GetOrInsertDefault(fileMap, value.cc.dsUuid, () => new Map<ChatId, ChatState>())
-  uuidMap.set(value.cc.mainChatId, value)
-}
+  constructor() {
+    this.inner = new Map()
+  }
 
-/** If values are omitted, clear all */
-export function ClearCachedChatState(
-  key: FileKey,
-  uuid?: UuidString,
-  mainChatId?: ChatId,
-): void {
-  if (!ChatStateCache.has(key)) {
-    return
+  /** Asynchronously get a chat view state from cache, or create it if it's not there using `onMiss()` */
+  Get(
+    key: FileKey,
+    uuid: UuidString,
+    mainChatId: ChatId,
+    getDefaultValue: () => ChatState
+  ): ChatState {
+    let fileMap =
+      GetOrInsertDefault(this.inner, key, () => new Map<UuidString, Map<ChatId, ChatState>>())
+    let uuidMap =
+      GetOrInsertDefault(fileMap, uuid, () => new Map<ChatId, ChatState>())
+    return GetOrInsertDefault(uuidMap, mainChatId, getDefaultValue)
   }
-  let fileMap = ChatStateCache.get(key)!
-  if (uuid === undefined) {
-    fileMap.clear()
-    return
+
+  Set(value: ChatState): void {
+    let fileMap =
+      GetOrInsertDefault(this.inner, value.dsState.fileKey, () => new Map<UuidString, Map<ChatId, ChatState>>())
+    let uuidMap =
+      GetOrInsertDefault(fileMap, value.cc.dsUuid, () => new Map<ChatId, ChatState>())
+    uuidMap.set(value.cc.mainChatId, value)
   }
-  if (!fileMap.has(uuid)) {
-    return
-  }
-  let uuidMap = fileMap.get(uuid)!
-  if (mainChatId === undefined) {
-    uuidMap.clear()
-    return
-  }
-  uuidMap.delete(mainChatId)
-  if (uuidMap.size === 0) {
-    fileMap.delete(uuid)
-  }
-  if (fileMap.size === 0) {
-    ChatStateCache.delete(key)
+
+
+  /** If values are omitted, clear all */
+  Clear(
+    key: FileKey,
+    uuid?: UuidString,
+    mainChatId?: ChatId,
+  ): void {
+    if (!this.inner.has(key)) {
+      return
+    }
+    let fileMap = this.inner.get(key)!
+    if (uuid === undefined) {
+      fileMap.clear()
+      return
+    }
+    if (!fileMap.has(uuid)) {
+      return
+    }
+    let uuidMap = fileMap.get(uuid)!
+    if (mainChatId === undefined) {
+      uuidMap.clear()
+      return
+    }
+    uuidMap.delete(mainChatId)
+    if (uuidMap.size === 0) {
+      fileMap.delete(uuid)
+    }
+    if (fileMap.size === 0) {
+      this.inner.delete(key)
+    }
   }
 }

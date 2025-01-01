@@ -7,24 +7,31 @@ import { Chat } from "@/protobuf/core/protobuf/entities";
 
 import { MessageComponent } from "@/app/message/message";
 
-import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { emit } from "@tauri-apps/api/event";
+import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
 import { NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
-import { ChatState, SetCachedChatState } from "@/app/utils/chat_state";
+import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import LoadSpinner from "@/app/utils/load_spinner";
+
 
 /**
  * How many messages (from both ends) will be observed so that new batch will be loaded as soon as they get into view
  */
 const ScrollTriggeringMessageNumber = 15;
 
-export default function MessagesList({ chatState, setChatState, setNavigationCallbacks }: {
+export const PreloadEverythingEventName = "preload-everything"
+
+export default function MessagesList(args: {
   // We're unrolling arguments like this to make hook dependencies more granular
   chatState: ChatState | null,
   setChatState: (s: ChatState) => void,
-  setNavigationCallbacks: (cbs: NavigationCallbacks) => void
+  setNavigationCallbacks: (cbs: NavigationCallbacks) => void,
+  /** Used for exporting chat to HTML, will cause the component to load ALL messages */
+  preloadEverything: boolean
 }): React.JSX.Element {
   let services = React.useContext(ServicesContext)!
+  let chatStateCache = React.useContext(ChatStateCacheContext)!
 
   let scrollOwner = React.useRef<HTMLDivElement | null>(null)
   let isFetching = React.useRef(false)
@@ -33,86 +40,122 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
   // Save scroll position every time users scrolls
   // Note: directly mutating part of what might (still) be a state object!
   let onScroll = React.useCallback(() => {
-    if (!scrollOwner.current || !chatState || !chatState.viewState) return
-    chatState.viewState.scrollTop = scrollOwner.current.scrollTop
-    chatState.viewState.scrollHeight = scrollOwner.current.scrollHeight
-  }, [chatState])
+    if (!scrollOwner.current || !args.chatState || !args.chatState.viewState) return
+    args.chatState.viewState.scrollTop = scrollOwner.current.scrollTop
+    args.chatState.viewState.scrollHeight = scrollOwner.current.scrollHeight
+  }, [args.chatState])
 
   // Restore scroll position associated with the view state, happens when view state changes.
   // TODO: This doesn't always work because some elements (e.g. lazy messages) shift the scroll position.
   React.useEffect(() => {
-    if (scrollOwner.current && chatState?.viewState) {
-      console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
-        + "Applying scroll", chatState.viewState.scrollTop +
-        " (user scrolled " + (chatState.viewState.lastScrollDirectionUp ? "up" : "down") + ")")
-      ApplyScroll(scrollOwner.current, chatState.viewState.scrollTop, chatState.viewState.scrollHeight,
-        chatState.viewState.lastScrollDirectionUp)
+    if (scrollOwner.current && args.chatState?.viewState) {
+      console.log(GetLogPrefix(args.chatState?.cc.mainCwd.chat)
+        + "Applying scroll", args.chatState.viewState.scrollTop +
+        " (user scrolled " + (args.chatState.viewState.lastScrollDirectionUp ? "up" : "down") + ")")
+      ApplyScroll(scrollOwner.current, args.chatState.viewState.scrollTop, args.chatState.viewState.scrollHeight,
+        args.chatState.viewState.lastScrollDirectionUp)
       // Allow infinite scroll to trigger only after the initial scroll position is set
       infiniteScrollActive.current = true
     }
-  }, [chatState?.cc.mainCwd.chat, chatState?.viewState, scrollOwner])
+  }, [args.chatState?.cc.mainCwd.chat, args.chatState?.viewState, scrollOwner])
 
   // Set navigation callbacks and fetch initial data on first render
   React.useEffect(() => {
     let callbacks: NavigationCallbacks = {
       toBeginning() {
-        if (!chatState) return
+        if (!args.chatState) return Promise.resolve()
 
-        TryFetchMoreMessages(
+        return TryFetchMoreMessages(
           false,
           isFetching,
-          chatState.Reset(),
-          setChatState,
+          args.chatState.GetCleanCopy(),
+          args.setChatState,
+          chatStateCache,
           services,
           scrollOwner.current
         )
       },
       toEnd() {
-        if (!chatState) return
+        if (!args.chatState) return Promise.resolve()
 
-        TryFetchMoreMessages(
+        return TryFetchMoreMessages(
           true,
           isFetching,
-          chatState.Reset(),
-          setChatState,
+          args.chatState.GetCleanCopy(),
+          args.setChatState,
+          chatStateCache,
           services,
           scrollOwner.current
         )
       }
     }
-    setNavigationCallbacks(callbacks)
+    args.setNavigationCallbacks(callbacks)
 
-    if (chatState && !chatState.viewState) {
-      // First invocation, load initial messages
-      console.log(GetLogPrefix(chatState.cc.mainCwd.chat) +
-        "Cache miss, fetching messages from the server and updating")
-      callbacks.toEnd()
+    if (args.chatState && !args.chatState.viewState) {
+
+      if (!args.preloadEverything) {
+        // First invocation, load initial messages
+        console.log(GetLogPrefix(args.chatState.cc.mainCwd.chat) +
+          "Cache miss, fetching messages from the server and updating")
+        PromiseCatchReportError(callbacks.toEnd())
+      } else {
+        // Emulate user scrolling all the way to the top.
+        //
+        // We're dealing with chatState the tricky way to only call TRUE setChatState as the last action.
+        // This is because state changes aren't accessible before the next render.
+        let intermittentChatState = args.chatState;
+
+        Assert(ForAll(intermittentChatState.loadState.values(), t => t.$case == "not_loaded"),
+          "Chat state is not clean before preload")
+
+        let asyncInner = async () => {
+          while (!intermittentChatState.BeginReached()) {
+            await TryFetchMoreMessages(
+              true,
+              isFetching,
+              intermittentChatState,
+              (s) => intermittentChatState = s,
+              chatStateCache,
+              services,
+              scrollOwner.current
+            )
+          }
+
+          args.setChatState(intermittentChatState)
+
+          await emit(PreloadEverythingEventName, { error: null })
+        }
+
+        PromiseCatchReportError(asyncInner())
+      }
     }
 
-  }, [chatState, setChatState, setNavigationCallbacks, services, scrollOwner])
+  }, [args.chatState, args.setChatState, args.setNavigationCallbacks, services, scrollOwner])
 
   // Trigger loading more messages when topmost/bottommost messages are in the view
   let onBorderlineMessagesView = React.useCallback((inView: boolean, previous: boolean) => {
     if (!inView || !infiniteScrollActive) return
-    Assert(chatState != null, "Chat state was null")
-    let viewState = chatState.viewState
+    Assert(args.chatState != null, "Chat state was null")
+    let viewState = args.chatState.viewState
     Assert(viewState != null, "Chat view state was null")
-    let loadState = chatState.loadState
-    if (!previous && ForAll(loadState.values(), state => state.endReached)) return
-    if (previous && ForAll(loadState.values(), state => state.beginReached)) return
+    if (!previous && args.chatState.EndReached()) return
+    if (previous && args.chatState.BeginReached()) return
 
-    TryFetchMoreMessages(
+    PromiseCatchReportError(TryFetchMoreMessages(
       previous,
       isFetching,
-      chatState,
-      setChatState,
+      args.chatState,
+      args.setChatState,
+      chatStateCache,
       services,
       scrollOwner.current
-    )
-  }, [chatState, setChatState, services])
+    ))
+  }, [args.chatState, args.setChatState, services])
 
-  if (!chatState)
+  let chatState = args.chatState
+  if (!chatState) {
     return <></>
+  }
 
   if (!chatState.viewState)
     return <LoadSpinner center={true} text="Fetching..."/>
@@ -130,7 +173,7 @@ export default function MessagesList({ chatState, setChatState, setNavigationCal
             .map(([chat, msg]) => {
               AssertDefined(chat, "Chat with ID " + chat.id + " was not found in the combined chat")
               return [ // eslint-disable-next-line react/jsx-key
-                <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={0}/>,
+                <MessageComponent msg={msg} chat={chat} chatState={chatState!} replyDepth={0}/>,
                 msg.internalId
               ] as const
             })
@@ -175,13 +218,14 @@ function ApplyScroll(scrollOwner: HTMLElement, scrollTop: number, scrollHeight: 
  * displaying an error popup on failure.
  * This will trigger component re-render.
  */
-function TryFetchMoreMessages(
+async function TryFetchMoreMessages(
   fetchPrevious: boolean,
   isFetching: React.MutableRefObject<boolean>,
   chatState: ChatState,
   setChatState: (s: ChatState) => void,
+  chatStateCache: ChatStateCache,
   services: ServicesContextType,
-  scrollOwner: HTMLElement | null
+  scrollOwner: HTMLElement | null,
 ) {
   if (isFetching.current) {
     // Fetch is already in progress
@@ -191,16 +235,20 @@ function TryFetchMoreMessages(
   isFetching.current = true
   console.log(GetLogPrefix(chatState?.cc.mainCwd.chat) + "Fetching more messages: " + (fetchPrevious ? "previous" : "next"))
 
-  chatState.FetchMore(fetchPrevious, services, scrollOwner)
+  return chatState.FetchMore(fetchPrevious, services, scrollOwner)
     .then(newChatState => {
       if (newChatState != null) {
         console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
           + "View state:", newChatState.viewState)
         console.log(GetLogPrefix(chatState?.cc.mainCwd.chat)
           + "Load state:", newChatState.loadState)
-        SetCachedChatState(newChatState)
+        chatStateCache.Set(newChatState)
         setChatState(newChatState)
       }
+    })
+    .catch((e) => {
+      emit(PreloadEverythingEventName, { error: e })
+      throw e
     })
     .finally(() => {
       isFetching.current = false

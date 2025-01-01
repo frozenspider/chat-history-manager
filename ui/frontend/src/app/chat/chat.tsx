@@ -35,6 +35,7 @@ export default function ChatComponent(args: {
     onClick: () => void,
     onDeleteChat: () => void
     onSetSecondary: (newMainId: bigint) => void
+    onExportAsHtml: () => void
   }
 }): React.JSX.Element {
   let mainChat = args.cc.mainCwd.chat
@@ -83,8 +84,8 @@ export default function ChatComponent(args: {
           <ContextMenuItem>
             Compare [NYI]
           </ContextMenuItem>
-          <ContextMenuItem>
-            Export As HTML [NYI]
+          <ContextMenuItem onClick={args.callbacks.onExportAsHtml}>
+            Export As HTML
           </ContextMenuItem>
           <ContextMenuSeparator/>
           <ContextMenuItem className="text-red-600" onClick={() => DeleteClicked(args.cc, args.callbacks.onDeleteChat)}>

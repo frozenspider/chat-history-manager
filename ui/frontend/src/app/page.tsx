@@ -2,6 +2,8 @@
 
 import React from "react";
 import { emit } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
+import { createChannel, createClient } from 'nice-grpc-web';
 
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
@@ -16,7 +18,7 @@ import {
   ServicesContext,
   ServicesContextType
 } from "@/app/utils/state";
-import { ChatState, ClearCachedChatState } from "@/app/utils/chat_state";
+import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
@@ -43,7 +45,8 @@ import {
   HistoryDaoServiceDefinition,
   HistoryLoaderServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
-import { createChannel, createClient } from 'nice-grpc-web';
+import { ExportChatHtml } from "@/app/utils/export_as_html";
+
 
 const USE_TEST_DATA = false;
 
@@ -74,6 +77,8 @@ export default function Home() {
     }
   }, [])
 
+  const chatStateCache = React.useMemo<ChatStateCache>(() => new ChatStateCache(), [])
+
   const reloadDatasetChats = async (fileKey: string, dsUuid: PbUuid) => {
     let chatsResponse = await services.daoClient.chats({ key: fileKey, dsUuid })
 
@@ -89,7 +94,7 @@ export default function Home() {
   React.useEffect(() => {
     if (!firstLoadCalled) {
       let load = async () =>
-        LoadExistingData(services, setOpenFiles, setCurrentFileState, setCurrentChatState)
+        LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
 
       PromiseCatchReportError(load())
         .then(() => setLoaded(true))
@@ -129,7 +134,7 @@ export default function Home() {
   ) : <></>
 
   return (
-    <ServicesContext.Provider value={services}>
+    <ServicesContext.Provider value={services}> <ChatStateCacheContext.Provider value={chatStateCache}>
       <div className="mx-auto p-6 md:p-10 flex flex-col h-screen">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={33} minSize={10}>
@@ -145,11 +150,14 @@ export default function Home() {
                             setChatState={setCurrentChatState}
                             callbacks={{
                               onDeleteChat: (cc, dsState) => {
-                                DeleteChat(cc, dsState, services, openFiles,
+                                DeleteChat(cc, dsState, services, chatStateCache, openFiles,
                                   setOpenFiles, setCurrentFileState, setCurrentChatState)
                               },
                               onSetSecondary: (cc, dsState, newMainId) => {
-                                SetSecondaryChat(cc, dsState, newMainId, services, reloadDatasetChats)
+                                SetSecondaryChat(cc, dsState, newMainId, services, chatStateCache, reloadDatasetChats)
+                              },
+                              onExportAsHtml: (cc, dsState) => {
+                                ExportChatAsHtml(cc, dsState, services)
                               }
                             }}/> :
                   <LoadSpinner center={true} text="Loading..."/>}
@@ -171,7 +179,8 @@ export default function Home() {
               )}>
                 <MessagesList chatState={currentChatState}
                               setChatState={setCurrentChatState}
-                              setNavigationCallbacks={setNavigationCallbacks}/>
+                              setNavigationCallbacks={setNavigationCallbacks}
+                              preloadEverything={false}/>
                 <ScrollBar/>
                 <ScrollAreaPrimitive.Corner/>
               </ScrollAreaPrimitive.Root>
@@ -181,7 +190,7 @@ export default function Home() {
       </div>
 
       <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState}/>
-    </ServicesContext.Provider>
+    </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
 }
 
@@ -192,6 +201,7 @@ interface SaveAs {
 
 async function LoadExistingData(
   services: ServicesContextType,
+  chatStateCache: ChatStateCache,
   setOpenFiles: (change: (v: LoadedFileState[]) => LoadedFileState[]) => void,
   setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
   setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
@@ -242,7 +252,7 @@ async function LoadExistingData(
       openFiles
         .filter(f => !newOpenFiles.some(f2 => f2.key == f.key))
         .forEach(closed => {
-          ClearCachedChatState(closed.key)
+          chatStateCache.Clear(closed.key)
           if (currentFileState?.key == closed.key)
             currentFileState = null
           setCurrentChatState(chatState =>
@@ -293,6 +303,7 @@ function DeleteChat(
   cc: CombinedChat,
   dsState: DatasetState,
   services: ServicesContextType,
+  chatStateCache: ChatStateCache,
   openFiles: LoadedFileState[],
   setOpenFiles: (openFiles: LoadedFileState[]) => void,
   setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
@@ -301,7 +312,7 @@ function DeleteChat(
   let innerAsync = async () => {
     await emit("busy", true)
 
-    ClearCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId)
+    chatStateCache.Clear(dsState.fileKey, cc.dsUuid, cc.mainChatId)
 
     let removedChatIds = new Set(cc.cwds.map(cwd => cwd.chat!.id))
     let dsUuid = dsState.ds.uuid!
@@ -343,18 +354,41 @@ function SetSecondaryChat(
   dsState: DatasetState,
   newMainId: bigint,
   services: ServicesContextType,
+  chatStateCache: ChatStateCache,
   reload: (fileKey: string, dsUuid: PbUuid) => Promise<void>
 ) {
   let innerAsync = async () => {
     await emit("busy", true)
 
-    ClearCachedChatState(dsState.fileKey, cc.dsUuid, newMainId)
-    ClearCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId)
+    chatStateCache.Clear(dsState.fileKey, cc.dsUuid, newMainId)
+    chatStateCache.Clear(dsState.fileKey, cc.dsUuid, cc.mainChatId)
 
     let chat = cc.mainCwd.chat!
     let masterChat = ExpectDefined(dsState.cwds.find(cwd => cwd.chat!.id === newMainId)).chat!
     await services.daoClient.combineChats({ key: dsState.fileKey, masterChat, slaveChat: chat })
     await reload(dsState.fileKey, dsState.ds.uuid!)
+  }
+
+  PromiseCatchReportError(innerAsync())
+    .finally(() => emit("busy", false))
+}
+
+function ExportChatAsHtml(
+  cc: CombinedChat,
+  dsState: DatasetState,
+  services: ServicesContextType
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    // No way to set default name to GetChatPrettyName(chat) :(
+    const path = await save({
+      filters: [{ name: "HTML page", extensions: ["html"] }],
+    });
+
+    if (path) {
+      await ExportChatHtml(path, cc, dsState, services)
+    }
   }
 
   PromiseCatchReportError(innerAsync())

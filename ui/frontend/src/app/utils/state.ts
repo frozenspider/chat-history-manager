@@ -23,6 +23,7 @@ export const PopupConfirmedEventName: EventName = "confirmed"
 
 /** An event to set a state after popup is loaded */
 export const SetPopupStateEventName: EventName = "set-state"
+
 //
 // gRPC service clients context
 //
@@ -57,9 +58,9 @@ export interface DatasetState {
 
 /** Navigation callbacks, used to navigate to different time points in chat history */
 export interface NavigationCallbacks {
-  toBeginning(): void,
+  toBeginning(): Promise<void>,
 
-  toEnd(): void,
+  toEnd(): Promise<void>,
 
   // toDate(date: Date): void,
 }

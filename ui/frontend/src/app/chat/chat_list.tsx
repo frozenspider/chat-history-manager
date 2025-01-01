@@ -13,16 +13,20 @@ import {
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import { CombinedChat } from "@/app/utils/entity_utils";
-import { ChatState, GetCachedChatState } from "@/app/utils/chat_state";
+import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
+
 
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
   setChatState: (s: ChatState) => void,
   callbacks: {
     onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
-    onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void
+    onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void,
+    onExportAsHtml: (cc: CombinedChat, dsState: DatasetState) => void
   }
 }): React.JSX.Element {
+  let chatStateCache = React.useContext(ChatStateCacheContext)!
+
   let [selectedChat, setSelectedChat] =
     React.useState<CombinedChat | null>(null)
 
@@ -53,13 +57,16 @@ export default function ChatList(args: {
                              callbacks={{
                                onClick: () => {
                                  setSelectedChat(cc)
-                                 LoadChat(cc, dsState, args.setChatState)
+                                 LoadChat(cc, dsState, args.setChatState, chatStateCache)
                                },
                                onDeleteChat: () => {
                                  args.callbacks.onDeleteChat(cc, dsState)
                                },
                                onSetSecondary: (newMainId: bigint) => {
                                  args.callbacks.onSetSecondary(cc, dsState, newMainId)
+                               },
+                               onExportAsHtml: () => {
+                                 args.callbacks.onExportAsHtml(cc, dsState)
                                }
                              }}/>
             )
@@ -105,8 +112,9 @@ function LoadChat(
   cc: CombinedChat,
   dsState: DatasetState,
   setChatState: (state: ChatState) => void,
+  chatStateCache: ChatStateCache
 ) {
-  let cvState = GetCachedChatState(dsState.fileKey, cc.dsUuid, cc.mainChatId,
+  let cvState = chatStateCache.Get(dsState.fileKey, cc.dsUuid, cc.mainChatId,
     () => new ChatState(cc, dsState))
   setChatState(cvState)
 }
