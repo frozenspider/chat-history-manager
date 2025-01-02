@@ -5,38 +5,42 @@ Parses, stores and reads chat histories exported from different sources in a ded
 This includes not just text messages, but also media, stickers, call records and other salvageable data.
 Big part of app's functionality is merging chat history snapshots taken on different dates under different settings.
 
-UI functionality is currently limited.
-As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
-written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
+Supports a bunch of different history formats, refer to sections below for their list and instuction on how to
+extract history.
+Architecture is extensible, allowing more formats to easily be integrated in the future.
 
-To build a standalone app with UI, you'd need some external pre-requisites:
+Some general notes:
+- UI functionality is currently very limited.
+  - As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
+written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
+- To parse a standalone 1-on-1 chat, Scala UI HAS to be running as it will be asked to identify self user.
+- Most of these history formats are reverse engineered, so:
+  - Some message types may not be supported as I simply haven't encountered them yet.
+  - Compatibility might break unexpectedly as apps sometimes decide to change their storage format.
+
+### How to build
+
+Naturally, you'll need Rust toolchain installed, refer to [Rust's website](https://www.rust-lang.org/tools/install)
+for instructions. Latest stable version is recommended.
+
+Build without UI requires only OpenSSL (`OPENSSL_DIR` needs to be set in the PATH).
+
+To build a standalone app with UI, you'd need some more external pre-requisites:
+- [Node.js](https://nodejs.org/en/download/) (needs to be in the PATH)
 - [pnpm](https://pnpm.io/) (needs to be in the PATH)
 - [protoc](https://grpc.io/docs/protoc-installation/) (needs to be in the PATH)
-- (Windows only) [WebView2 runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download)
+- OS-specific Tauri dependencies, refer to [Tauri's documentation](https://v2.tauri.app/start/prerequisites/)
 
 To build, use
 ```
 cargo build --release
 ```
-then run the binary from `target/release`.
+this will produce a binary in `target/release`.
 
-Build without UI is self-sufficient, with no external dependencies needed.
-
-To build and run just the gRPC server on a default port 50051, use
+To build and run just the gRPC server on a default port 50051:
 ```
 cargo run --release --no-default-features start-server
 ```
-
-Supports a bunch of different history formats, refer to sections below for their list and instuction on how to
-extract history.
-Architecture is extensible, allowing more formats to easily be supported in the future.
-
-Some general notes:
-- To parse a standalone 1-on-1 chat, Scala UI needs to be running as it will be asked to identify self user.
-- Most of these history formats are reverse engineered, so:
-  - Some message types may not be supported as I simply haven't encountered them yet.
-  - Compatibility might break unexpectedly as apps sometimes decide to change their storage format.
-
 
 Telegram
 --------
@@ -66,7 +70,7 @@ Can also import a WhatsApp exported chat, a text file named `WhatsApp Chat with 
 Note that this format is very limited. 
 
 Signal
-------------
+------
 Reads a Signal Desktop database and decrypts attachment files.
 - On macOS, encrypted database is located in `~/Library/Application Support/Signal/sql/db.sqlite`.
 - Requires either Signal's `config.json` with either plaintext (legacy) or encrypted key,
