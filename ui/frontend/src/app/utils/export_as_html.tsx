@@ -1,8 +1,8 @@
 import React from "react";
 
-import { CombinedChat } from "@/app/utils/entity_utils";
+import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
-import { DatasetState, NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
+import { DatasetState, ServicesContext, ServicesContextType } from "@/app/utils/state";
 
 import MessagesList, { PreloadEverythingEventName } from "@/app/message/message_list";
 
@@ -14,9 +14,8 @@ import { Listen } from "@/app/utils/utils";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
 
-// TODO: styles
 // TODO: files
-// TODO: some images are still being loaded and are replaced by throbbers
+// TODO: some replies/images/other lazy elements are still being loaded and are replaced by throbbers
 export async function ExportChatHtml(
   path: string,
   cc: CombinedChat,
@@ -55,10 +54,25 @@ export async function ExportChatHtml(
     root.render(messagesList)
   });
 
+  let css = ExtractCss();
+
   let unlistenFn = await unlisten
   unlistenFn()
 
-  await writeTextFile(path, div.innerHTML)
+  let result =
+    `<body>
+      <head>
+        <title>${GetChatPrettyName(cc.mainCwd.chat!)}</title>
+        <style>
+          ${css}
+        </style>
+      </head>
+      <body>
+        ${div.innerHTML}
+      </body>
+    </body>`
+
+  await writeTextFile(path, result)
 }
 
 function FullMessagesList(args: {
@@ -83,4 +97,11 @@ function FullMessagesList(args: {
       </ScrollAreaPrimitive.Root>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
+}
+
+export default function ExtractCss(): string {
+  return Array.from(document.styleSheets)
+    .flatMap(s => Array.from(s.cssRules))
+    .map(r => r.cssText || '')
+    .join('\n');
 }

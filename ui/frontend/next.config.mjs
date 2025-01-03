@@ -22,9 +22,14 @@ const nextConfig = {
                     {from: "node_modules/ogv/dist", to: "../public/js/ogv"},
                 ]
             }),
-        );
-        webpackConfig.optimization.minimize = true; // Can be disabled for debugging
-        return webpackConfig;
+        )
+        webpackConfig.optimization.minimize = true // Can be disabled for debugging
+
+        // // Unable to compile reworkcss/css without this:
+        // webpackConfig.resolve.fallback = {
+        //     fs: false
+        // }
+        return webpackConfig
     },
     compress: false,
 };
