@@ -51,8 +51,7 @@ export default function Home() {
       setDatasetState(dsStateObj)
     })
 
-    PromiseCatchReportError(emit(PopupReadyEventName)).then(() => { /* Suppress warning*/
-    });
+    PromiseCatchReportError(emit(PopupReadyEventName));
   })
 
   const filteredMasterCwds = React.useMemo(() => {
@@ -132,10 +131,10 @@ export default function Home() {
 
       <Button variant="destructive"
               className="mt-4"
-              onClick={() => PromiseCatchReportError((async () => {
+              onClick={() => PromiseCatchReportError(async () => {
                 await emit(PopupConfirmedEventName, selectedChatId)
                 await getCurrentWindow().close()
-              })())}
+              })}
               disabled={!selectedChatId}>
         Confirm
       </Button>

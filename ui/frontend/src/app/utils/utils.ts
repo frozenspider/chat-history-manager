@@ -39,16 +39,20 @@ export function ReportError(message: String) {
   }
 }
 
-export async function PromiseCatchReportError<T>(p: Promise<T>): Promise<T | void> {
-  return p.catch(reason => {
+/** Wrapper function for promise that displays any error to user */
+export function PromiseCatchReportError<T>(p: Promise<T> | (() => Promise<T>)): void {
+  if (typeof p === "function") {
+    p = p()
+  }
+  p.catch(err => {
+    console.error("Error during promise evaluation", err)
     let message: string
-    if (reason instanceof ClientError) {
-      message = reason.details
+    if (err instanceof ClientError) {
+      message = err.details
     } else {
-      message = reason.toString()
+      message = err.toString()
     }
     ReportError(message)
-    throw reason
   })
 }
 
@@ -60,16 +64,15 @@ export function InvokeTauri<T, R = void>(
   cmd: string,
   args?: InvokeArgs,
   onSuccess?: ((arg: T) => R),
-  onError?: ((error: any) => void),
+  onError?: ((err: any) => void),
 ) {
-  if (IsTauriAvailable() && onError) {
-    invoke<T>(cmd, args).then(onSuccess).catch(onError)
-  } else {
-    InvokeTauriAsync<T>(cmd, args).then(v => {
-      // There's no good way to typeguard against void
-      if (v && onSuccess) return onSuccess(v)
-    })
+  let promise: Promise<R | void | null> = InvokeTauriAsync<T>(cmd, args).then(v =>
+    (v && onSuccess) ? onSuccess(v) : null
+  )
+  if (onError) {
+    promise = promise.catch(err => onError(err))
   }
+  PromiseCatchReportError(promise)
 }
 
 export async function InvokeTauriAsync<T>(
@@ -77,7 +80,7 @@ export async function InvokeTauriAsync<T>(
   args?: InvokeArgs,
 ): Promise<T | void> {
   if (IsTauriAvailable()) {
-    return PromiseCatchReportError(invoke<T>(cmd, args))
+    return invoke<T>(cmd, args)
   } else {
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)
@@ -121,10 +124,10 @@ export function SpawnPopup<T>(
   });
 
   if (setState) {
-    PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError((async () => {
+    PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError(async () => {
       const state = await setState
       await webview.emit(SetPopupStateEventName, state);
-    })())))
+    })))
   }
 
   return webview

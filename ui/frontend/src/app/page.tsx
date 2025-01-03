@@ -96,22 +96,25 @@ export default function Home() {
       let load = async () =>
         LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
 
-      PromiseCatchReportError(load())
-        .then(() => setLoaded(true))
-
       // Note: we cannot unmount the returned listeners because it's a promise!
-      Listen("open-files-changed", () => {
-        setLoaded(false)
-        PromiseCatchReportError(load())
-          .then(() => setLoaded(true))
+      PromiseCatchReportError(async () => {
+        await Listen("open-files-changed", () => {
+          setLoaded(false)
+          PromiseCatchReportError(load()
+            .then(() => setLoaded(true)))
+        })
+        await Listen<[string, string]>("save-as-clicked", (ev) => {
+          let [key, oldName] = ev.payload
+          setSaveAsState({ key: key, oldName: oldName })
+        })
+        await Listen<string | null>("busy", (ev) => {
+          setBusyState(ev.payload)
+        })
       })
-      Listen<[string, string]>("save-as-clicked", (ev) => {
-        let [key, oldName] = ev.payload
-        setSaveAsState({ key: key, oldName: oldName })
-      })
-      Listen<string | null>("busy", (ev) => {
-        setBusyState(ev.payload)
-      })
+
+      PromiseCatchReportError(load()
+        .then(() => setLoaded(true)))
+
       firstLoadCalled = true
     }
   }, [services])
@@ -345,8 +348,8 @@ function DeleteChat(
     setOpenFiles(newOpenFiles)
   }
 
-  PromiseCatchReportError(innerAsync())
-    .finally(() => emit("busy", false))
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
 }
 
 function SetSecondaryChat(
@@ -369,8 +372,8 @@ function SetSecondaryChat(
     await reload(dsState.fileKey, dsState.ds.uuid!)
   }
 
-  PromiseCatchReportError(innerAsync())
-    .finally(() => emit("busy", false))
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
 }
 
 function ExportChatAsHtml(
@@ -391,8 +394,8 @@ function ExportChatAsHtml(
     }
   }
 
-  PromiseCatchReportError(innerAsync())
-    .finally(() => emit("busy", false))
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
 }
 
 function SaveAsComponent(args: {

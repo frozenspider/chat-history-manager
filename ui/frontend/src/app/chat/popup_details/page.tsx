@@ -30,7 +30,7 @@ export default function Home() {
       setDatasetState(dsStateObj)
     })
 
-    PromiseCatchReportError(emit(PopupReadyEventName)).then(() => { /* Suppress warning*/ } );
+    PromiseCatchReportError(emit(PopupReadyEventName));
   })
 
   if (!combinedChat || !datasetState) {

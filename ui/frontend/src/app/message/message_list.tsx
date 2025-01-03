@@ -108,7 +108,7 @@ export default function MessagesList(args: {
         Assert(ForAll(intermittentChatState.loadState.values(), t => t.$case == "not_loaded"),
           "Chat state is not clean before preload")
 
-        let asyncInner = async () => {
+        PromiseCatchReportError(async () => {
           while (!intermittentChatState.BeginReached()) {
             await TryFetchMoreMessages(
               true,
@@ -124,9 +124,7 @@ export default function MessagesList(args: {
           args.setChatState(intermittentChatState)
 
           await emit(PreloadEverythingEventName, { error: null })
-        }
-
-        PromiseCatchReportError(asyncInner())
+        })
       }
     }
 
