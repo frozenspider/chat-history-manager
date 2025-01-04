@@ -2,17 +2,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::borrow::Cow;
-use std::fs;
+use std::{fs, mem};
 use std::future::Future;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
+use tokio::sync::oneshot;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Listener, Manager, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_fs::FilePath;
@@ -50,15 +51,50 @@ struct MenuDbSeparatorIds {
     after: MenuId,
 }
 
+pub struct TauriHandlerWrapper {
+    pub app_handler: Option<AppHandle>
+}
+
 // These constans are duplicated in the JS part of the application
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_BUSY: &str = "busy";
 
-pub async fn start(clients: ChatHistoryManagerGrpcClients) {
-    tauri::Builder::default()
+static EVENT_CHOOSE_MYSELF: &str = "choose-myself";
+static EVENT_CHOOSE_MYSELF_RESPONSE: &str = "choose-myself-response";
+
+static EVENT_ASK_FOR_TEXT: &str = "ask-for-text";
+static EVENT_ASK_FOR_TEXT_RESPONSE: &str = "ask-for-text-response";
+
+#[derive(Clone)]
+pub struct TauriUiWrapper {
+    state: Arc<Mutex<TauriInnerState>>
+}
+
+pub enum TauriInnerState {
+    None,
+
+    // Fields are optional so that they can be taken away
+    BuildReady {
+        builder: Option<tauri::Builder<tauri::Wry>>,
+        // To be passed to the next state
+        app_handle_rx: Option<oneshot::Receiver<AppHandle>>,
+    },
+
+    Running {
+        app_handle_rx: oneshot::Receiver<AppHandle>
+    },
+}
+
+pub fn create_ui(clients: ChatHistoryManagerGrpcClients) -> TauriUiWrapper {
+    let (app_handle_tx, app_handle_rx) = oneshot::channel::<AppHandle>();
+    let res = TauriUiWrapper {
+        state: Arc::new(Mutex::new(TauriInnerState::None))
+    };
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(Arc::clone(&res.state))
         .manage(clients)
         .manage(BusyState::new(Mutex::new(BusyStateValue::NotBusy)))
         .setup(move |app| {
@@ -67,6 +103,10 @@ pub async fn start(clients: ChatHistoryManagerGrpcClients) {
             let (menu, separator_ids) = create_menu_once(app_handle)?;
             app_handle.set_menu(menu)?;
             assert!(app_handle.manage(separator_ids));
+
+            if let Err(_) = app_handle_tx.send(app_handle.clone()) {
+                panic!("Failed to send AppHandle through the oneshot channel");
+            }
 
             let clients = app.state::<ChatHistoryManagerGrpcClients>().inner().clone();
 
@@ -89,10 +129,83 @@ pub async fn start(clients: ChatHistoryManagerGrpcClients) {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64, save_as])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64, save_as]);
+    *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
+        builder: Some(builder),
+        app_handle_rx: Some(app_handle_rx),
+    };
+    res
 }
+
+impl TauriUiWrapper {
+    pub fn start_and_block(&self) {
+        let mut guarded_state = self.state.lock().expect("Tauri state lock");
+
+        let TauriInnerState::BuildReady { builder, app_handle_rx } = &mut *guarded_state else {
+            panic!("Tauri UI not in the valid state")
+        };
+        let builder = builder.take().unwrap();
+        let app_handle_rx = app_handle_rx.take().unwrap();
+        *guarded_state = TauriInnerState::Running { app_handle_rx };
+        // Unlocking the mutex
+        drop(guarded_state);
+
+        builder
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application");
+    }
+
+    pub fn listen_for_user_input(&self) -> impl Future<Output = Result<impl UserInputRequester>> + Send {
+        let mut guarded_state = self.state.lock().expect("Tauri state lock");
+        let mut moved_state = TauriInnerState::None;
+        mem::swap(&mut *guarded_state, &mut moved_state);
+        drop(guarded_state);
+
+        async move {
+            let TauriInnerState::Running { app_handle_rx } = moved_state else {
+                return err!("Tauri UI is not running")
+            };
+            let app_handle = app_handle_rx.await?;
+            Ok(TauriUserInputRequester { app_handle })
+        }
+    }
+}
+
+//
+// User input requester
+//
+
+struct TauriUserInputRequester {
+    app_handle: AppHandle,
+}
+
+impl UserInputRequester for TauriUserInputRequester {
+    async fn choose_myself(&self, users: &[User]) -> Result<usize> {
+        self.app_handle.emit(EVENT_CHOOSE_MYSELF, users)?;
+        let (selection_tx, selection_rx) = oneshot::channel::<i32>();
+        self.app_handle.once(EVENT_CHOOSE_MYSELF_RESPONSE, |ev| {
+            let payload = ev.payload();
+            selection_tx.send(payload.parse().expect("choose myself payload")).expect("send selection");
+        });
+        let result = selection_rx.await?;
+        Ok(result as usize)
+    }
+
+    async fn ask_for_text(&self, prompt: &str) -> Result<String> {
+        self.app_handle.emit(EVENT_ASK_FOR_TEXT, prompt.to_owned())?;
+        let (selection_tx, selection_rx) = oneshot::channel::<String>();
+        self.app_handle.once(EVENT_ASK_FOR_TEXT_RESPONSE, |ev| {
+            let input: String = serde_json::from_str(ev.payload()).expect("not a quoted string");
+            selection_tx.send(input).expect("send selection");
+        });
+        let result = selection_rx.await?;
+        Ok(result)
+    }
+}
+
+//
+// UI utility functions
+//
 
 fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSeparatorIds)>
     where R: Runtime, M: Manager<R>

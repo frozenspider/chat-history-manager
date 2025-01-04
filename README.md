@@ -13,7 +13,6 @@ Some general notes:
 - UI functionality is currently very limited.
   - As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
 written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
-- To parse a standalone 1-on-1 chat, Scala UI HAS to be running as it will be asked to identify self user.
 - Most of these history formats are reverse engineered, so:
   - Some message types may not be supported as I simply haven't encountered them yet.
   - Compatibility might break unexpectedly as apps sometimes decide to change their storage format.

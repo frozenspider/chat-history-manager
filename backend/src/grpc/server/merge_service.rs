@@ -174,7 +174,7 @@ impl MergeServiceHelper for Arc<ChatHistoryManagerServer> {
                   &dyn ChatHistoryDao, Dataset,
               ) -> Result<R1> + Send + 'static,
               Finalize: FnMut(R1) -> Result<R2> + Send + 'static {
-        self.process_request(req, move |self_clone, req| {
+        self.process_request_blocking(req, move |self_clone, req| {
             let pre_res = {
                 let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
 

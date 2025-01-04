@@ -11,6 +11,9 @@ dependencies:
   '@radix-ui/react-context-menu':
     specifier: ^2.2.4
     version: 2.2.4(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+  '@radix-ui/react-dialog':
+    specifier: ^1.1.4
+    version: 1.1.4(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
   '@radix-ui/react-popover':
     specifier: ^1.1.4
     version: 1.1.4(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
@@ -41,6 +44,9 @@ dependencies:
   '@tauri-apps/plugin-fs':
     specifier: ^2.2.0
     version: 2.2.0
+  camelcase-keys-deep:
+    specifier: ^0.1.0
+    version: 0.1.0
   class-variance-authority:
     specifier: ^0.7.1
     version: 0.7.1
@@ -97,6 +103,9 @@ devDependencies:
   '@tauri-apps/cli':
     specifier: ^2.1.0
     version: 2.1.0
+  '@types/camelcase-keys-deep':
+    specifier: ^0.1.2
+    version: 0.1.2
   '@types/node':
     specifier: ^20.11.30
     version: 20.11.30
@@ -1531,6 +1540,10 @@ packages:
       '@types/responselike': 1.0.3
     dev: true
 
+  /@types/camelcase-keys-deep@0.1.2:
+    resolution: {integrity: sha512-ZYwZdeLwZw1sYeIKUB9D5yOiu/tUAMLwSRVUlhai5FUqpwPapKxcbzI3RxyFEsb7Nsps6WF4S/Q9Z/jQTcL0+A==}
+    dev: true
+
   /@types/eslint-scope@3.7.7:
     resolution: {integrity: sha512-MzMFlSLBqNF2gcHWO0G1vP/YQyfvrxZ0bF+u7mzUdZ1/xK4A4sru+nraZz5i3iEIk1l1uyicaDVTB4QbbEkAYg==}
     dependencies:
@@ -2311,6 +2324,18 @@ packages:
   /camelcase-css@2.0.1:
     resolution: {integrity: sha512-QOSvevhslijgYwRx6Rv7zKdMF8lbRmx+uQGx2+vDc+KI/eBnsy9kit5aj23AgGu3pa4t9AgwbnXWqS+iOY+2aA==}
     engines: {node: '>= 6'}
+
+  /camelcase-keys-deep@0.1.0:
+    resolution: {integrity: sha512-E15UHT2zFy5wHIUa3jy71n1DlQFcMk4KWbTgh4rITatp42Q/wjZ1D5pI4SzhiUoc7zQ8NPpSXuJTLGeQkaCRFQ==}
+    dependencies:
+      camelcase: 2.1.1
+      map-obj: 1.0.1
+    dev: false
+
+  /camelcase@2.1.1:
+    resolution: {integrity: sha512-DLIsRzJVBQu72meAKPkWQOLcujdXT32hwdfnkI1frSiSRMK1MofjKHf+MEx0SB6fjEFXL8fBDv1dKymBlOp4Qw==}
+    engines: {node: '>=0.10.0'}
+    dev: false
 
   /camelcase@4.1.0:
     resolution: {integrity: sha512-FxAv7HpHrXbh3aPo4o2qxHay2lkLY3x5Mw3KeE4KQE8ysVfziWeRZDwcjauvwBSGEC/nXUPzZy8zeh4HokqOnw==}
@@ -4171,6 +4196,11 @@ packages:
     dependencies:
       pify: 3.0.0
     dev: true
+
+  /map-obj@1.0.1:
+    resolution: {integrity: sha512-7N/q3lyZ+LVCp7PzuxrJr4KMbBE2hW7BT7YNia330OFxIf4d3r5zVpicP2650l7CPN6RM9zOJRl3NGpqSiw3Eg==}
+    engines: {node: '>=0.10.0'}
+    dev: false
 
   /matcher@3.0.0:
     resolution: {integrity: sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==}

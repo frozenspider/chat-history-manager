@@ -9,21 +9,17 @@ use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
 
 use super::*;
 
-mod user_input_requester;
+mod user_input_grpc_requester;
 
-pub trait UserInputRequester: Send + Sync {
-    fn choose_myself(&self, users: &[User]) -> Result<usize>;
-
-    fn ask_for_text(&self, prompt: &str) -> Result<String>;
-}
-
-pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputRequester>> {
+pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputBlockingRequester>> {
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
-    Ok(Box::new(user_input_requester::UserInputRequesterImpl {
+    Ok(Box::new(wrap_async_user_input_requester(
         runtime_handle,
-        channel: lazy_channel,
-    }))
+        user_input_grpc_requester::UserInputGrpcRequester {
+            channel: lazy_channel,
+        },
+    )))
 }
 
 #[derive(Debug, Clone)]
@@ -58,7 +54,7 @@ pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcCl
 #[derive(Clone, Copy)]
 pub struct NoChooser;
 
-impl UserInputRequester for NoChooser {
+impl UserInputBlockingRequester for NoChooser {
     fn choose_myself(&self, _users: &[User]) -> Result<usize> {
         err!("No way to choose myself!")
     }
@@ -74,7 +70,7 @@ pub struct PredefinedInput {
     pub text: Option<String>,
 }
 
-impl UserInputRequester for PredefinedInput {
+impl UserInputBlockingRequester for PredefinedInput {
     fn choose_myself(&self, users: &[User]) -> Result<usize> {
         let myself_id = self
             .myself_id

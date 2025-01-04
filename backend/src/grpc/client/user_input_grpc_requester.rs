@@ -1,19 +1,18 @@
 use futures::future::BoxFuture;
 use std::fmt::Debug;
-use tokio::runtime::Handle;
 use tonic::transport::Channel;
 
 use crate::user_input_service_client::UserInputServiceClient;
 
 use super::*;
 
-pub struct UserInputRequesterImpl {
-    pub runtime_handle: Handle,
+#[derive(Debug, Clone)]
+pub struct UserInputGrpcRequester {
     pub channel: Channel,
 }
 
-impl UserInputRequesterImpl {
-    fn ask_for_user_input<Response, Out, FnCreateReq, FnProcessRes>(
+impl UserInputGrpcRequester {
+    async fn request_and_process<Response, Out, FnCreateReq, FnProcessRes>(
         &self, create_request: FnCreateReq, process_response: FnProcessRes,
     ) -> Result<Out>
     where
@@ -24,35 +23,27 @@ impl UserInputRequesterImpl {
         Response: Send + Debug + 'static,
         Out: Send + Debug + 'static,
     {
-        let handle = self.runtime_handle.clone();
         let channel = self.channel.clone();
 
         // We cannot use the current thread since when called via RPC, current thread is already used for async tasks.
-        std::thread::spawn(move || {
-            let future = async move {
-                let mut client = UserInputServiceClient::new(channel);
-                log::info!("Sending ChooseMyselfRequest");
-                create_request(&mut client)
-                    .await
-                    .map_err(|status| anyhow!("{}", status.message()))
-            };
+        let mut client = UserInputServiceClient::new(channel);
+        log::info!("Sending ChooseMyselfRequest");
+        let response = create_request(&mut client)
+            .await
+            .map_err(|status| anyhow!("{}", status.message()))?;
+        log::info!("Got response: {:?}", response);
 
-            let spawned = handle.spawn(future);
-            let response = handle.block_on(spawned)?;
-            log::info!("Got response: {:?}", response);
-
-            let response = response?.into_inner();
-            process_response(response)
-        }).join().unwrap() // We're unwrapping join() to propagate panic.
+        let response = response.into_inner();
+        process_response(response)
     }
 }
 
-impl UserInputRequester for UserInputRequesterImpl {
-    fn choose_myself(&self, users: &[User]) -> Result<usize> {
+impl UserInputRequester for UserInputGrpcRequester {
+    async fn choose_myself(&self, users: &[User]) -> Result<usize> {
         let users = users.to_vec();
         let len = users.len();
 
-        self.ask_for_user_input(|client| {
+        self.request_and_process(|client| {
             Box::pin(client.choose_myself(ChooseMyselfRequest { users }))
         }, move |res| {
             let res = res.picked_option;
@@ -63,16 +54,16 @@ impl UserInputRequester for UserInputRequesterImpl {
             } else {
                 Ok(res as usize)
             }
-        })
+        }).await
     }
 
-    fn ask_for_text(&self, prompt: &str) -> Result<String> {
+    async fn ask_for_text(&self, prompt: &str) -> Result<String> {
         let prompt = prompt.to_owned();
 
-        self.ask_for_user_input(|client| {
+        self.request_and_process(|client| {
             Box::pin(client.ask_for_text(TextInputRequest { prompt }))
         }, move |res| {
             Ok(res.user_input)
-        })
+        }).await
     }
 }

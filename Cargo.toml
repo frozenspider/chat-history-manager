@@ -57,6 +57,7 @@ anyhow = { version = "1.0.86", features = ["backtrace"] }
 deepsize = "0.2.0"
 paste = "1.0.15"
 mime2ext = "0.1.53"
+simd-json = "0.13.9"
 
 # Async processing
 futures = "0.3.30"

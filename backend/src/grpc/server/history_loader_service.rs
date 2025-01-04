@@ -9,7 +9,7 @@ use super::*;
 #[tonic::async_trait]
 impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
     async fn load(&self, req: Request<LoadRequest>) -> TonicResult<LoadResponse> {
-        self.process_request(req, move |self_clone, req| {
+        self.process_request_blocking(req, move |self_clone, req| {
             let path = fs::canonicalize(&req.path)?;
 
             if let Some(dao) = read_or_status(&self_clone.loaded_daos)?.get(&req.key) {
@@ -25,7 +25,7 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
     }
 
     async fn get_loaded_files(&self, req: Request<Empty>) -> TonicResult<GetLoadedFilesResponse> {
-        self.process_request(req, |self_clone, _| {
+        self.process_request_blocking(req, |self_clone, _| {
             fn dao_to_loaded_file((k, dao): (&DaoKey, &DaoRwLock)) -> StatusResult<LoadedFile> {
                 Ok(LoadedFile { key: k.clone(), name: read_or_status(dao)?.name().to_owned() })
             }
@@ -37,7 +37,7 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
     }
 
     async fn close(&self, req: Request<CloseRequest>) -> TonicResult<Empty> {
-        self.process_request(req, |self_clone, req| {
+        self.process_request_blocking(req, |self_clone, req| {
             let dao = write_or_status(&self_clone.loaded_daos)?.shift_remove(&req.key);
             if dao.is_none() {
                 bail!("Database {} is not open!", req.key)
@@ -49,7 +49,7 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
     async fn ensure_same(&self, req: Request<EnsureSameRequest>) -> TonicResult<EnsureSameResponse> {
         const MAX_DIFFS: usize = 10;
 
-        self.process_request(req, |self_clone, req| {
+        self.process_request_blocking(req, |self_clone, req| {
             let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
             let master_dao = read_or_status(&loaded_daos[&req.master_dao_key])?;
             let slave_dao = read_or_status(&loaded_daos[&req.slave_dao_key])?;

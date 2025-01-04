@@ -1,4 +1,4 @@
-use std::process;
+use std::future::Future;
 
 use clap::{Parser, Subcommand};
 use deepsize::DeepSizeOf;
@@ -14,6 +14,8 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// Port to start gRPC server on, defaults to 50051.
+    /// Next port will be used for the user info request server.
     port: Option<u16>,
 
     #[command(subcommand)]
@@ -24,7 +26,7 @@ const DEFAULT_SERVER_PORT: u16 = 50051;
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Start a gRPC server on the given port (defaults to 50051)
+    /// Start a gRPC server on the given port
     StartServer,
     /// (For debugging purposes only) Parse and load a given file using whichever loader is appropriate,
     /// and print the result in-memory DB size to the log
@@ -46,6 +48,8 @@ async fn main() {
 }
 
 async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRes {
+    let port = port.unwrap_or(DEFAULT_SERVER_PORT);
+    let remote_port = port + 1;
     match command {
         None => {
             if cfg!(not(feature = "ui-core")) {
@@ -53,31 +57,28 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
             }
             #[cfg(feature = "ui-core")]
             {
-                let port = port.unwrap_or(DEFAULT_SERVER_PORT);
-                let handle = tokio::runtime::Handle::current();
+                let handle = Handle::current();
                 // Start a server if not already running
-                handle.spawn(async move {
-                    match start_server(port).await {
-                        Err(e) if e.root_cause().downcast_ref::<std::io::Error>()
-                            .filter(|e| e.kind() == std::io::ErrorKind::AddrInUse)
-                            .is_some() => {
-                            log::warn!("Server already running on port {port}")
-                        }
-                        e => catch_fatal_error(e)
-                    }
+                spawn_server(&handle, "Server", port, async move {
+                    start_server(port, remote_port).await
                 });
                 let clients = client::create_clients(port).await?;
-                chat_history_manager_ui::start(clients).await;
+                let ui = chat_history_manager_ui::create_ui(clients);
+                let ui_clone = ui.clone();
+                spawn_server(&handle, "User input server", remote_port, async move {
+                    let requester = ui_clone.listen_for_user_input().await?;
+                    start_user_input_server(remote_port, requester).await
+                });
+                ui.start_and_block()
             }
         }
         Some(Command::StartServer) => {
-            let port = port.unwrap_or(DEFAULT_SERVER_PORT);
-            start_server(port).await?;
+            start_server(port, remote_port).await?;
         }
         Some(Command::Parse { path, myself_id }) => {
             let handle = Handle::current();
             let join_handle = handle.spawn_blocking(move || {
-                let chooser: Box<dyn client::UserInputRequester> =
+                let chooser: Box<dyn UserInputBlockingRequester> =
                     if let Some(myself_id) = myself_id {
                         Box::new(client::PredefinedInput {
                             myself_id: Some(myself_id),
@@ -97,7 +98,6 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
             );
         }
         Some(Command::RequestMyself) => {
-            let port = port.unwrap_or(DEFAULT_SERVER_PORT + 1);
             let chosen = debug_request_myself(port).await?;
             log::info!("Picked: {}", chosen);
         }
@@ -129,6 +129,20 @@ fn init_logger() {
         .init();
 }
 
+fn spawn_server(handle: &Handle, server_name: &str, port: u16, call: impl Future<Output = EmptyRes> + Send + 'static) {
+    let server_name = server_name.to_owned();
+    handle.spawn(async move {
+        match call.await {
+            Err(e) if e.root_cause().downcast_ref::<std::io::Error>()
+                .filter(|e| e.kind() == std::io::ErrorKind::AddrInUse)
+                .is_some() => {
+                log::warn!("{server_name} already running on port {port}")
+            }
+            e => catch_fatal_error(e)
+        }
+    });
+}
+
 fn catch_fatal_error<T>(v: Result<T>) -> T {
     match v {
         Ok(v) => v,
@@ -144,7 +158,7 @@ fn catch_fatal_error<T>(v: Result<T>) -> T {
                 eprintln!();
                 eprintln!("Stack trace:\n{}", e.backtrace());
             }
-            process::exit(1);
+            std::process::exit(1);
         }
     }
 }

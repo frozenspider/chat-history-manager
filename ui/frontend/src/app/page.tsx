@@ -38,6 +38,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input";
+import { ExportChatHtml } from "@/app/utils/export_as_html";
+import UserInputRequsterComponent, { UserInputRequestState } from "@/app/utils/user_input_requester";
 
 import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
 import {
@@ -45,7 +47,7 @@ import {
   HistoryDaoServiceDefinition,
   HistoryLoaderServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
-import { ExportChatHtml } from "@/app/utils/export_as_html";
+import camelcaseKeysDeep from "camelcase-keys-deep";
 
 
 const USE_TEST_DATA = false;
@@ -66,6 +68,7 @@ export default function Home() {
     React.useState<NavigationCallbacks | null>(null)
 
   let [saveAsState, setSaveAsState] = React.useState<SaveAs | null>(null)
+  let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
 
   // No-dependency useMemo ensures that the services are created only once
@@ -96,7 +99,7 @@ export default function Home() {
       let load = async () =>
         LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
 
-      // Note: we cannot unmount the returned listeners because it's a promise!
+      // Even names here are hardcoded on the backend
       PromiseCatchReportError(async () => {
         await Listen("open-files-changed", () => {
           setLoaded(false)
@@ -109,6 +112,15 @@ export default function Home() {
         })
         await Listen<string | null>("busy", (ev) => {
           setBusyState(ev.payload)
+        })
+        await Listen<Array<object>>("choose-myself", (ev) => {
+          let snakeCaseUsers = ev.payload
+          let users = snakeCaseUsers.map(camelcaseKeysDeep).map(User.fromJSON)
+          setUserInputRequestState({ $case: "choose_myself", users })
+        })
+        await Listen<string>("ask-for-text", (ev) => {
+          let prompt = ev.payload
+          setUserInputRequestState({ $case: "ask_for_text", prompt })
         })
       })
 
@@ -193,6 +205,7 @@ export default function Home() {
       </div>
 
       <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState}/>
+      <UserInputRequsterComponent state={userInputRequestState} setState={setUserInputRequestState}/>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
 }
