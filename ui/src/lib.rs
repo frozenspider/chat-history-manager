@@ -270,6 +270,7 @@ async fn on_menu_event_open(
     app_handle: AppHandle,
     mut clients: ChatHistoryManagerGrpcClients,
 ) -> Result<()> {
+    let busy_state = app_handle.state::<BusyState>().clone();
     // We cannot add custom file filters here, and extension filter is not enough.
     // As a workaround, user can select any file.
     let picked = app_handle
@@ -279,6 +280,7 @@ async fn on_menu_event_open(
         .blocking_pick_file();
     match picked {
         Some(FilePath::Path(picked)) => {
+            let _wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Opening..."))?;
             let path = path_to_str(&picked)?.to_owned();
             let key = path.clone();
             let _response = clients.grpc(|loader, _| loader.load(LoadRequest { key, path })).await?;
