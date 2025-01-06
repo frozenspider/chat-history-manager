@@ -1,5 +1,6 @@
 import React, { JSX, SVGProps } from "react";
 
+// TODO: Rename to throbber
 export default function LoadSpinner(args: {
   center: boolean,
   text?: string

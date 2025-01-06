@@ -63,7 +63,7 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
                     start_server(port, remote_port).await
                 });
                 let clients = client::create_clients(port).await?;
-                let ui = chat_history_manager_ui::create_ui(clients);
+                let ui = chat_history_manager_ui::create_ui(clients, port);
                 let ui_clone = ui.clone();
                 spawn_server(&handle, "User input server", remote_port, async move {
                     let requester = ui_clone.listen_for_user_input().await?;

@@ -3,7 +3,7 @@
 import React from "react";
 
 import { emit } from "@tauri-apps/api/event";
-import { Asc, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { Asc, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   ChatSourceTypeToString,
   ChatTypeToString,
@@ -33,6 +33,12 @@ export default function Home() {
   let [datasetState, setDatasetState] =
     React.useState<DatasetState | null>(null)
 
+  let [alertText, setAlertText] =
+    React.useState<string | null>(null)
+
+  let [showPersonalChatsOnly, setShowPersonalChatsOnly] =
+    React.useState<boolean>(false)
+
   let [searchTerm, setSearchTerm] =
     React.useState("")
 
@@ -43,12 +49,14 @@ export default function Home() {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
     Listen<string>(SetPopupStateEventName, (ev) => {
       let json = ev.payload
-      let [ccObj, dsStateObj] = JSON.parse(json)
+      let [ccObj, dsStateObj, alertTextStr, personalOnly] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
-      let cc = CombinedChat.fromObject(ccObj)
-      dsStateObj.users = new Map(dsStateObj.users)
+      let cc = CombinedChat.fromObject(EnsureDefined(ccObj))
+      let dsState = DatasetState.fromJSON(EnsureDefined(dsStateObj))
       setCombinedChat(cc)
-      setDatasetState(dsStateObj)
+      setDatasetState(dsState)
+      setAlertText(EnsureDefined(alertTextStr))
+      setShowPersonalChatsOnly(EnsureDefined(personalOnly))
     })
 
     PromiseCatchReportError(emit(PopupReadyEventName));
@@ -62,12 +70,12 @@ export default function Home() {
         let chat = cwd.chat!
         // Filter out:
         // * Chat we're currently looking at
-        // * Non-personal chats
         // * Slave chats
+        // * Non-personal chats (if configured)
         if (
           chat.id == combinedChat?.mainChatId ||
-          chat.tpe != ChatType.PERSONAL ||
-          (chat.mainChatId && chat.mainChatId > 0)
+          (chat.mainChatId && chat.mainChatId > 0) ||
+          (showPersonalChatsOnly && chat.tpe != ChatType.PERSONAL)
         ) return false
         if (
           termLc == "" ||
@@ -104,14 +112,17 @@ export default function Home() {
 
   return <>
     <div className="w-full mx-auto p-6 md:p-10 flex flex-col h-screen">
-      <Alert variant="default" className="mb-4">
-        <AlertTriangle className="h-4 w-4"/>
-        <AlertDescription>
-          Previously selected chat will be combined with the given one and will no longer be shown separately in the
-          main list.
-          For the history merge purposes, chats will remain separate so it will continue to work.
-        </AlertDescription>
-      </Alert>
+      {alertText &&
+          <Alert variant="default" className="mb-4">
+              <AlertTriangle className="h-4 w-4"/>
+              <AlertDescription>{
+                alertText
+                  .split("\n")
+                  .map((line, idx) =>
+                    <p key={idx}>{line.trim()}</p>
+                  )
+              }</AlertDescription>
+          </Alert>}
 
       <Input type="text"
              placeholder="Search chats..."

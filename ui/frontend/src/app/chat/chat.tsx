@@ -3,13 +3,19 @@ import React from "react";
 import {
   AssertDefined,
   AssertUnreachable,
-  ExpectDefined,
+  EnsureDefined,
   GetNonDefaultOrNull,
   SerializeJson,
   SpawnPopup,
   Unreachable
 } from "@/app/utils/utils";
-import { CombinedChat, GetChatPrettyName, GetUserPrettyName, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import {
+  CombinedChat,
+  GetChatPrettyName,
+  GetChatQualifiedName,
+  GetUserPrettyName,
+  NameColorClassFromNumber
+} from "@/app/utils/entity_utils";
 import { DatasetState, PopupConfirmedEventName } from "@/app/utils/state";
 
 import { Chat, ChatType, Message, User } from "@/protobuf/core/protobuf/entities";
@@ -26,6 +32,7 @@ import {
 import { ChatState } from "@/app/utils/chat_state";
 import { ask } from "@tauri-apps/plugin-dialog";
 
+
 export default function ChatComponent(args: {
   cc: CombinedChat,
   dsState: DatasetState,
@@ -35,6 +42,7 @@ export default function ChatComponent(args: {
     onClick: () => void,
     onDeleteChat: () => void
     onSetSecondary: (newMainId: bigint) => void
+    onCompareWith: (otherChatId: bigint) => void
     onExportAsHtml: () => void
   }
 }): React.JSX.Element {
@@ -81,8 +89,8 @@ export default function ChatComponent(args: {
                            disabled={args.cc.mainCwd.chat!.tpe != ChatType.PERSONAL}>
             Make Secondary
           </ContextMenuItem>
-          <ContextMenuItem>
-            Compare [NYI]
+          <ContextMenuItem onClick={() => ShowSelectChatToCompareWithPopup(args.cc, args.dsState, args.callbacks.onCompareWith)}>
+            Compare
           </ContextMenuItem>
           <ContextMenuItem onClick={args.callbacks.onExportAsHtml}>
             Export As HTML
@@ -206,12 +214,13 @@ function GetMessageSimpleText(msg: Message): string {
 }
 
 function ShowChatDetailsPopup(cc: CombinedChat, dsState: DatasetState) {
-  const setStatePromise = async () => {
-    // Cannot pass the payload directly because of BigInt not being serializable by default
-    return SerializeJson([cc, dsState])
-  }
   let name = GetChatPrettyName(cc.mainCwd.chat!)
-  SpawnPopup<string>("details-window", name, "/chat/popup_details", 600, 800, setStatePromise())
+  SpawnPopup<string>("details-window", name, "/chat/popup_details", 600, 800, {
+    setState: (async () => {
+      // Cannot pass the payload directly because of BigInt not being serializable by default
+      return SerializeJson([cc, dsState])
+    })()
+  })
 }
 
 function ShowMakeSecondaryPopup(
@@ -219,18 +228,40 @@ function ShowMakeSecondaryPopup(
   dsState: DatasetState,
   setSecondaryCallback: (newMainId: bigint) => void
 ) {
-  const setStatePromise = async () => {
-    // Cannot pass the payload directly because of BigInt not being serializable by default
-    return SerializeJson([cc, dsState])
-  }
   let name = GetChatPrettyName(cc.mainCwd.chat!)
-  let popup =
-    SpawnPopup<string>("make-secondary-window", name, "/chat/popup_make_secondary", 600, screen.availHeight - 100,
-      setStatePromise(), { y: 50 })
+  SpawnPopup<string>("make-secondary-window", name, "/chat/popup_select_master_chat", 600, screen.availHeight - 100, {
+    y: 50,
+    setState: (async () => {
+      // Cannot pass the payload directly because of BigInt not being serializable by default
+      const notice = "Previously selected chat will be combined with the given one and will no longer be shown separately" +
+        "in the main list.\n" +
+        "For the history merge purposes, chats will remain separate so it will continue to work."
+      return SerializeJson([cc, dsState, notice, true /* showPersonalChatsOnly */])
+    })(),
+    onConfirmed: (ev) => {
+      let selectedChatId = EnsureDefined(ev.payload, "Selected main chat ID") as string
+      setSecondaryCallback(BigInt(selectedChatId))
+    }
+  })
+}
 
-  popup?.once(PopupConfirmedEventName, (ev) => {
-    let selectedChatId = ExpectDefined(ev.payload, "Selected main chat ID") as string
-    setSecondaryCallback(BigInt(selectedChatId))
+function ShowSelectChatToCompareWithPopup(
+  masterCc: CombinedChat,
+  dsState: DatasetState,
+  onCompareWith: (otherChatId: bigint) => void
+) {
+  SpawnPopup<string>("select-comparison-chat-window", "Select chat", "/chat/popup_select_master_chat", 600, screen.availHeight - 100, {
+    y: 50,
+    setState: (async () => {
+      // Cannot pass the payload directly because of BigInt not being serializable by default
+      const notice = "Select chat to be compared with " + GetChatQualifiedName(masterCc.mainCwd.chat!) + ".\n" +
+       "Note that this compares master chats only, slave chats are ignored."
+      return SerializeJson([masterCc, dsState, notice, false /* showPersonalChatsOnly */])
+    })(),
+    onConfirmed: (ev) => {
+      let selectedChatId = EnsureDefined(ev.payload, "Selected chat ID to compare with") as string
+      onCompareWith(BigInt(selectedChatId))
+    }
   })
 }
 

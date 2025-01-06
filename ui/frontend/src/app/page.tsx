@@ -3,20 +3,28 @@
 import React from "react";
 import { emit } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
-import { createChannel, createClient } from 'nice-grpc-web';
 
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import LoadSpinner from "@/app/utils/load_spinner";
 
-import { Assert, ExpectDefined, InvokeTauri, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
+  Assert,
+  EnsureDefined,
+  InvokeTauri,
+  Listen,
+  PromiseCatchReportError,
+  SerializeJson,
+  SpawnPopup
+} from "@/app/utils/utils";
+import {
+  CreateGrpcServicesOnce,
   DatasetState,
   LoadedFileState,
   NavigationCallbacks,
   ServicesContext,
-  ServicesContextType
+  GrpcServices,
 } from "@/app/utils/state";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { CombinedChat } from "@/app/utils/entity_utils";
@@ -41,12 +49,8 @@ import { Input } from "@/components/ui/input";
 import { ExportChatHtml } from "@/app/utils/export_as_html";
 import UserInputRequsterComponent, { UserInputRequestState } from "@/app/utils/user_input_requester";
 
-import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
-import {
-  ChatWithDetailsPB,
-  HistoryDaoServiceDefinition,
-  HistoryLoaderServiceDefinition
-} from "@/protobuf/backend/protobuf/services";
+import { Chat, PbUuid, User } from "@/protobuf/core/protobuf/entities";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
 
 
@@ -71,14 +75,8 @@ export default function Home() {
   let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
 
-  // No-dependency useMemo ensures that the services are created only once
-  const services = React.useMemo<ServicesContextType>(() => {
-    const channel = createChannel('http://localhost:50051');
-    return {
-      loadClient: createClient(HistoryLoaderServiceDefinition, channel),
-      daoClient: createClient(HistoryDaoServiceDefinition, channel)
-    }
-  }, [])
+  // TODO: How to pass port number synchronously from Rust?
+  const services = CreateGrpcServicesOnce(50051);
 
   const chatStateCache = React.useMemo<ChatStateCache>(() => new ChatStateCache(), [])
 
@@ -171,6 +169,9 @@ export default function Home() {
                               onSetSecondary: (cc, dsState, newMainId) => {
                                 SetSecondaryChat(cc, dsState, newMainId, services, chatStateCache, reloadDatasetChats)
                               },
+                              onCompareWith: (cwd, otherChatId, dsState) => {
+                                ShowCompareChatsPopup(cwd, otherChatId, dsState, services)
+                              },
                               onExportAsHtml: (cc, dsState) => {
                                 ExportChatAsHtml(cc, dsState, services)
                               }
@@ -216,7 +217,7 @@ interface SaveAs {
 }
 
 async function LoadExistingData(
-  services: ServicesContextType,
+  services: GrpcServices,
   chatStateCache: ChatStateCache,
   setOpenFiles: (change: (v: LoadedFileState[]) => LoadedFileState[]) => void,
   setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
@@ -291,7 +292,7 @@ function ChangeDatasetCwds(
   dsUuid: PbUuid,
   change: (cwds: ChatWithDetailsPB[]) => ChatWithDetailsPB[]
 ): [DatasetState, LoadedFileState, LoadedFileState[]] {
-  let oldOpenFile = ExpectDefined(openFiles.find(f => f.key == fileKey), "File not found")
+  let oldOpenFile = EnsureDefined(openFiles.find(f => f.key == fileKey), "File not found")
 
   let oldDsStateIdx = oldOpenFile.datasets.findIndex(ds => ds.ds.uuid!.value == dsUuid.value)
   Assert(oldDsStateIdx >= 0, "Dataset not found")
@@ -318,7 +319,7 @@ function ChangeDatasetCwds(
 function DeleteChat(
   cc: CombinedChat,
   dsState: DatasetState,
-  services: ServicesContextType,
+  services: GrpcServices,
   chatStateCache: ChatStateCache,
   openFiles: LoadedFileState[],
   setOpenFiles: (openFiles: LoadedFileState[]) => void,
@@ -369,7 +370,7 @@ function SetSecondaryChat(
   cc: CombinedChat,
   dsState: DatasetState,
   newMainId: bigint,
-  services: ServicesContextType,
+  services: GrpcServices,
   chatStateCache: ChatStateCache,
   reload: (fileKey: string, dsUuid: PbUuid) => Promise<void>
 ) {
@@ -380,9 +381,53 @@ function SetSecondaryChat(
     chatStateCache.Clear(dsState.fileKey, cc.dsUuid, cc.mainChatId)
 
     let chat = cc.mainCwd.chat!
-    let masterChat = ExpectDefined(dsState.cwds.find(cwd => cwd.chat!.id === newMainId)).chat!
+    let masterChat = EnsureDefined(dsState.cwds.find(cwd => cwd.chat!.id === newMainId)).chat!
     await services.daoClient.combineChats({ key: dsState.fileKey, masterChat, slaveChat: chat })
     await reload(dsState.fileKey, dsState.ds.uuid!)
+  }
+
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
+}
+
+function ShowCompareChatsPopup(
+  masterChat: ChatWithDetailsPB,
+  slaveChatId: bigint,
+  dsState: DatasetState,
+  services: GrpcServices
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    let slaveChat =
+      EnsureDefined(dsState.cwds.find(cwd => cwd.chat!.id == slaveChatId))
+
+    const response = await services.mergeClient.analyze({
+      masterDaoKey: dsState.fileKey,
+      masterDsUuid: dsState.ds.uuid,
+      slaveDaoKey: dsState.fileKey,
+      slaveDsUuid: dsState.ds.uuid,
+      forceConflicts: false,
+      chatIdPairs: [{ masterChatId: masterChat.chat!.id, slaveChatId }]
+    })
+    Assert(response.analysis.length == 1)
+
+    const analysis = response.analysis[0]
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    const setStatePromise = async () => {
+      // Cannot pass the payload directly because of BigInt not being serializable by default
+      return SerializeJson([[masterChat, slaveChat], [dsState, dsState], analysis])
+    }
+    SpawnPopup<string>("chat-diff-window", "Chat comparison", "/chat/popup_diff",
+      screen.availWidth - 100,
+      screen.availHeight - 100,
+      {
+        x: 50,
+        y: 50,
+        setState: setStatePromise()
+      })
   }
 
   PromiseCatchReportError(innerAsync()
@@ -392,7 +437,7 @@ function SetSecondaryChat(
 function ExportChatAsHtml(
   cc: CombinedChat,
   dsState: DatasetState,
-  services: ServicesContextType
+  services: GrpcServices
 ) {
   let innerAsync = async () => {
     await emit("busy", true)

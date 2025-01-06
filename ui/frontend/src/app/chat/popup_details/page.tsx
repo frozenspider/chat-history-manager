@@ -4,7 +4,7 @@ import React from "react";
 
 import { emit } from "@tauri-apps/api/event";
 
-import { Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { DatasetState, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 
@@ -24,10 +24,10 @@ export default function Home() {
       let json = ev.payload
       let [ccObj, dsStateObj] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
-      let cc = CombinedChat.fromObject(ccObj)
-      dsStateObj.users = new Map(dsStateObj.users)
+      let cc = CombinedChat.fromObject(EnsureDefined(ccObj))
+      let dsState = DatasetState.fromJSON(EnsureDefined(dsStateObj))
       setCombinedChat(cc)
-      setDatasetState(dsStateObj)
+      setDatasetState(dsState)
     })
 
     PromiseCatchReportError(emit(PopupReadyEventName));

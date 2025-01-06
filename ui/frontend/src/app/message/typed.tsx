@@ -15,7 +15,7 @@ import {
   NameColorClassFromPrettyName,
   RepliesMaxDepth
 } from "@/app/utils/entity_utils";
-import { ServicesContext } from "@/app/utils/state";
+import { GetServices, ServicesContext } from "@/app/utils/state";
 import { ChatState } from "@/app/utils/chat_state";
 
 import LoadSpinner from "@/app/utils/load_spinner";
@@ -248,7 +248,7 @@ function LazyMessageComponent(args: {
   chatState: ChatState,
   replyDepth: number
 }): React.JSX.Element {
-  let services = React.useContext(ServicesContext)!
+  let services = GetServices()
 
   // null - initial state, not yet loaded
   // string - error message if loading failed, e.g. it wasn't found

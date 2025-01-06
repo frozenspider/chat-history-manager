@@ -11,7 +11,7 @@ import {
   UuidString
 } from "@/app/utils/entity_utils";
 import { Chat, Message } from "@/protobuf/core/protobuf/entities";
-import { DatasetState, ServicesContextType } from "@/app/utils/state";
+import { DatasetState, GrpcServices } from "@/app/utils/state";
 import { Assert, CreateMapFromKeys, ForAll, GetOrInsertDefault, PromiseCatchReportError } from "@/app/utils/utils";
 
 type ChatLoadStateLoaded = {
@@ -114,7 +114,7 @@ export class ChatState {
    */
   async FetchMore(
     fetchPrevious: boolean,
-    services: ServicesContextType,
+    services: GrpcServices,
     scrollOwner: HTMLElement | null
   ): Promise<ChatState | null> {
     let viewState = this.viewState

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/context-menu";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
 
 export default function ChatList(args: {
@@ -22,6 +23,7 @@ export default function ChatList(args: {
   callbacks: {
     onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
     onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void,
+    onCompareWith: (cwd: ChatWithDetailsPB, otherChatId: bigint, dsState: DatasetState) => void,
     onExportAsHtml: (cc: CombinedChat, dsState: DatasetState) => void
   }
 }): React.JSX.Element {
@@ -64,6 +66,9 @@ export default function ChatList(args: {
                                },
                                onSetSecondary: (newMainId: bigint) => {
                                  args.callbacks.onSetSecondary(cc, dsState, newMainId)
+                               },
+                               onCompareWith: (otherChatId) => {
+                                 args.callbacks.onCompareWith(cc.mainCwd, otherChatId, dsState)
                                },
                                onExportAsHtml: () => {
                                  args.callbacks.onExportAsHtml(cc, dsState)

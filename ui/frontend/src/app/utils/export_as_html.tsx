@@ -2,7 +2,7 @@ import React from "react";
 
 import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
-import { DatasetState, ServicesContext, ServicesContextType } from "@/app/utils/state";
+import { DatasetState, ServicesContext, GrpcServices } from "@/app/utils/state";
 
 import MessagesList, { PreloadEverythingEventName } from "@/app/message/message_list";
 
@@ -20,7 +20,7 @@ export async function ExportChatHtml(
   path: string,
   cc: CombinedChat,
   dsState: DatasetState,
-  services: ServicesContextType
+  services: GrpcServices
 ): Promise<void> {
   let resolveCanContinue: () => void = () => {
   }
@@ -78,7 +78,7 @@ export async function ExportChatHtml(
 function FullMessagesList(args: {
   cc: CombinedChat,
   dsState: DatasetState,
-  services: ServicesContextType
+  services: GrpcServices
 }): React.JSX.Element {
   let [chatState, setChatState] = React.useState(new ChatState(args.cc, args.dsState))
 

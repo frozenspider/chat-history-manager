@@ -9,7 +9,7 @@ import { MessageComponent } from "@/app/message/message";
 
 import { emit } from "@tauri-apps/api/event";
 import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
-import { NavigationCallbacks, ServicesContext, ServicesContextType } from "@/app/utils/state";
+import { NavigationCallbacks, ServicesContext, GrpcServices, GetServices } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import LoadSpinner from "@/app/utils/load_spinner";
@@ -30,7 +30,7 @@ export default function MessagesList(args: {
   /** Used for exporting chat to HTML, will cause the component to load ALL messages */
   preloadEverything: boolean
 }): React.JSX.Element {
-  let services = React.useContext(ServicesContext)!
+  let services = GetServices()
   let chatStateCache = React.useContext(ChatStateCacheContext)!
 
   let scrollOwner = React.useRef<HTMLDivElement | null>(null)
@@ -222,7 +222,7 @@ async function TryFetchMoreMessages(
   chatState: ChatState,
   setChatState: (s: ChatState) => void,
   chatStateCache: ChatStateCache,
-  services: ServicesContextType,
+  services: GrpcServices,
   scrollOwner: HTMLElement | null,
 ) {
   if (isFetching.current) {

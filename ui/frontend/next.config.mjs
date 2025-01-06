@@ -23,7 +23,7 @@ const nextConfig = {
                 ]
             }),
         )
-        webpackConfig.optimization.minimize = true // Can be disabled for debugging
+        webpackConfig.optimization.minimize = false // Can be disabled for debugging
 
         // // Unable to compile reworkcss/css without this:
         // webpackConfig.resolve.fallback = {

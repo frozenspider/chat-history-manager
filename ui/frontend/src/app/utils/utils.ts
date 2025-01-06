@@ -1,10 +1,10 @@
 'use client'
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
-import { listen, EventCallback, UnlistenFn, EventName } from "@tauri-apps/api/event";
+import { listen, EventCallback, UnlistenFn, Event, EventName } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ClientError } from "nice-grpc-common";
-import { PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
+import { PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 
 export function Assert(cond: boolean, message?: string): asserts cond {
   if (!cond) throw new Error(message ?? "Assertion failed")
@@ -14,7 +14,7 @@ export function AssertDefined<T>(v: T | undefined, valueName?: string): asserts 
   Assert(v !== undefined, (valueName ?? "Value") + " is undefined")
 }
 
-export function ExpectDefined<T>(v: T | undefined, valueName?: string): T {
+export function EnsureDefined<T>(v: T | undefined, valueName?: string): T {
   AssertDefined(v, valueName)
   return v
 }
@@ -106,12 +106,11 @@ export function SpawnPopup<T>(
   pageUrl: string,
   w: number,
   h: number,
-  setState?: Promise<T>,
-  optional?: { x?: number, y?: number }
-): WebviewWindow | null {
+  optional?: { x?: number, y?: number, setState?: Promise<T>, onConfirmed?: (ev: Event<T>) => void }
+): void {
   if (!IsTauriAvailable()) {
     ReportError("Can't create a popup without Tauri!")
-    return null
+    return;
   }
 
   const webview = new WebviewWindow(windowLabel, {
@@ -123,14 +122,21 @@ export function SpawnPopup<T>(
     y: optional?.y
   });
 
-  if (setState) {
+  if (optional?.setState) {
     PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError(async () => {
-      const state = await setState
+      const state = await optional.setState
       await webview.emit(SetPopupStateEventName, state);
     })))
   }
 
-  return webview
+  if (optional?.onConfirmed) {
+    let unlistenOnConfirmed =
+      webview.once<T>(PopupConfirmedEventName, (ev) => optional.onConfirmed!(ev))
+
+    PromiseCatchReportError(webview.onCloseRequested(async (_ev) => {
+      (await unlistenOnConfirmed)();
+    }))
+  }
 }
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */
@@ -217,6 +223,15 @@ export function ForAll<T>(iter: IterableIterator<T>, pred: (t: T) => boolean): b
     if (!pred(item)) return false
   }
   return true
+}
+
+// Can't believe I have to write this myself
+export function Count<T>(iter: IterableIterator<T>, pred: (t: T) => boolean): number {
+  let result = 0
+  for (let item of iter) {
+    if (pred(item)) ++result
+  }
+  return result
 }
 
 export function SerializeJson(src: any): string {

@@ -86,7 +86,7 @@ pub enum TauriInnerState {
     },
 }
 
-pub fn create_ui(clients: ChatHistoryManagerGrpcClients) -> TauriUiWrapper {
+pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWrapper {
     let (app_handle_tx, app_handle_rx) = oneshot::channel::<AppHandle>();
     let res = TauriUiWrapper {
         state: Arc::new(Mutex::new(TauriInnerState::None))
@@ -94,6 +94,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients) -> TauriUiWrapper {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(GrpcPort(port))
         .manage(Arc::clone(&res.state))
         .manage(clients)
         .manage(BusyState::new(Mutex::new(BusyStateValue::NotBusy)))
@@ -129,7 +130,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients) -> TauriUiWrapper {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![open_popup, report_error_string, read_file_base64, save_as]);
+        .invoke_handler(tauri::generate_handler![get_grpc_port, report_error_string, read_file_base64, save_as]);
     *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
         builder: Some(builder),
         app_handle_rx: Some(app_handle_rx),
@@ -353,27 +354,9 @@ async fn refresh_opened_files_list(
 // Commands
 //
 
-// TODO: Remove?
 #[tauri::command]
-fn open_popup(app_handle: AppHandle, file_path: String) {
-    let _settings_window = tauri::WebviewWindowBuilder::new(
-        &app_handle,
-        "my-popup", /* the unique window label */
-        tauri::WebviewUrl::App(file_path.into()),
-    )
-        .title("My Popup")
-        .build()
-        .unwrap();
-}
-
-#[tauri::command]
-fn read_file_base64(relative_path: String, ds_root: String) -> tauri::Result<String> {
-    let path = Path::new(&ds_root).join(&relative_path);
-    log::info!("Reading file at {}", path.display());
-    use base64::prelude::*;
-    let bytes = fs::read(path)?;
-    let encoded = BASE64_STANDARD.encode(bytes);
-    Ok(encoded)
+fn get_grpc_port(app_handle: AppHandle) -> tauri::Result<u16> {
+    Ok(app_handle.state::<GrpcPort>().0)
 }
 
 #[tauri::command]
@@ -384,6 +367,16 @@ fn report_error_string(app_handle: AppHandle, error: String) {
         .title("Error")
         .kind(MessageDialogKind::Error)
         .show(|_res| () /* Ignore the result */);
+}
+
+#[tauri::command]
+fn read_file_base64(relative_path: String, ds_root: String) -> tauri::Result<String> {
+    let path = Path::new(&ds_root).join(&relative_path);
+    log::info!("Reading file at {}", path.display());
+    use base64::prelude::*;
+    let bytes = fs::read(path)?;
+    let encoded = BASE64_STANDARD.encode(bytes);
+    Ok(encoded)
 }
 
 #[tauri::command]
@@ -410,6 +403,9 @@ fn save_as(
 //
 // Helpers
 //
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GrpcPort(u16);
 
 // Should be used through the `WorkInProgress` RAII
 #[derive(Debug, PartialEq, Eq, Deserialize)]

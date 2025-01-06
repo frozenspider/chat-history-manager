@@ -21,7 +21,7 @@ import {
   AssertDefined,
   AssertUnreachable,
   Deduplicate,
-  ExpectDefined,
+  EnsureDefined,
   GetNonDefaultOrNull,
   ObjAsc,
   ObjDesc,
@@ -119,8 +119,12 @@ export function GetChatPrettyName(chat: Chat | null): string {
   return chat?.nameOption ?? Unnamed
 }
 
+export function GetChatQualifiedName(chat: Chat): string {
+  return `'${GetChatPrettyName(chat)}' (#${chat.id})`
+}
+
 export function GetChatInterlocutor(cwd: ChatWithDetailsPB): User | null {
-  if (ExpectDefined(cwd.chat).tpe === ChatType.PERSONAL && cwd.members.length > 1) {
+  if (EnsureDefined(cwd.chat).tpe === ChatType.PERSONAL && cwd.members.length > 1) {
     return cwd.members[1]
   } else {
     return null
@@ -128,7 +132,7 @@ export function GetChatInterlocutor(cwd: ChatWithDetailsPB): User | null {
 }
 
 export function GetCombinedChat1to1Interlocutors(cc: CombinedChat): User[] {
-  if (ExpectDefined(cc.mainCwd.chat).tpe === ChatType.PERSONAL && cc.members.length > 1) {
+  if (EnsureDefined(cc.mainCwd.chat).tpe === ChatType.PERSONAL && cc.members.length > 1) {
     let myselfId = cc.mainCwd.chat!.memberIds[0]
     return cc.members.filter(u => u.id !== myselfId)
   } else {
@@ -154,8 +158,10 @@ export class CombinedChat {
 
   /** Used after JSON deserialization, inefficient */
   static fromObject(obj: any): CombinedChat {
-    let mainCwd = obj.cwds.find((cwd: any) => cwd.chat!.id === obj.mainChatId)!
-    let slaveCwds = obj.cwds.filter((cwd: any) => cwd.chat!.id !== obj.mainChatId)
+    let mainChatId = BigInt(obj.mainChatId)
+    let cwds = obj.cwds.map((cwd: any) => ChatWithDetailsPB.fromJSON(cwd))
+    let mainCwd = cwds.find((cwd: any) => cwd.chat!.id === mainChatId)!
+    let slaveCwds = cwds.filter((cwd: any) => cwd.chat!.id !== mainChatId)
     return new CombinedChat(mainCwd, slaveCwds)
   }
 

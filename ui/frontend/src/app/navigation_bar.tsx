@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { NavigationCallbacks, ServicesContext } from "@/app/utils/state";
+import { GetServices, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { ObjAsc, ObjDesc, PromiseCatchReportError } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
 
@@ -20,7 +20,7 @@ export default function NavigationBar(args: {
   chatState: ChatState | null,
   navigationCallbacks: NavigationCallbacks | null
 }) {
-  let services = React.useContext(ServicesContext)!
+  let services = GetServices()
 
   let [navEnabled, setNavEnabled] =
     React.useState(false)

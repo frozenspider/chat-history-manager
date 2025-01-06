@@ -6,10 +6,15 @@ import { Dataset, User } from "@/protobuf/core/protobuf/entities";
 import {
   ChatWithDetailsPB,
   HistoryDaoServiceClient,
-  HistoryLoaderServiceClient
+  HistoryDaoServiceDefinition,
+  HistoryLoaderServiceClient,
+  HistoryLoaderServiceDefinition,
+  MergeServiceClient,
+  MergeServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
 import { EventName } from "@tauri-apps/api/event";
 import { FileKey } from "@/app/utils/entity_utils";
+import { createChannel, createClient } from "nice-grpc-web";
 
 
 /** An event popup sends to itself after it's ready, intended to be caught by the creator. */
@@ -29,11 +34,32 @@ export const SetPopupStateEventName: EventName = "set-state"
 //
 
 export const ServicesContext =
-  React.createContext<ServicesContextType | null>(null)
+  React.createContext<GrpcServices | null>(null)
 
-export interface ServicesContextType {
+export interface GrpcServices {
   loadClient: HistoryLoaderServiceClient
   daoClient: HistoryDaoServiceClient
+  mergeClient: MergeServiceClient
+}
+
+export function CreateGrpcServicesOnce(port: number) {
+  // No-dependency useMemo ensures that the services are created only once
+  return React.useMemo<GrpcServices>(() => {
+    const channel = createChannel(`http://localhost:${port}`);
+    return {
+      loadClient: createClient(HistoryLoaderServiceDefinition, channel),
+      daoClient: createClient(HistoryDaoServiceDefinition, channel),
+      mergeClient: createClient(MergeServiceDefinition, channel)
+    }
+  }, [])
+}
+
+export function GetServices(): GrpcServices {
+  let services = React.useContext(ServicesContext)
+  if (!services) {
+    throw new Error("Services context is not set up!")
+  }
+  return services
 }
 
 //
@@ -54,6 +80,19 @@ export interface DatasetState {
   users: Map<bigint, User>,
   myselfId: bigint,
   cwds: ChatWithDetailsPB[]
+}
+
+export const DatasetState = {
+  fromJSON: (obj: any): DatasetState => {
+    return {
+      fileKey: obj.fileKey,
+      ds: Dataset.fromJSON(obj.ds),
+      dsRoot: obj.dsRoot,
+      users: new Map(obj.users.map((kv: any) => [BigInt(kv[0]), User.fromJSON(kv[1])])),
+      myselfId: BigInt(obj.myselfId),
+      cwds: obj.cwds
+    }
+  }
 }
 
 /** Navigation callbacks, used to navigate to different time points in chat history */
