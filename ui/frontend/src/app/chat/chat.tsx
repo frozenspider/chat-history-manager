@@ -236,7 +236,7 @@ function ShowMakeSecondaryPopup(
       const notice = "Previously selected chat will be combined with the given one and will no longer be shown separately" +
         "in the main list.\n" +
         "For the history merge purposes, chats will remain separate so it will continue to work."
-      return SerializeJson([cc, dsState, notice, true /* showPersonalChatsOnly */])
+      return SerializeJson([cc, dsState, notice, true /* showPersonalChatsOnly */, true /* isDestructive */])
     })(),
     onConfirmed: (ev) => {
       let selectedChatId = EnsureDefined(ev.payload, "Selected main chat ID") as string
@@ -256,7 +256,7 @@ function ShowSelectChatToCompareWithPopup(
       // Cannot pass the payload directly because of BigInt not being serializable by default
       const notice = "Select chat to be compared with " + GetChatQualifiedName(masterCc.mainCwd.chat!) + ".\n" +
        "Note that this compares master chats only, slave chats are ignored."
-      return SerializeJson([masterCc, dsState, notice, false /* showPersonalChatsOnly */])
+      return SerializeJson([masterCc, dsState, notice, false /* showPersonalChatsOnly */, false /* isDestructive */])
     })(),
     onConfirmed: (ev) => {
       let selectedChatId = EnsureDefined(ev.payload, "Selected chat ID to compare with") as string

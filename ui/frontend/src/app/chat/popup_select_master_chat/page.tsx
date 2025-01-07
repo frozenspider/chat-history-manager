@@ -39,6 +39,9 @@ export default function Home() {
   let [showPersonalChatsOnly, setShowPersonalChatsOnly] =
     React.useState<boolean>(false)
 
+  let [isDestructive, setIsDestructive] =
+    React.useState("")
+
   let [searchTerm, setSearchTerm] =
     React.useState("")
 
@@ -49,7 +52,7 @@ export default function Home() {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
     Listen<string>(SetPopupStateEventName, (ev) => {
       let json = ev.payload
-      let [ccObj, dsStateObj, alertTextStr, personalOnly] = JSON.parse(json)
+      let [ccObj, dsStateObj, alertTextStr, personalOnly, isDestructive] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
       let cc = CombinedChat.fromObject(EnsureDefined(ccObj))
       let dsState = DatasetState.fromJSON(EnsureDefined(dsStateObj))
@@ -57,6 +60,7 @@ export default function Home() {
       setDatasetState(dsState)
       setAlertText(EnsureDefined(alertTextStr))
       setShowPersonalChatsOnly(EnsureDefined(personalOnly))
+      setIsDestructive(EnsureDefined(isDestructive))
     })
 
     PromiseCatchReportError(emit(PopupReadyEventName));
@@ -114,7 +118,7 @@ export default function Home() {
     <div className="w-full mx-auto p-6 md:p-10 flex flex-col h-screen">
       {alertText &&
           <Alert variant="default" className="mb-4">
-              <AlertTriangle className="h-4 w-4"/>
+            {isDestructive && <AlertTriangle className="h-4 w-4"/>}
               <AlertDescription>{
                 alertText
                   .split("\n")
@@ -140,7 +144,7 @@ export default function Home() {
         </div>
       </ScrollArea>
 
-      <Button variant="destructive"
+      <Button variant={isDestructive ? "destructive" : "default"}
               className="mt-4"
               onClick={() => PromiseCatchReportError(async () => {
                 await emit(PopupConfirmedEventName, selectedChatId)
