@@ -722,6 +722,9 @@ impl MutableChatHistoryDao for SqliteDao {
                 .execute(conn)?;
 
             // Users
+            delete(profile_picture::dsl::profile_picture)
+                .filter(profile_picture::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .execute(conn)?;
             delete(user::dsl::user)
                 .filter(user::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .execute(conn)?;
@@ -1134,11 +1137,13 @@ impl MutableChatHistoryDao for SqliteDao {
             for dir in src_paths_parents {
                 let mut parent_holder = Some(dir.as_path());
                 while let Some(dir) = parent_holder {
-                    if fs::read_dir(dir)?.next().is_some() {
-                        // Directory not empty
-                        break;
+                    if dir.exists() {
+                        if fs::read_dir(dir)?.next().is_some() {
+                            // Directory not empty
+                            break;
+                        }
+                        fs::remove_dir(dir)?
                     }
-                    fs::remove_dir(dir)?;
                     parent_holder = dir.parent()
                 }
             }
