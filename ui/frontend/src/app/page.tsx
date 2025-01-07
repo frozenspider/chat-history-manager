@@ -24,6 +24,7 @@ import {
   LoadedFileState,
   NavigationCallbacks,
   ServicesContext,
+  GetServices,
   GrpcServices,
 } from "@/app/utils/state";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
@@ -35,23 +36,13 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Input } from "@/components/ui/input";
 import { ExportChatHtml } from "@/app/utils/export_as_html";
 import UserInputRequsterComponent, { UserInputRequestState } from "@/app/utils/user_input_requester";
 
-import { Chat, PbUuid, User } from "@/protobuf/core/protobuf/entities";
+import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
+import { TextInputOverlay } from "@/app/utils/text_input_overlay";
 
 
 const USE_TEST_DATA = false;
@@ -71,7 +62,8 @@ export default function Home() {
   let [navigationCallbacks, setNavigationCallbacks] =
     React.useState<NavigationCallbacks | null>(null)
 
-  let [saveAsState, setSaveAsState] = React.useState<SaveAs | null>(null)
+  let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
+  let [saveAsState, setSaveAsState] = React.useState<SaveAsState | null>(null)
   let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
 
@@ -91,8 +83,9 @@ export default function Home() {
     setOpenFiles(newOpenFiles)
   }
 
-  let loadExisting = async () =>
-    LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
+  let loadExisting = React.useCallback(async () =>
+      LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState),
+    [services, chatStateCache])
 
   // This cannot be called during prerender as it relies on window object
   React.useEffect(() => {
@@ -162,6 +155,13 @@ export default function Home() {
                   <ChatList fileState={currentFileState}
                             setChatState={setCurrentChatState}
                             callbacks={{
+                              onRenameDataset: (dsState) => {
+                                setRenameDatasetState({
+                                  key: dsState.fileKey,
+                                  dsUuid: dsState.ds.uuid!,
+                                  oldName: dsState.ds.alias
+                                })
+                              },
                               onDeleteChat: (cc, dsState) => {
                                 DeleteChat(cc, dsState, services, chatStateCache, openFiles,
                                   setOpenFiles, setCurrentFileState, setCurrentChatState)
@@ -205,14 +205,28 @@ export default function Home() {
         </ResizablePanelGroup>
       </div>
 
-      <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState} reload={loadExisting}/>
+      <RenameDatasetComponent renameDatasetState={renameDatasetState}
+                              setRenameDatasetState={setRenameDatasetState}
+                              openFiles={openFiles}
+                              setOpenFiles={setOpenFiles}
+                              currentFileState={currentFileState}
+                              setCurrentFileState={setCurrentFileState}/>
+      <SaveAsComponent saveAsState={saveAsState}
+                       setSaveAsState={setSaveAsState}
+                       reload={loadExisting}/>
       <UserInputRequsterComponent state={userInputRequestState} setState={setUserInputRequestState}/>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
 }
 
-interface SaveAs {
+interface SaveAsState {
   key: string,
+  oldName: string
+}
+
+interface RenameDatasetState {
+  key: string,
+  dsUuid: PbUuid,
   oldName: string
 }
 
@@ -286,11 +300,11 @@ async function LoadExistingData(
   })
 }
 
-function ChangeDatasetCwds(
+function ChangeDataset(
   openFiles: LoadedFileState[],
   fileKey: string,
   dsUuid: PbUuid,
-  change: (cwds: ChatWithDetailsPB[]) => ChatWithDetailsPB[]
+  change: (dsState: DatasetState) => DatasetState
 ): [DatasetState, LoadedFileState, LoadedFileState[]] {
   let oldOpenFile = EnsureDefined(openFiles.find(f => f.key == fileKey), "File not found")
 
@@ -299,10 +313,7 @@ function ChangeDatasetCwds(
 
   let oldDsState = oldOpenFile.datasets[oldDsStateIdx]
 
-  let newDsState: DatasetState = {
-    ...oldDsState,
-    cwds: change(oldDsState.cwds)
-  }
+  let newDsState: DatasetState = change(oldDsState)
 
   let newOpenFile: LoadedFileState = {
     ...oldOpenFile,
@@ -314,6 +325,20 @@ function ChangeDatasetCwds(
     .map(oldOpenFile => oldOpenFile.key == newOpenFile.key ? newOpenFile : oldOpenFile)
 
   return [newDsState, newOpenFile, newOpenFiles]
+}
+
+function ChangeDatasetCwds(
+  openFiles: LoadedFileState[],
+  fileKey: string,
+  dsUuid: PbUuid,
+  change: (cwds: ChatWithDetailsPB[]) => ChatWithDetailsPB[]
+): [DatasetState, LoadedFileState, LoadedFileState[]] {
+  return ChangeDataset(openFiles, fileKey, dsUuid, dsState => {
+    return {
+      ...dsState,
+      cwds: change(dsState.cwds)
+    }
+  })
 }
 
 function DeleteChat(
@@ -458,49 +483,95 @@ function ExportChatAsHtml(
     .finally(() => emit("busy", false)))
 }
 
-function SaveAsComponent(args: {
-  saveAsState: SaveAs | null
-  setSaveAsState: (s: SaveAs | null) => void
-  reload: () => Promise<void>
+function RenameDatasetComponent(args: {
+  renameDatasetState: RenameDatasetState | null
+  setRenameDatasetState: (s: RenameDatasetState | null) => void
+  openFiles: LoadedFileState[],
+  setOpenFiles: (openFiles: LoadedFileState[]) => void,
+  currentFileState: LoadedFileState | null,
+  setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
 }): React.JSX.Element {
-  let inputRef = React.useRef<HTMLInputElement>(null)
+  let services = GetServices()
 
-  let onSaveClick = React.useCallback(() => {
-    Assert(inputRef.current != null)
-    Assert(args.saveAsState != null)
-    let newName = inputRef.current.value
-    if (newName == args.saveAsState.oldName) {
-      // Could show warning but just not closing a dialog is good enough
-      return
-    }
+  let onRenameClick =
+    React.useCallback<(newName: string, oldState: RenameDatasetState) => string | null>(
+      (newName, oldState) => {
+        if (newName == oldState.oldName) {
+          return "New name should not match an old name"
+        }
 
-    InvokeTauri<void>("save_as", {
-      key: args.saveAsState.key,
-      newName: newName
-    })
-    args.setSaveAsState(null)
+        if (args.currentFileState?.datasets?.some(ds => ds.ds.alias == newName)) {
+          return "Dataset with this name already exists"
+        }
 
-    PromiseCatchReportError(args.reload)
-  }, [args])
+        let asyncInner = async () => {
+          await emit("busy", true)
+
+          let [newDsState, newOpenFile, newOpenFiles] =
+            ChangeDataset(args.openFiles, oldState.key, oldState.dsUuid, dsState => {
+              return {
+                ...dsState,
+                ds: {
+                  ...dsState.ds,
+                  alias: newName
+                }
+              }
+            })
+
+          await services.daoClient.backup({ key: oldState.key })
+          await services.daoClient.updateDataset({ key: oldState.key, dataset: newDsState.ds })
+
+          args.setCurrentFileState(currentFile => currentFile?.key == newOpenFile.key ? newOpenFile : currentFile)
+          args.setOpenFiles(newOpenFiles)
+        }
+
+        PromiseCatchReportError(asyncInner()
+          .finally(() => emit("busy", false)))
+
+        return null
+      },
+      [args])
 
   return (
-    <AlertDialog open={!!args.saveAsState}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Save As</AlertDialogTitle>
-          <AlertDialogDescription>
-            Pick new file name
-            <Input ref={inputRef}
-                   type="text"
-                   placeholder={args.saveAsState?.oldName}
-                   defaultValue={args.saveAsState?.oldName}/>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => args.setSaveAsState(null)}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onSaveClick}>Save</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <TextInputOverlay title="Rename Dataset"
+                      description="Pick a new dataset name"
+                      state={args.renameDatasetState}
+                      stateToInitialValue={s => s.oldName}
+                      setState={args.setRenameDatasetState}
+                      okButtonLabel="Rename"
+                      onOkClick={onRenameClick}/>
+  )
+}
+
+function SaveAsComponent(args: {
+  saveAsState: SaveAsState | null
+  setSaveAsState: (s: SaveAsState | null) => void
+  reload: () => Promise<void>
+}): React.JSX.Element {
+  let onSaveClick =
+    React.useCallback<(newName: string, oldState: SaveAsState) => string | null>(
+      (newName, oldState) => {
+        if (newName == oldState.oldName) {
+          return "New name should not match an old name"
+        }
+
+        InvokeTauri<void>("save_as", {
+          key: oldState.key,
+          newName: newName
+        })
+
+        PromiseCatchReportError(args.reload)
+        return null
+      },
+      [args])
+
+  return (
+    <TextInputOverlay title="Save As"
+                      description="Pick a new file name"
+                      state={args.saveAsState}
+                      stateToInitialValue={s => s.oldName}
+                      setState={args.setSaveAsState}
+                      okButtonLabel="Save"
+                      onOkClick={onSaveClick}/>
   )
 }

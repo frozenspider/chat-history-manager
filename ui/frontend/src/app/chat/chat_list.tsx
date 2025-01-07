@@ -21,6 +21,7 @@ export default function ChatList(args: {
   fileState: LoadedFileState | null,
   setChatState: (s: ChatState) => void,
   callbacks: {
+    onRenameDataset: (dsState: DatasetState) => void,
     onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
     onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void,
     onCompareWith: (cwd: ChatWithDetailsPB, otherChatId: bigint, dsState: DatasetState) => void,
@@ -83,8 +84,8 @@ export default function ChatList(args: {
               <DatsetHeader text={dsState.ds.alias}/>
             </ContextMenuTrigger>
             <ContextMenuContent>
-              <ContextMenuItem onClick={() => console.log("Clicked")}>
-                Rename [NYI]
+              <ContextMenuItem onClick={() => args.callbacks.onRenameDataset(dsState)}>
+                Rename
               </ContextMenuItem>
               <ContextMenuItem>
                 Shift Time [NYI]
