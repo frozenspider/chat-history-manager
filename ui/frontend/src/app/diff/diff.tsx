@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import DiffSection from "@/app/diff/diff_section";
 import { Assert } from "@/app/utils/utils";
 import { Button } from "@/components/ui/button";
+import { CheckSquare, Square } from "lucide-react";
 
 
 export const SEPARATOR_WIDTH_CLASS = "w-10";
@@ -77,16 +78,20 @@ export default function Diff<T>(args: {
 
   return <div className="h-[calc(100vh-4rem)] flex flex-col border rounded-lg overflow-hidden">
     <div className="flex bg-gray-100 p-2 text-center">
-      <div className="w-[calc(50%-20px)] font-semibold">{args.labels[0]}</div>
-      <div className={SEPARATOR_WIDTH_CLASS}>
-        <Button variant="ghost"
+      <div className="w-[calc(50%-60px)] font-semibold">{args.labels[0]}</div>
+      <div className="w-40 flex justify-center">
+        <Button variant="outline"
                 size="sm"
                 onClick={toggleAllSections}
-                className="w-full h-full p-0 flex items-center justify-center">
-          {selectedSections.size}/{allSelectableSections.size}
+                className="h-10 flex items-center justify-center gap-2 bg-white hover:bg-gray-100"
+                style={{ width: "7.5rem" /* There is no w-30 class */ }}>
+          {selectedSections.size == allSelectableSections.size ?
+            <CheckSquare className="h-4 w-4"/> :
+            <Square className="h-4 w-4"/>}
+          <span className="font-medium">{selectedSections.size}/{allSelectableSections.size}</span>
         </Button>
       </div>
-      <div className="w-[calc(50%-20px)] font-semibold">{args.labels[1]}</div>
+      <div className="w-[calc(50%-60px)] font-semibold">{args.labels[1]}</div>
     </div>
     <ScrollArea className="flex-1">
       {args.diffsData.map((diffData, index) => {
