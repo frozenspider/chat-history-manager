@@ -22,9 +22,10 @@ scope = ["**"]
 label = "main"
 title = "Chat History Manager"
 fullscreen = false
-width = 800
-height = 600
 resizable = true
+# Sizes are set dynamically in setup code
+# width = 800
+# height = 600
 
 [bundle]
 # Can't find a way to get rid of these icons

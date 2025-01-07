@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import ChatComponent from "@/app/chat/chat";
+import ChatItem from "@/app/chat/chat_item";
 import { AssertDefined, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import {
@@ -55,29 +55,29 @@ export default function ChatList(args: {
 
             let cc = new CombinedChat(mainCwd, slaveCwds)
             return (
-              <ChatComponent key={dsState.fileKey + "_" + mainCwd.chat!.id.toString()}
-                             cc={cc}
-                             dsState={dsState}
-                             setChatState={args.setChatState}
-                             isSelected={cc.dsUuid == selectedChat?.dsUuid && cc.mainChatId == selectedChat.mainChatId}
-                             callbacks={{
-                               onClick: () => {
-                                 setSelectedChat(cc)
-                                 LoadChat(cc, dsState, args.setChatState, chatStateCache)
-                               },
-                               onDeleteChat: () => {
-                                 args.callbacks.onDeleteChat(cc, dsState)
-                               },
-                               onSetSecondary: (newMainId: bigint) => {
-                                 args.callbacks.onSetSecondary(cc, dsState, newMainId)
-                               },
-                               onCompareWith: (otherChatId) => {
-                                 args.callbacks.onCompareWith(cc.mainCwd, otherChatId, dsState)
-                               },
-                               onExportAsHtml: () => {
-                                 args.callbacks.onExportAsHtml(cc, dsState)
-                               }
-                             }}/>
+              <ChatItem key={dsState.fileKey + "_" + mainCwd.chat!.id.toString()}
+                        cc={cc}
+                        dsState={dsState}
+                        setChatState={args.setChatState}
+                        isSelected={cc.dsUuid == selectedChat?.dsUuid && cc.mainChatId == selectedChat.mainChatId}
+                        callbacks={{
+                          onClick: () => {
+                            setSelectedChat(cc)
+                            LoadChat(cc, dsState, args.setChatState, chatStateCache)
+                          },
+                          onDeleteChat: () => {
+                            args.callbacks.onDeleteChat(cc, dsState)
+                          },
+                          onSetSecondary: (newMainId: bigint) => {
+                            args.callbacks.onSetSecondary(cc, dsState, newMainId)
+                          },
+                          onCompareWith: (otherChatId) => {
+                            args.callbacks.onCompareWith(cc.mainCwd, otherChatId, dsState)
+                          },
+                          onExportAsHtml: () => {
+                            args.callbacks.onExportAsHtml(cc, dsState)
+                          }
+                        }}/>
             )
           })
 

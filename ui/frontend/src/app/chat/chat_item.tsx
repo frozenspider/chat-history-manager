@@ -11,6 +11,7 @@ import {
   Unreachable
 } from "@/app/utils/utils";
 import {
+  ChatSourceTypeToString,
   CombinedChat,
   GetChatPrettyName,
   GetChatQualifiedName,
@@ -32,9 +33,10 @@ import {
 } from "@/components/ui/context-menu"
 import { ChatState } from "@/app/utils/chat_state";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { Badge } from "@/components/ui/badge";
 
 
-export default function ChatComponent(args: {
+export default function ChatItem(args: {
   cc: CombinedChat,
   dsState: DatasetState,
   setChatState: (s: ChatState) => void,
@@ -51,8 +53,8 @@ export default function ChatComponent(args: {
   AssertDefined(mainChat)
   let colorClass = NameColorClassFromNumber(mainChat.id).text
 
-  let membersCount = args.cc.mainCwd.chat?.tpe == ChatType.PRIVATE_GROUP ? (
-    <div className="pr-2 text-xs">
+  let membersCountEl = args.cc.mainCwd.chat?.tpe == ChatType.PRIVATE_GROUP ? (
+    <div className="pr-1 text-xs">
       <span>({args.cc.memberIds.length})</span>
     </div>
   ) : <></>
@@ -70,15 +72,25 @@ export default function ChatComponent(args: {
             <ChatAvatar cc={args.cc} dsState={args.dsState}/>
 
             <div className="w-full">
-              <ColoredName name={GetChatPrettyName(mainChat)} colorClass={colorClass}
-                           addedClasses="line-clamp-1 break-all"/>
-              <SimpleMessage chat={lastMsgCwd?.chat ?? mainChat}
-                             msg={lastMsg}
-                             users={args.dsState.users}
-                             myselfId={args.dsState.myselfId}/>
-            </div>
 
-            {membersCount}
+              <div className="flex items-center justify-between">
+                <ColoredName name={GetChatPrettyName(mainChat)} colorClass={colorClass}
+                             addedClasses="line-clamp-1 break-all"/>
+
+                <div className="flex items-center justify-between">
+                  {membersCountEl}
+                  <Badge variant="outline" className="ml-2 mr-5">
+                    {ChatSourceTypeToString(mainChat.sourceType)}
+                  </Badge>
+                </div>
+              </div>
+              <div className="pr-2">
+                <SimpleMessage chat={lastMsgCwd?.chat ?? mainChat}
+                               msg={lastMsg}
+                               users={args.dsState.users}
+                               myselfId={args.dsState.myselfId}/>
+              </div>
+            </div>
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>

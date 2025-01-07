@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Listener, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Listener, Manager, PhysicalPosition, PhysicalSize, Position, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_fs::FilePath;
@@ -127,6 +127,24 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
                     move |app_handle| on_menu_event(event, app_handle, clients),
                 );
             });
+
+            // Make window occupy 90% of the screen height, and set the width to keep margin consistent
+            let target_height_coeff = 0.9;
+            for wv_window in app_handle.webview_windows().values() {
+                let monitor = wv_window.current_monitor()?.ok_or(anyhow!("Can't detect current monitor"))?;
+                let monitor_size = monitor.size();
+                let height_delta = (monitor_size.height as f64 * (1.0 - target_height_coeff)) as u32;
+                let target_size = PhysicalSize {
+                    width: monitor_size.width - height_delta,
+                    height: monitor_size.height - height_delta,
+                };
+                wv_window.set_size(target_size)?;
+                // .center() doesn't work here
+                wv_window.set_position(Position::Physical(PhysicalPosition {
+                    x: height_delta as i32 / 2,
+                    y: height_delta as i32 / 2,
+                }))?;
+            }
 
             Ok(())
         })
