@@ -35,10 +35,12 @@ fn relevant_files_are_copied() -> EmptyRes {
     {
         let src = fs::read_to_string(daos.src_dir.join("result.json"))?;
         let path_regex = Regex::new(r#""(chats/[a-zA-Z0-9()\[\]./\\_ -]+)""#).unwrap();
-        let src_files_2 = path_regex.captures_iter(&src)
+        let mut src_files_2 = path_regex.captures_iter(&src)
             .map(|c| c.get(1).unwrap().as_str())
             .map(|p| daos.src_ds_root.to_absolute(p))
             .sorted().collect_vec();
+        // Add an artificially generated file that was not in result.json
+        src_files_2.push(daos.src_ds_root.to_absolute("_artificial/chat_imgs/chat_8123123123.jpg"));
         assert_eq!(src_files.iter().sorted().collect_vec(), src_files_2.iter().sorted().collect_vec());
     }
 
@@ -86,7 +88,8 @@ fn fetching() -> EmptyRes {
             ok(left_eq && between_eq && right_eq)
         };
 
-        assert_eq!(src_cwd.chat, dst_cwd.chat);
+        assert!(Tup::new(&src_cwd.chat, &daos.src_ds_root, src_cwd)
+            .practically_equals(&Tup::new(&dst_cwd.chat, &daos.dst_ds_root, dst_cwd))?);
 
         let all_src_msgs = daos.src_dao.last_messages(&src_cwd.chat, src_cwd.chat.msg_count as usize)?;
         let all_dst_msgs = daos.dst_dao.last_messages(&dst_cwd.chat, dst_cwd.chat.msg_count as usize)?;
@@ -615,7 +618,8 @@ fn update_chat_change_id() -> EmptyRes {
     assert_eq!(dao.chats(&dst_ds.uuid)?.len(), 4);
 
     let cwd = dao.chats(&dst_ds.uuid)?.into_iter().find(|cwd| cwd.id() == new_id).unwrap();
-    assert_eq!(cwd.chat, Chat { id: *new_id, ..old_chat.clone() });
+    assert!(Tup::new(&cwd.chat, &daos.src_ds_root, &cwd)
+        .practically_equals(&Tup::new(&Chat { id: *new_id, ..old_chat.clone() }, &daos.dst_ds_root, &cwd))?);
 
     // Files must be moved to a different dir
     for f in old_files.iter() {
@@ -793,7 +797,8 @@ fn shift_dataset_time() -> EmptyRes {
     assert_eq!(src_chats.len(), dst_chats.len());
 
     for (src_cwd, dst_cwd) in src_chats.iter().zip(dst_chats.iter()) {
-        assert_eq!(src_cwd.chat, dst_cwd.chat);
+        assert!(Tup::new(&src_cwd.chat, &daos.src_ds_root, src_cwd)
+            .practically_equals(&Tup::new(&dst_cwd.chat, &daos.dst_ds_root, dst_cwd))?);
 
         let all_src_msgs = daos.src_dao.last_messages(&src_cwd.chat, src_cwd.chat.msg_count as usize)?;
         let all_dst_msgs = dao.last_messages(&dst_cwd.chat, dst_cwd.chat.msg_count as usize)?;
