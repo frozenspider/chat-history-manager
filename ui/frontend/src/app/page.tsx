@@ -91,17 +91,17 @@ export default function Home() {
     setOpenFiles(newOpenFiles)
   }
 
+  let loadExisting = async () =>
+    LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
+
   // This cannot be called during prerender as it relies on window object
   React.useEffect(() => {
     if (!firstLoadCalled) {
-      let load = async () =>
-        LoadExistingData(services, chatStateCache, setOpenFiles, setCurrentFileState, setCurrentChatState)
-
       // Even names here are hardcoded on the backend
       PromiseCatchReportError(async () => {
         await Listen("open-files-changed", () => {
           setLoaded(false)
-          PromiseCatchReportError(load()
+          PromiseCatchReportError(loadExisting()
             .then(() => setLoaded(true)))
         })
         await Listen<[string, string]>("save-as-clicked", (ev) => {
@@ -122,7 +122,7 @@ export default function Home() {
         })
       })
 
-      PromiseCatchReportError(load()
+      PromiseCatchReportError(loadExisting()
         .then(() => setLoaded(true)))
 
       firstLoadCalled = true
@@ -205,7 +205,7 @@ export default function Home() {
         </ResizablePanelGroup>
       </div>
 
-      <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState}/>
+      <SaveAsComponent saveAsState={saveAsState} setSaveAsState={setSaveAsState} reload={loadExisting}/>
       <UserInputRequsterComponent state={userInputRequestState} setState={setUserInputRequestState}/>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
@@ -461,6 +461,7 @@ function ExportChatAsHtml(
 function SaveAsComponent(args: {
   saveAsState: SaveAs | null
   setSaveAsState: (s: SaveAs | null) => void
+  reload: () => Promise<void>
 }): React.JSX.Element {
   let inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -478,6 +479,8 @@ function SaveAsComponent(args: {
       newName: newName
     })
     args.setSaveAsState(null)
+
+    PromiseCatchReportError(args.reload)
   }, [args])
 
   return (
