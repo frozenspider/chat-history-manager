@@ -89,6 +89,7 @@ function AskForTextDialog(args: {
 }) {
   let inputRef = React.useRef<HTMLInputElement>(null)
 
+  // TODO: Unify with input_overlay.tsx
   return <>
     <DialogHeader>
       <DialogTitle>Input needed</DialogTitle>

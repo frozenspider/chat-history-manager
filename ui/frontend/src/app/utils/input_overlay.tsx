@@ -1,5 +1,5 @@
 import React from "react";
-import { Assert } from "@/app/utils/utils";
+import { Assert, AssertUnreachable } from "@/app/utils/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,15 +12,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 
+type InputType = "text" | "integer"
 type ErrorMessage = string
 
-export function TextInputOverlay<S>(args: {
-  title: string,
-  description: string,
+export function InputOverlay<S>(args: {
+  config: {
+    title: string,
+    description: string,
+    inputType: InputType,
+    okButtonLabel: string
+    canBeCancelled: boolean
+    mutates: boolean
+  }
   state: S | null
   stateToInitialValue: (s: S) => string
   setState: (s: S | null) => void
-  okButtonLabel: string
   onOkClick: (newValue: string, oldState: S) => ErrorMessage | null
 }): React.JSX.Element {
   let [errorMessage, setErrorMessage] =
@@ -45,19 +51,31 @@ export function TextInputOverlay<S>(args: {
     <AlertDialog open={!!args.state}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{args.title}</AlertDialogTitle>
+          <AlertDialogTitle>{args.config.title}</AlertDialogTitle>
           <AlertDialogDescription>
             {errorMessage ? <p className="text-red-600">{errorMessage}</p> : ""}
-            <p>{args.description}</p>
-            <Input ref={inputRef}
-                   type="text"
-                   placeholder={args.state ? args.stateToInitialValue(args.state) : ""}
-                   defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}/>
+            <p>{args.config.description}</p>
+            {(() => {
+              switch (args.config.inputType) {
+                case "text":
+                  return <Input ref={inputRef}
+                                type="text"
+                                placeholder={args.state ? args.stateToInitialValue(args.state) : ""}
+                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}/>
+                case "integer":
+                  return <Input ref={inputRef}
+                                type="number"
+                                placeholder={args.state ? args.stateToInitialValue(args.state) : ""}
+                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}/>
+                default:
+                  AssertUnreachable(args.config.inputType)
+              }
+            })()}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => args.setState(null)}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onOkClick}>{args.okButtonLabel}</AlertDialogAction>
+          <AlertDialogAction type="submit" onClick={onOkClick}>{args.config.okButtonLabel}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

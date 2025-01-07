@@ -42,7 +42,7 @@ import UserInputRequsterComponent, { UserInputRequestState } from "@/app/utils/u
 import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
-import { TextInputOverlay } from "@/app/utils/text_input_overlay";
+import { InputOverlay } from "@/app/utils/input_overlay";
 
 
 const USE_TEST_DATA = false;
@@ -63,6 +63,7 @@ export default function Home() {
     React.useState<NavigationCallbacks | null>(null)
 
   let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
+  let [shiftDatasetTimeState, setShiftDatasetTimeState] = React.useState<ShiftDatasetTimeState | null>(null)
   let [saveAsState, setSaveAsState] = React.useState<SaveAsState | null>(null)
   let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
@@ -155,11 +156,17 @@ export default function Home() {
                   <ChatList fileState={currentFileState}
                             setChatState={setCurrentChatState}
                             callbacks={{
-                              onRenameDataset: (dsState) => {
+                              onRenameDatasetClick: (dsState) => {
                                 setRenameDatasetState({
                                   key: dsState.fileKey,
                                   dsUuid: dsState.ds.uuid!,
                                   oldName: dsState.ds.alias
+                                })
+                              },
+                              onShiftDatasetTimeClick: (dsState) => {
+                                setShiftDatasetTimeState({
+                                  key: dsState.fileKey,
+                                  dsUuid: dsState.ds.uuid!,
                                 })
                               },
                               onDeleteChat: (cc, dsState) => {
@@ -211,6 +218,10 @@ export default function Home() {
                               setOpenFiles={setOpenFiles}
                               currentFileState={currentFileState}
                               setCurrentFileState={setCurrentFileState}/>
+      <ShiftDatasetTimeComponent shiftDatasetTimeState={shiftDatasetTimeState}
+                                 setShiftDatasetTimeState={setShiftDatasetTimeState}
+                                 clearCurrentChatState={() => setCurrentChatState(null)}
+                                 reload={loadExisting}/>
       <SaveAsComponent saveAsState={saveAsState}
                        setSaveAsState={setSaveAsState}
                        reload={loadExisting}/>
@@ -219,16 +230,20 @@ export default function Home() {
   )
 }
 
-interface SaveAsState {
-  key: string,
-  oldName: string
-}
-
 interface RenameDatasetState {
   key: string,
   dsUuid: PbUuid,
   oldName: string
 }
+interface ShiftDatasetTimeState {
+  key: string,
+  dsUuid: PbUuid
+}
+interface SaveAsState {
+  key: string,
+  oldName: string
+}
+
 
 async function LoadExistingData(
   services: GrpcServices,
@@ -527,19 +542,79 @@ function RenameDatasetComponent(args: {
 
         PromiseCatchReportError(asyncInner()
           .finally(() => emit("busy", false)))
-
         return null
       },
       [args])
 
   return (
-    <TextInputOverlay title="Rename Dataset"
-                      description="Pick a new dataset name"
-                      state={args.renameDatasetState}
-                      stateToInitialValue={s => s.oldName}
-                      setState={args.setRenameDatasetState}
-                      okButtonLabel="Rename"
-                      onOkClick={onRenameClick}/>
+    <InputOverlay
+      config={{
+        title: "Rename Dataset",
+        description: "Pick a new dataset name",
+        inputType: "text",
+        okButtonLabel: "Rename",
+        canBeCancelled: true,
+        mutates: true
+      }}
+      state={args.renameDatasetState}
+      stateToInitialValue={s => s.oldName}
+      setState={args.setRenameDatasetState}
+      onOkClick={onRenameClick}/>
+  )
+}
+
+function ShiftDatasetTimeComponent(args: {
+  shiftDatasetTimeState: ShiftDatasetTimeState | null,
+  setShiftDatasetTimeState: (s: ShiftDatasetTimeState | null) => void,
+  clearCurrentChatState: () => void,
+  reload: () => Promise<void>,
+}) {
+  let services = GetServices()
+  let chatStateCache = React.useContext(ChatStateCacheContext)!
+
+  let onShiftClick =
+    React.useCallback<(newValue: string, oldState: ShiftDatasetTimeState) => string | null>(
+      (newValueString, oldState) => {
+        if (!/^-?\d*$/.test(newValueString)) {
+          return "Provide an integer"
+        }
+
+        let newValue = parseInt(newValueString)
+        if (newValueString == "" || newValue == 0) {
+          return null
+        }
+
+        let asyncInner = async () => {
+          await emit("busy", true)
+
+          await services.daoClient.backup({ key: oldState.key })
+          await services.daoClient.shiftDatasetTime({ key: oldState.key, uuid: oldState.dsUuid, hoursShift: newValue })
+
+          args.clearCurrentChatState()
+          chatStateCache.Clear(oldState.key, oldState.dsUuid.value)
+          await args.reload()
+        }
+
+        PromiseCatchReportError(asyncInner()
+          .finally(() => emit("busy", false)))
+        return null
+      },
+      [args])
+
+  return (
+    <InputOverlay
+      config={{
+        title: "Shift Time",
+        description: "Choose an hours difference",
+        inputType: "integer",
+        okButtonLabel: "Shift",
+        canBeCancelled: true,
+        mutates: true
+      }}
+      state={args.shiftDatasetTimeState}
+      stateToInitialValue={_s => "0"}
+      setState={args.setShiftDatasetTimeState}
+      onOkClick={onShiftClick}/>
   )
 }
 
@@ -566,12 +641,18 @@ function SaveAsComponent(args: {
       [args])
 
   return (
-    <TextInputOverlay title="Save As"
-                      description="Pick a new file name"
-                      state={args.saveAsState}
-                      stateToInitialValue={s => s.oldName}
-                      setState={args.setSaveAsState}
-                      okButtonLabel="Save"
-                      onOkClick={onSaveClick}/>
+    <InputOverlay
+      config={{
+        title: "Save As",
+        description: "Pick a new file name",
+        inputType: "text",
+        okButtonLabel: "Save",
+        canBeCancelled: true,
+        mutates: false
+      }}
+      state={args.saveAsState}
+      stateToInitialValue={s => s.oldName}
+      setState={args.setSaveAsState}
+      onOkClick={onSaveClick}/>
   )
 }
