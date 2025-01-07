@@ -334,6 +334,7 @@ function DeleteChat(
     let removedChatIds = new Set(cc.cwds.map(cwd => cwd.chat!.id))
     let dsUuid = dsState.ds.uuid!
 
+    await services.daoClient.backup({ key: dsState.fileKey, })
     for (let cwd of cc.cwds) {
       await services.daoClient.deleteChat({
         key: dsState.fileKey,
@@ -382,6 +383,7 @@ function SetSecondaryChat(
 
     let chat = cc.mainCwd.chat!
     let masterChat = EnsureDefined(dsState.cwds.find(cwd => cwd.chat!.id === newMainId)).chat!
+    await services.daoClient.backup({ key: dsState.fileKey, })
     await services.daoClient.combineChats({ key: dsState.fileKey, masterChat, slaveChat: chat })
     await reload(dsState.fileKey, dsState.ds.uuid!)
   }
