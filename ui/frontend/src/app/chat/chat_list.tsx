@@ -3,7 +3,7 @@
 import React from "react";
 
 import ChatComponent from "@/app/chat/chat";
-import { AssertDefined, GetNonDefaultOrNull } from "@/app/utils/utils";
+import { AssertDefined, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import {
   ContextMenu,
@@ -15,6 +15,7 @@ import {
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { ask } from "@tauri-apps/plugin-dialog";
 
 
 export default function ChatList(args: {
@@ -23,10 +24,11 @@ export default function ChatList(args: {
   callbacks: {
     onRenameDatasetClick: (dsState: DatasetState) => void,
     onShiftDatasetTimeClick: (dsState: DatasetState) => void,
-    onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
+    onDeleteDataset: (dsState: DatasetState) => void,
     onSetSecondary: (cc: CombinedChat, dsState: DatasetState, newMainId: bigint) => void,
     onCompareWith: (cwd: ChatWithDetailsPB, otherChatId: bigint, dsState: DatasetState) => void,
-    onExportAsHtml: (cc: CombinedChat, dsState: DatasetState) => void
+    onExportAsHtml: (cc: CombinedChat, dsState: DatasetState) => void,
+    onDeleteChat: (cc: CombinedChat, dsState: DatasetState) => void
   }
 }): React.JSX.Element {
   let chatStateCache = React.useContext(ChatStateCacheContext)!
@@ -92,8 +94,9 @@ export default function ChatList(args: {
                 Shift Time
               </ContextMenuItem>
               <ContextMenuSeparator/>
-              <ContextMenuItem className="text-red-600">
-                Delete [NYI]
+              <ContextMenuItem className="text-red-600"
+                               onClick={() => OnDeleteDatasetClick(dsState, args.callbacks.onDeleteDataset)}>
+                Delete
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>,
@@ -125,3 +128,21 @@ function LoadChat(
     () => new ChatState(cc, dsState))
   setChatState(cvState)
 }
+
+function OnDeleteDatasetClick(
+  dsState: DatasetState,
+  deleteDatasetCallback: (dsState: DatasetState) => void
+): void {
+  let name = dsState.ds.alias
+  PromiseCatchReportError(async () => {
+    const agreed = await ask(`Are you sure you want to delete a dataset '${name}'?`, {
+      title: 'Delete Dataset',
+      kind: 'warning',
+    });
+
+    if (agreed) {
+      deleteDatasetCallback(dsState)
+    }
+  })
+}
+

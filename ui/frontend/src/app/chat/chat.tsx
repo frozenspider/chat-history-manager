@@ -5,6 +5,7 @@ import {
   AssertUnreachable,
   EnsureDefined,
   GetNonDefaultOrNull,
+  PromiseCatchReportError,
   SerializeJson,
   SpawnPopup,
   Unreachable
@@ -267,8 +268,7 @@ function ShowSelectChatToCompareWithPopup(
 
 function DeleteClicked(cc: CombinedChat, deleteChatCallback: () => void) {
   let name = GetChatPrettyName(cc.mainCwd.chat!)
-
-  let inner = async () => {
+  PromiseCatchReportError(async () => {
     const agreed = await ask(`Are you sure you want to delete a chat '${name}'?`, {
       title: 'Delete Chat',
       kind: 'warning',
@@ -277,6 +277,5 @@ function DeleteClicked(cc: CombinedChat, deleteChatCallback: () => void) {
     if (agreed) {
       deleteChatCallback()
     }
-  }
-  inner()
+  })
 }

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { emit } from "@tauri-apps/api/event";
-import { save } from "@tauri-apps/plugin-dialog";
+import { message, save } from "@tauri-apps/plugin-dialog";
 
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
@@ -169,8 +169,8 @@ export default function Home() {
                                   dsUuid: dsState.ds.uuid!,
                                 })
                               },
-                              onDeleteChat: (cc, dsState) => {
-                                DeleteChat(cc, dsState, services, chatStateCache, openFiles,
+                              onDeleteDataset: (dsState) => {
+                                DeleteDataset(dsState, services, chatStateCache, openFiles,
                                   setOpenFiles, setCurrentFileState, setCurrentChatState)
                               },
                               onSetSecondary: (cc, dsState, newMainId) => {
@@ -181,7 +181,11 @@ export default function Home() {
                               },
                               onExportAsHtml: (cc, dsState) => {
                                 ExportChatAsHtml(cc, dsState, services)
-                              }
+                              },
+                              onDeleteChat: (cc, dsState) => {
+                                DeleteChat(cc, dsState, services, chatStateCache, openFiles,
+                                  setOpenFiles, setCurrentFileState, setCurrentChatState)
+                              },
                             }}/> :
                   <LoadSpinner center={true} text="Loading..."/>}
 
@@ -616,6 +620,58 @@ function ShiftDatasetTimeComponent(args: {
       setState={args.setShiftDatasetTimeState}
       onOkClick={onShiftClick}/>
   )
+}
+
+function DeleteDataset(
+  dsState: DatasetState,
+  services: GrpcServices,
+  chatStateCache: ChatStateCache,
+  openFiles: LoadedFileState[],
+  setOpenFiles: (openFiles: LoadedFileState[]) => void,
+  setCurrentFileState: (change: (v: LoadedFileState | null) => (LoadedFileState | null)) => void,
+  setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    let oldOpenFile = EnsureDefined(openFiles.find(f => f.key == dsState.fileKey), "File not found")
+    if (oldOpenFile.datasets.length == 1) {
+      await message("Cannot delete the last dataset in a file", { title: "Error", kind: "error" })
+      return
+    }
+
+    let dsUuid = dsState.ds.uuid!
+    chatStateCache.Clear(dsState.fileKey, dsUuid.value)
+
+    await services.daoClient.backup({ key: dsState.fileKey, })
+    await services.daoClient.deleteDataset({
+      key: dsState.fileKey,
+      uuid: dsUuid
+    })
+
+    let newOpenFile: LoadedFileState = {
+      ...oldOpenFile,
+      datasets: oldOpenFile.datasets.filter(ds => ds.ds.uuid!.value != dsUuid.value)
+    }
+    let newOpenFiles = openFiles.map(f => f.key == newOpenFile.key ? newOpenFile : f)
+
+    setCurrentChatState(chatState => {
+      // If the deleted chat is selected, deselect it
+      if (
+        chatState?.dsState.fileKey == dsState.fileKey &&
+        chatState.dsState.ds.uuid!.value == dsUuid.value
+      ) {
+        return null
+      }
+      return chatState
+    })
+
+    setCurrentFileState(currentFile => currentFile?.key == newOpenFile.key ? newOpenFile : currentFile)
+    setOpenFiles(newOpenFiles)
+  }
+
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
 }
 
 function SaveAsComponent(args: {
