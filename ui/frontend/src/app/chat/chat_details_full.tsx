@@ -9,8 +9,8 @@ import {
   IdToReadable
 } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
-import TauriImage from "@/app/utils/tauri_image";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
+import TauriImage from "@/app/chat/general/tauri_image";
 
 export default function ChatFullDetailsComponent(args: {
   cc: CombinedChat,

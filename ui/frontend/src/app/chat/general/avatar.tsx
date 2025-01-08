@@ -1,7 +1,7 @@
 import React from "react";
 
 import { DatasetState } from "@/app/utils/state";
-import TauriImage from "@/app/utils/tauri_image";
+import TauriImage from "@/app/chat/general/tauri_image";
 
 export function Avatar(args: {
   relativePath: string | null,

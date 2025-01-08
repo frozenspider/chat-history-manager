@@ -17,7 +17,7 @@ import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 
 import { DatasetState, PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
-import LoadSpinner from "@/app/utils/load_spinner";
+import LoadSpinner from "@/app/chat/general/load_spinner";
 import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";

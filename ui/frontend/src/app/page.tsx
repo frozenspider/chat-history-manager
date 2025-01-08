@@ -4,11 +4,6 @@ import React from "react";
 import { emit } from "@tauri-apps/api/event";
 import { message, save } from "@tauri-apps/plugin-dialog";
 
-import NavigationBar from "@/app/navigation_bar";
-import ChatList from "@/app/chat/chat_list";
-import MessagesList from "@/app/message/message_list";
-import LoadSpinner from "@/app/utils/load_spinner";
-
 import {
   Assert,
   EnsureDefined,
@@ -32,17 +27,22 @@ import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
 
+import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
+import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import camelcaseKeysDeep from "camelcase-keys-deep";
+
+import NavigationBar from "@/app/navigation_bar";
+import ChatList from "@/app/chat/chat_list";
+import MessagesList from "@/app/message/message_list";
+import LoadSpinner from "@/app/chat/general/load_spinner";
+import UserInputRequsterComponent, { UserInputRequestState } from "@/app/chat/general/user_input_requester";
+import { InputOverlay } from "@/app/chat/general/input_overlay";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
-import { ExportChatHtml } from "@/app/utils/export_as_html";
-import UserInputRequsterComponent, { UserInputRequestState } from "@/app/utils/user_input_requester";
 
-import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
-import camelcaseKeysDeep from "camelcase-keys-deep";
-import { InputOverlay } from "@/app/utils/input_overlay";
+import { ExportChatHtml } from "@/app/chat/general/export_as_html";
 
 
 const USE_TEST_DATA = false;

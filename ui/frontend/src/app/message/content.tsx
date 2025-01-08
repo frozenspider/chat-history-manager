@@ -20,8 +20,8 @@ import {
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
 import { GetUserPrettyName, NameColorClassFromPrettyName, Unnamed } from "@/app/utils/entity_utils";
-import AudioComponent from "@/app/utils/audio_component";
-import TauriImage from "@/app/utils/tauri_image";
+import TauriImage from "@/app/chat/general/tauri_image";
+import AudioComponent from "@/app/message/audio_component";
 
 import SystemMessage from "@/app/message/system_message";
 import ColoredName from "@/app/message/colored_name";

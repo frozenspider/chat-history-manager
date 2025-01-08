@@ -18,7 +18,7 @@ import {
 import { GetServices, ServicesContext } from "@/app/utils/state";
 import { ChatState } from "@/app/utils/chat_state";
 
-import LoadSpinner from "@/app/utils/load_spinner";
+import LoadSpinner from "@/app/chat/general/load_spinner";
 import MessageContent, { MessageContentPhoto } from "@/app/message/content";
 
 import {
