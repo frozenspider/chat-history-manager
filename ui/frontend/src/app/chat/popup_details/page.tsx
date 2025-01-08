@@ -2,9 +2,7 @@
 
 import React from "react";
 
-import { emit } from "@tauri-apps/api/event";
-
-import { EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { EmitToSelf, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { DatasetState, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 
@@ -20,7 +18,7 @@ export default function Home() {
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
-    Listen<string>(SetPopupStateEventName, (ev) => {
+    let unlisten = Listen<string>(SetPopupStateEventName, (ev) => {
       let json = ev.payload
       let [ccObj, dsStateObj] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
@@ -30,7 +28,11 @@ export default function Home() {
       setDatasetState(dsState)
     })
 
-    PromiseCatchReportError(emit(PopupReadyEventName));
+    PromiseCatchReportError(EmitToSelf(PopupReadyEventName));
+
+    return () => PromiseCatchReportError(async () => {
+      return (await unlisten)()
+    })
   })
 
   if (!combinedChat || !datasetState) {

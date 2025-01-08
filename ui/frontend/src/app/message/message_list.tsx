@@ -7,9 +7,15 @@ import { Chat } from "@/protobuf/core/protobuf/entities";
 
 import { MessageComponent } from "@/app/message/message";
 
-import { emit } from "@tauri-apps/api/event";
-import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
-import { NavigationCallbacks, ServicesContext, GrpcServices, GetServices } from "@/app/utils/state";
+import {
+  Assert,
+  AssertDefined,
+  EmitToSelf,
+  ForAll,
+  GetNonDefaultOrNull,
+  PromiseCatchReportError
+} from "@/app/utils/utils";
+import { NavigationCallbacks, GrpcServices, GetServices } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import LoadSpinner from "@/app/general/load_spinner";
@@ -123,7 +129,7 @@ export default function MessagesList(args: {
 
           args.setChatState(intermittentChatState)
 
-          await emit(PreloadEverythingEventName, { error: null })
+          await EmitToSelf(PreloadEverythingEventName, { error: null })
         })
       }
     }
@@ -245,7 +251,7 @@ async function TryFetchMoreMessages(
       }
     })
     .catch((e) => {
-      emit(PreloadEverythingEventName, { error: e })
+      EmitToSelf(PreloadEverythingEventName, { error: e })
       throw e
     })
     .finally(() => {

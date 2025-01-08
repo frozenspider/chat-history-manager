@@ -1,7 +1,6 @@
 'use client'
 
 import React from "react";
-import { emit } from "@tauri-apps/api/event";
 
 import Diff, { AbbreviatedArray, DiffData, DiffUnits } from "@/app/diff/diff";
 import {
@@ -13,7 +12,14 @@ import {
   SetPopupStateEventName
 } from "@/app/utils/state";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
-import { Assert, AssertUnreachable, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import {
+  Assert,
+  AssertUnreachable,
+  EmitToSelf,
+  EnsureDefined,
+  Listen,
+  PromiseCatchReportError
+} from "@/app/utils/utils";
 import { CombinedChat } from "@/app/utils/entity_utils";
 
 import { Chat, Message } from "@/protobuf/core/protobuf/entities";
@@ -49,7 +55,7 @@ export default function Home() {
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
-    PromiseCatchReportError(Listen<string>(SetPopupStateEventName, (ev) => {
+    let unlisten = Listen<string>(SetPopupStateEventName, (ev) => {
       let json = ev.payload
       let [[cwdLeftObj, cwdRightObj], [dsStateLeftObj, dsStateRightObj], analysisObj] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
@@ -59,9 +65,13 @@ export default function Home() {
       let dsStateRight = DatasetState.fromJSON(dsStateRightObj)
       let analysis = ChatAnalysis.fromJSON(EnsureDefined(analysisObj))
       PromiseCatchReportError(MakeModel(analysis, [chatLeft, chatRight], [dsStateLeft, dsStateRight], services, setLoadInProgressText, setModel))
-    }))
+    })
 
-    PromiseCatchReportError(emit(PopupReadyEventName));
+    PromiseCatchReportError(EmitToSelf(PopupReadyEventName));
+
+    return () => PromiseCatchReportError(async () => {
+      return (await unlisten)()
+    })
   }, [setLoadInProgressText, setModel])
 
   if (loadInProgressText) {
@@ -167,10 +177,3 @@ async function MakeModel(
   setModel(model)
   setLoadInProgressText(null)
 }
-
-export type SampleMessage = {
-  id: string;
-  content: string;
-  timestamp: number;
-  author: string;
-};

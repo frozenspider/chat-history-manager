@@ -17,7 +17,7 @@ export default function ListEntities<T>(args: {
     text: string
     action: (e: T) => void
   } | null
-  render: (idx: number, e: T, isSelected: boolean, onClick: () => void) => React.ReactNode
+  render: (es: [number, T][], isSelected: (idx: number) => boolean, onClick: (idx: number, e: T) => void) => React.ReactNode
 }) {
   let [searchTerm, setSearchTerm] =
     React.useState("")
@@ -61,12 +61,11 @@ export default function ListEntities<T>(args: {
              onChange={(e) => setSearchTerm(e.target.value)}
              className="mb-4"/>
 
-      <ScrollArea className="flex-grow h-[calc(100vh-200px)] border rounded-md">
-        <div className="p-1">
-          {filtered.map(([idx, e]) =>
-            args.render(idx, e, selected != null && idx == selected[0], () => handleSelect(idx, e)))}
-        </div>
-      </ScrollArea>
+      {args.render(
+        filtered,
+        (idx) => selected != null && idx == selected[0],
+        handleSelect
+      )}
 
       {args.selectButton &&
           <Button variant={args.isDangerous ? "destructive" : "default"}

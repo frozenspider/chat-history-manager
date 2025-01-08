@@ -15,6 +15,7 @@ import {
 import { EventName } from "@tauri-apps/api/event";
 import { FileKey } from "@/app/utils/entity_utils";
 import { createChannel, createClient } from "nice-grpc-web";
+import { EnsureDefined } from "@/app/utils/utils";
 
 
 /** An event popup sends to itself after it's ready, intended to be caught by the creator. */
@@ -70,6 +71,16 @@ export interface LoadedFileState {
   key: FileKey
   name: string
   datasets: DatasetState[]
+}
+
+export const LoadedFileState = {
+  fromJSON: (obj: any): LoadedFileState => {
+    return {
+      key: EnsureDefined(obj.key),
+      name: EnsureDefined(obj.name),
+      datasets: EnsureDefined(obj.datasets).map(DatasetState.fromJSON),
+    }
+  }
 }
 
 export interface DatasetState {

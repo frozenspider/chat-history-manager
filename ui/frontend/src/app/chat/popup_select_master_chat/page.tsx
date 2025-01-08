@@ -2,8 +2,7 @@
 
 import React from "react";
 
-import { emit } from "@tauri-apps/api/event";
-import { Asc, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { Asc, EmitToSelf, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   ChatSourceTypeToString,
   ChatTypeToString,
@@ -21,6 +20,7 @@ import LoadSpinner from "@/app/general/load_spinner";
 import ListEntities from "@/app/general/list_entities";
 import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Home() {
   let [combinedChat, setCombinedChat] =
@@ -40,7 +40,7 @@ export default function Home() {
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
-    PromiseCatchReportError(Listen<string>(SetPopupStateEventName, (ev) => {
+    let unlisten = Listen<string>(SetPopupStateEventName, (ev) => {
       let json = ev.payload
       let [ccObj, dsStateObj, alertTextStr, personalOnly, isDestructive] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
@@ -51,9 +51,13 @@ export default function Home() {
       setAlertText(EnsureDefined(alertTextStr))
       setShowPersonalChatsOnly(EnsureDefined(personalOnly))
       setIsDestructive(EnsureDefined(isDestructive))
-    }))
+    })
 
-    PromiseCatchReportError(emit(PopupReadyEventName));
+    PromiseCatchReportError(EmitToSelf(PopupReadyEventName));
+
+    return () => PromiseCatchReportError(async () => {
+      return (await unlisten)()
+    })
   })
 
   const filter = React.useCallback((cwd: ChatWithDetailsPB, searchTerm: string) => {
@@ -112,17 +116,22 @@ export default function Home() {
         text: "Confirm",
         action: (cwd: ChatWithDetailsPB) => {
           PromiseCatchReportError(async () => {
-            await emit(PopupConfirmedEventName, cwd.chat!.id)
+            await EmitToSelf(PopupConfirmedEventName, cwd.chat!.id)
             await getCurrentWindow().close()
           })
         }
       }}
-      render={function (idx: number, cwd: ChatWithDetailsPB, isSelected: boolean, onClick: () => void): React.ReactNode {
-        return <ChatShortDetailsComponent key={`cwd${idx}`}
-                                          cwd={cwd}
-                                          dsState={datasetState!}
-                                          isSelected={isSelected}
-                                          onClick={onClick}/>
-      }}/>
+      render={(idxCwds, isSelected, onClick) => (
+        <ScrollArea className="flex-grow h-[calc(100vh-200px)] border rounded-md">
+          <div className="p-1">
+            {idxCwds.map(([idx, cwd]) =>
+              <ChatShortDetailsComponent key={`cwd${idx}`}
+                                         cwd={cwd}
+                                         dsState={datasetState!}
+                                         isSelected={isSelected(idx)}
+                                         onClick={() => onClick(idx, cwd)}/>)}
+          </div>
+        </ScrollArea>
+      )}/>
   </>
 }

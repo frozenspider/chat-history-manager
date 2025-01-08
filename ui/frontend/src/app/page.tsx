@@ -1,7 +1,7 @@
 'use client'
 
 import React from "react";
-import { emit } from "@tauri-apps/api/event";
+import { emit, emitTo } from "@tauri-apps/api/event";
 import { message, save } from "@tauri-apps/plugin-dialog";
 
 import {
@@ -21,7 +21,9 @@ import {
   ServicesContext,
   GetServices,
   GrpcServices,
+  SetPopupStateEventName,
 } from "@/app/utils/state";
+import { UserUpdatedEventName } from "@/app/user/manage_users";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
@@ -65,6 +67,7 @@ export default function Home() {
   let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
   let [shiftDatasetTimeState, setShiftDatasetTimeState] = React.useState<ShiftDatasetTimeState | null>(null)
   let [saveAsState, setSaveAsState] = React.useState<SaveAsState | null>(null)
+  let [manageUsersState, setManageUsersState] = React.useState<boolean>(false)
   let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
 
@@ -90,38 +93,58 @@ export default function Home() {
 
   // This cannot be called during prerender as it relies on window object
   React.useEffect(() => {
-    if (!firstLoadCalled) {
-      // Even names here are hardcoded on the backend
-      PromiseCatchReportError(async () => {
-        await Listen("open-files-changed", () => {
-          setLoaded(false)
-          PromiseCatchReportError(loadExisting()
-            .then(() => setLoaded(true)))
-        })
-        await Listen<[string, string]>("save-as-clicked", (ev) => {
-          let [key, oldName] = ev.payload
-          setSaveAsState({ key: key, oldName: oldName })
-        })
-        await Listen<string | null>("busy", (ev) => {
-          setBusyState(ev.payload)
-        })
-        await Listen<Array<object>>("choose-myself", (ev) => {
-          let snakeCaseUsers = ev.payload
-          let users = snakeCaseUsers.map(camelcaseKeysDeep).map(User.fromJSON)
-          setUserInputRequestState({ $case: "choose_myself", users })
-        })
-        await Listen<string>("ask-for-text", (ev) => {
-          let prompt = ev.payload
-          setUserInputRequestState({ $case: "ask_for_text", prompt })
-        })
+    // Even names here are hardcoded on the backend
+    let unlistenPromises = [
+      Listen("open-files-changed", () => {
+        setLoaded(false)
+        PromiseCatchReportError(loadExisting()
+          .then(() => setLoaded(true)))
+      }),
+      Listen<[string, string]>("save-as-clicked", (ev) => {
+        let [key, oldName] = ev.payload
+        setSaveAsState({ key: key, oldName: oldName })
+      }),
+      Listen<void>("users-clicked", (_ev) => {
+        setManageUsersState(true)
+      }),
+      Listen<string | null>("busy", (ev) => {
+        setBusyState(ev.payload)
+      }),
+      Listen<Array<object>>("choose-myself", (ev) => {
+        let snakeCaseUsers = ev.payload
+        let users = snakeCaseUsers.map(camelcaseKeysDeep).map(User.fromJSON)
+        setUserInputRequestState({ $case: "choose_myself", users })
+      }),
+      Listen<string>("ask-for-text", (ev) => {
+        let prompt = ev.payload
+        setUserInputRequestState({ $case: "ask_for_text", prompt })
       })
+    ]
 
+    if (!firstLoadCalled) {
       PromiseCatchReportError(loadExisting()
         .then(() => setLoaded(true)))
 
       firstLoadCalled = true
     }
+
+    return () => PromiseCatchReportError(async () => {
+      await Promise.all(unlistenPromises.map(p => p.then(f => f())))
+    })
   }, [services])
+
+  if (manageUsersState) {
+    ShowManageUsersPopup(services, openFiles, () => {
+      PromiseCatchReportError(async () => {
+        // Do not bother with fine-grained reload here, just reload everything
+        setCurrentChatState(null)
+        setCurrentFileState(null)
+        setOpenFiles([])
+        await loadExisting()
+      })
+    })
+    setManageUsersState(false)
+  }
 
   let tabs = openFiles.length > 1 ? (
     <Tabs defaultValue={currentFileState?.key}
@@ -319,6 +342,52 @@ async function LoadExistingData(
   })
 }
 
+function ShowManageUsersPopup(
+  services: GrpcServices,
+  openFiles: LoadedFileState[],
+  reload: () => void,
+) {
+  PromiseCatchReportError(async () => {
+    const serializeState = (openFiles: LoadedFileState[]) => {
+      // Cannot pass the payload directly because of BigInt not being serializable by default
+      return SerializeJson(openFiles)
+    }
+
+    let label = "manage-users-window";
+    SpawnPopup<string>(label, "Users", "/user/popup_manage_users", 600, screen.availHeight - 100, {
+      setState: () => serializeState(openFiles),
+      listeners: [
+        // User updated
+        // ============
+        // New user should have the same ID as before
+        [UserUpdatedEventName, async (ev) => {
+          PromiseCatchReportError(async () => {
+            let [newUserObj, dsStateObj] = JSON.parse(ev.payload)
+            let newUser = User.fromJSON(newUserObj)
+            let oldDsState = DatasetState.fromJSON(dsStateObj)
+
+            let [_newDsState, _newOpenFile, newOpenFiles] =
+              ChangeDataset(openFiles, oldDsState.fileKey, oldDsState!.ds!.uuid!, dsState => {
+                let newUsers = new Map(dsState.users)
+                newUsers.set(newUser.id, newUser)
+                return { ...dsState, users: newUsers }
+              })
+
+            await services.daoClient.backup({ key: oldDsState.fileKey })
+            await services.daoClient.updateUser({
+              key: oldDsState.fileKey,
+              user: newUser
+            })
+
+            await emitTo(label, SetPopupStateEventName, serializeState(newOpenFiles))
+            reload()
+          })
+        }]
+      ]
+    })
+  })
+}
+
 function ChangeDataset(
   openFiles: LoadedFileState[],
   fileKey: string,
@@ -462,7 +531,7 @@ function ShowCompareChatsPopup(
 
     await new Promise(r => setTimeout(r, 2000));
 
-    const setStatePromise = async () => {
+    const serializeState = () => {
       // Cannot pass the payload directly because of BigInt not being serializable by default
       return SerializeJson([[masterChat, slaveChat], [dsState, dsState], analysis])
     }
@@ -470,9 +539,7 @@ function ShowCompareChatsPopup(
       screen.availWidth - 100,
       screen.availHeight - 100,
       {
-        x: 50,
-        y: 50,
-        setState: setStatePromise()
+        setState: serializeState
       })
   }
 

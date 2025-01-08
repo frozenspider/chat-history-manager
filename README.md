@@ -11,6 +11,7 @@ Architecture is extensible, allowing more formats to easily be integrated in the
 
 Some general notes:
 - UI functionality is currently very limited.
+  - Port cannot be changed from 50051
   - As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
 written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
 - Most of these history formats are reverse engineered, so:

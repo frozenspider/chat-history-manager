@@ -57,6 +57,9 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
             }
             #[cfg(feature = "ui-core")]
             {
+                if port != DEFAULT_SERVER_PORT {
+                    bail!("Port must be {} when running the UI", DEFAULT_SERVER_PORT);
+                }
                 let handle = Handle::current();
                 // Start a server if not already running
                 spawn_server(&handle, "Server", port, async move {

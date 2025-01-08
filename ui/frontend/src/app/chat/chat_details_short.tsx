@@ -7,13 +7,15 @@ import {
   GetChatInterlocutor,
   GetChatPrettyName,
   GetUserPrettyName,
-  IdToReadable
+  IdToReadable,
+  NameColorClassFromNumber
 } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 
 import { ChatAvatar } from "@/app/chat/chat_avatar";
+import ColoredName from "@/app/message/colored_name";
 import { Badge } from "@/components/ui/badge";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
@@ -26,6 +28,7 @@ export default function ChatShortDetailsComponent(args: {
   const chat = args.cwd.chat!
   const name = GetChatPrettyName(chat)
   const singleChatCc = new CombinedChat(args.cwd, [])
+  const colorClass = NameColorClassFromNumber(chat.id).text
 
   let interlocutor = GetChatInterlocutor(args.cwd)
 
@@ -46,7 +49,8 @@ export default function ChatShortDetailsComponent(args: {
       <div className="flex-grow">
         <div className="flex items-center justify-between">
           <p className="font-medium">
-            {name}
+            <ColoredName name={name} colorClass={colorClass}
+                         addedClasses="line-clamp-1 break-all"/>
             {interlocutor?.usernameOption && <span className="ml-3 text-sm text-gray-500">@{interlocutor.usernameOption}</span>}
           </p>
           <Badge variant="outline" className="ml-2">

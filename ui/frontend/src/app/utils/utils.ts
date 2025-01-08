@@ -1,10 +1,14 @@
 'use client'
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
-import { listen, EventCallback, UnlistenFn, Event, EventName } from "@tauri-apps/api/event";
+import { listen, EventCallback, UnlistenFn, Event, EventName, emitTo } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ClientError } from "nice-grpc-common";
 import { PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+
+export function Noop(): void {
+}
 
 export function Assert(cond: boolean, message?: string): asserts cond {
   if (!cond) throw new Error(message ?? "Assertion failed")
@@ -89,14 +93,24 @@ export async function InvokeTauriAsync<T>(
   }
 }
 
+/** Listens to events emitted to the current webview. */
+// WARNING: Make sure to Listen in useEffect, and unlisten in the cleanup function
 export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise<UnlistenFn> {
   if (IsTauriAvailable()) {
-    return listen<T>(event, cb)
+    return listen<T>(event, cb, { target: getCurrentWebview().label })
   } else {
     console.warn("Listening to " + event + " but Tauri is not available")
-    return () => {
-      // NOOP
-    }
+    return Noop
+  }
+}
+
+/** Emit an event to the current webview. */
+export async function EmitToSelf<T>(event: EventName, payload?: unknown): Promise<void> {
+  if (IsTauriAvailable()) {
+    return emitTo(getCurrentWebview().label, event, payload)
+  } else {
+    console.warn("Listening to " + event + " but Tauri is not available")
+    return Noop()
   }
 }
 
@@ -106,37 +120,54 @@ export function SpawnPopup<T>(
   pageUrl: string,
   w: number,
   h: number,
-  optional?: { x?: number, y?: number, setState?: Promise<T>, onConfirmed?: (ev: Event<T>) => void }
+  optional?: {
+    setState?: () => T,
+    onConfirmed?: (ev: Event<T>) => void,
+    // Cannot make this typesafe, let's assume everyone works with JSON
+    listeners?: [eventName: EventName, (ev: Event<string>) => Promise<void>][]
+  }
 ): void {
   if (!IsTauriAvailable()) {
     ReportError("Can't create a popup without Tauri!")
     return;
   }
 
+  // TODO: If spawning window is refreshed manually, popup is messed up.
+  //       Parent no longer listens to its events, and popup refuses to close - presumably because of
+  //       some error in onCloseRequested, but since the console is destroyed, I can't see what's happening.
+
   const webview = new WebviewWindow(windowLabel, {
     title,
     url: pageUrl,
     width: w,
     height: h,
-    x: optional?.x,
-    y: optional?.y
+    center: true
   });
 
+  let unlistenPromises: Promise<UnlistenFn>[] = []
+
   if (optional?.setState) {
-    PromiseCatchReportError(webview.once(PopupReadyEventName, () => PromiseCatchReportError(async () => {
-      const state = await optional.setState
-      await webview.emit(SetPopupStateEventName, state);
-    })))
+    unlistenPromises.push(webview.once(PopupReadyEventName, () => {
+      const state = optional.setState!()
+      PromiseCatchReportError(emitTo(webview.label, SetPopupStateEventName, state));
+    }))
   }
 
   if (optional?.onConfirmed) {
-    let unlistenOnConfirmed =
-      webview.once<T>(PopupConfirmedEventName, (ev) => optional.onConfirmed!(ev))
-
-    PromiseCatchReportError(webview.onCloseRequested(async (_ev) => {
-      (await unlistenOnConfirmed)();
-    }))
+    unlistenPromises.push(webview.once<T>(PopupConfirmedEventName, (ev) => optional.onConfirmed!(ev)))
   }
+
+  if (optional?.listeners) {
+    for (let [eventName, cb] of optional.listeners) {
+      unlistenPromises.push(webview.listen(eventName, cb))
+    }
+  }
+
+  unlistenPromises.push(webview.onCloseRequested((_ev) => {
+    PromiseCatchReportError(async () => {
+      await Promise.all(unlistenPromises.map(p => p.then(f => f())))
+    })
+  }))
 }
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */

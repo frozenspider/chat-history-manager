@@ -58,6 +58,7 @@ pub struct TauriHandlerWrapper {
 // These constans are duplicated in the JS part of the application
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
+static EVENT_USERS_CLICKED: &str = "users-clicked";
 static EVENT_BUSY: &str = "busy";
 
 static EVENT_CHOOSE_MYSELF: &str = "choose-myself";
@@ -250,7 +251,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSepar
     let edit_menu = Submenu::with_id_and_items(
         app_handle, MENU_ID_EDIT.clone(), "Edit", true,
         &[
-            &MenuItem::with_id(app_handle, MENU_ID_USERS.clone(), "Users [NYI]", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, MENU_ID_USERS.clone(), "Users", true, None::<&str>)?,
             &MenuItem::with_id(app_handle, MENU_ID_MERGE_DATASETS.clone(), "Merge Datasets [NYI]", true, None::<&str>)?,
             &MenuItem::with_id(app_handle, MENU_ID_COMPARE_DATASETS.clone(), "Compare Datasets [NYI]", true, None::<&str>)?,
         ])?;
@@ -279,6 +280,9 @@ async fn on_menu_event(
             let path = PathBuf::from(storage_path_response.path);
             let old_file_name = path_file_name(&path)?;
             app_handle.emit(EVENT_SAVE_AS_CLICKED, (key, old_file_name))?;
+        }
+        menu_id if menu_id == &*MENU_ID_USERS => {
+            app_handle.emit(EVENT_USERS_CLICKED, ())?;
         }
         _ => {}
     };
