@@ -12,7 +12,7 @@ import { Assert, AssertDefined, ForAll, GetNonDefaultOrNull, PromiseCatchReportE
 import { NavigationCallbacks, ServicesContext, GrpcServices, GetServices } from "@/app/utils/state";
 import { GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
-import LoadSpinner from "@/app/chat/general/load_spinner";
+import LoadSpinner from "@/app/general/load_spinner";
 
 
 /**

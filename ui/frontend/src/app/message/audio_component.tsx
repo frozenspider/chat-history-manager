@@ -6,8 +6,8 @@ import { Pause, Play } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
-import LazyContent, { LazyDataState } from "@/app/chat/general/lazy_content";
-import LoadSpinner from "@/app/chat/general/load_spinner";
+import LazyContent, { LazyDataState } from "@/app/general/lazy_content";
+import LoadSpinner from "@/app/general/load_spinner";
 import { SecondsToHhMmSsString } from "@/app/utils/utils";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
 

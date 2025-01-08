@@ -17,10 +17,10 @@ import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 
 import { DatasetState, PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
-import LoadSpinner from "@/app/chat/general/load_spinner";
+import LoadSpinner from "@/app/general/load_spinner";
+import ListEntities from "@/app/general/list_entities";
 import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import ListEntities from "@/app/chat/general/list_entities";
 
 export default function Home() {
   let [combinedChat, setCombinedChat] =

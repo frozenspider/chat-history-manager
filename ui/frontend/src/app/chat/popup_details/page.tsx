@@ -8,7 +8,7 @@ import { EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/util
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { DatasetState, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 
-import LoadSpinner from "@/app/chat/general/load_spinner";
+import LoadSpinner from "@/app/general/load_spinner";
 import ChatFullDetailsComponent from "@/app/chat/chat_details_full";
 
 export default function Home() {

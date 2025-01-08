@@ -5,7 +5,7 @@ import React from "react";
 import Image from "next/image";
 
 import { PlaceholderImageSvg } from "@/app/utils/entity_utils";
-import LazyContent, { LazyDataState } from "@/app/chat/general/lazy_content";
+import LazyContent, { LazyDataState } from "@/app/general/lazy_content";
 import SystemMessage from "@/app/message/system_message";
 
 const MaxWidth = 1024

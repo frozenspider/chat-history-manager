@@ -3,7 +3,7 @@ import React from "react";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
-import { Avatar } from "@/app/chat/general/avatar";
+import { Avatar } from "@/app/general/avatar";
 import { Users } from "lucide-react";
 import { CombinedChat, GetChatPrettyName, GetCombinedChat1to1Interlocutors } from "@/app/utils/entity_utils";
 

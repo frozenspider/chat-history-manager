@@ -34,15 +34,15 @@ import camelcaseKeysDeep from "camelcase-keys-deep";
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
-import LoadSpinner from "@/app/chat/general/load_spinner";
-import UserInputRequsterComponent, { UserInputRequestState } from "@/app/chat/general/user_input_requester";
-import { InputOverlay } from "@/app/chat/general/input_overlay";
+import LoadSpinner from "@/app/general/load_spinner";
+import UserInputRequsterComponent, { UserInputRequestState } from "@/app/general/user_input_requester";
+import { InputOverlay } from "@/app/general/input_overlay";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
-import { ExportChatHtml } from "@/app/chat/general/export_as_html";
+import { ExportChatHtml } from "@/app/general/export_as_html";
 
 
 const USE_TEST_DATA = false;
