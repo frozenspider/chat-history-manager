@@ -59,6 +59,7 @@ pub struct TauriHandlerWrapper {
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_USERS_CLICKED: &str = "users-clicked";
+static EVENT_COMPARE_DATASETS_CLICKED: &str = "compare-datasets-clicked";
 static EVENT_BUSY: &str = "busy";
 
 static EVENT_CHOOSE_MYSELF: &str = "choose-myself";
@@ -253,7 +254,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSepar
         &[
             &MenuItem::with_id(app_handle, MENU_ID_USERS.clone(), "Users", true, None::<&str>)?,
             &MenuItem::with_id(app_handle, MENU_ID_MERGE_DATASETS.clone(), "Merge Datasets [NYI]", true, None::<&str>)?,
-            &MenuItem::with_id(app_handle, MENU_ID_COMPARE_DATASETS.clone(), "Compare Datasets [NYI]", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, MENU_ID_COMPARE_DATASETS.clone(), "Compare Datasets", true, None::<&str>)?,
         ])?;
 
     Ok((Menu::with_items(app_handle, &[&file_menu, &edit_menu])?, separator_ids))
@@ -283,6 +284,9 @@ async fn on_menu_event(
         }
         menu_id if menu_id == &*MENU_ID_USERS => {
             app_handle.emit(EVENT_USERS_CLICKED, ())?;
+        }
+        menu_id if menu_id == &*MENU_ID_COMPARE_DATASETS => {
+            app_handle.emit(EVENT_COMPARE_DATASETS_CLICKED, ())?;
         }
         _ => {}
     };

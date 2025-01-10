@@ -36,9 +36,19 @@ import camelcaseKeysDeep from "camelcase-keys-deep";
 import NavigationBar from "@/app/navigation_bar";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
+import SelectDatasetsToCompareDialog from "@/app/dataset/select_datasets_to_compare_dialog";
 import LoadSpinner from "@/app/general/load_spinner";
 import UserInputRequsterComponent, { UserInputRequestState } from "@/app/general/user_input_requester";
 import { InputOverlay } from "@/app/general/input_overlay";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -65,11 +75,13 @@ export default function Home() {
     React.useState<NavigationCallbacks | null>(null)
 
   let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
+  let [compareDatasetsOpenState, setCompareDatasetsOpenState] = React.useState<boolean>(false)
   let [shiftDatasetTimeState, setShiftDatasetTimeState] = React.useState<ShiftDatasetTimeState | null>(null)
   let [saveAsState, setSaveAsState] = React.useState<SaveAsState | null>(null)
   let [manageUsersState, setManageUsersState] = React.useState<boolean>(false)
   let [userInputRequestState, setUserInputRequestState] = React.useState<UserInputRequestState | null>(null)
   let [busyState, setBusyState] = React.useState<string | null>(null)
+  let [alertDialogState, setAlertDialogState] = React.useState<AlertDialogState | null>(null)
 
   // TODO: How to pass port number synchronously from Rust?
   const services = CreateGrpcServicesOnce(50051);
@@ -106,6 +118,9 @@ export default function Home() {
       }),
       Listen<void>("users-clicked", (_ev) => {
         setManageUsersState(true)
+      }),
+      Listen<void>("compare-datasets-clicked", (_ev) => {
+        setCompareDatasetsOpenState(true)
       }),
       Listen<string | null>("busy", (ev) => {
         setBusyState(ev.payload)
@@ -239,6 +254,8 @@ export default function Home() {
         </ResizablePanelGroup>
       </div>
 
+      <AlertDialogPopup state={alertDialogState} setState={setAlertDialogState}/>
+
       <RenameDatasetComponent renameDatasetState={renameDatasetState}
                               setRenameDatasetState={setRenameDatasetState}
                               openFiles={openFiles}
@@ -252,11 +269,20 @@ export default function Home() {
       <SaveAsComponent saveAsState={saveAsState}
                        setSaveAsState={setSaveAsState}
                        reload={loadExisting}/>
+      <SelectDatasetsToCompareDialog openFiles={openFiles}
+                                     isOpen={compareDatasetsOpenState}
+                                     setIsOpen={setCompareDatasetsOpenState}
+                                     onConfirm={(left, right) =>
+                                       CompareDatasets(left, right, setAlertDialogState, services)}/>
       <UserInputRequsterComponent state={userInputRequestState} setState={setUserInputRequestState}/>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
 }
 
+interface AlertDialogState {
+  title: string,
+  content: React.JSX.Element,
+}
 interface RenameDatasetState {
   key: string,
   dsUuid: PbUuid,
@@ -569,6 +595,58 @@ function ExportChatAsHtml(
     .finally(() => emit("busy", false)))
 }
 
+function CompareDatasets(
+  left: DatasetState,
+  right: DatasetState,
+  alert: (s: AlertDialogState) => void,
+  services: GrpcServices
+) {
+  let innerAsync = async () => {
+    await emit("busy", true)
+
+    let response = await services.loadClient.ensureSame({
+      masterDaoKey: left.fileKey,
+      masterDsUuid: left.ds.uuid,
+      slaveDaoKey: right.fileKey,
+      slaveDsUuid: right.ds.uuid
+    })
+
+    let diffs = response.diffs
+
+    if (diffs.length == 0) {
+      alert({
+        title: "Datasets are identical",
+        content: <p>There are no differences between the datasets</p>
+      })
+    } else {
+      // TODO: Improve a design, and rework the comparison endpoint overall
+      alert({
+        title: "Datasets differ",
+        content: <>
+          <p>There are differences between the datasets</p>
+          <ScrollArea className="h-[600px] pr-4">
+            <ul>
+              {diffs.map((diff, idx) =>
+                <li key={idx} className="mb-2 break-all">
+                  <p>{diff.message}</p>
+                  {diff.values &&
+                      <>
+                          <p>Was: {diff.values.old}</p>
+                          <p>Now: {diff.values.new}</p>
+                      </>}
+                </li>
+              )}
+            </ul>
+          </ScrollArea>
+        </>
+      })
+    }
+  }
+
+  PromiseCatchReportError(innerAsync()
+    .finally(() => emit("busy", false)))
+}
+
 function RenameDatasetComponent(args: {
   renameDatasetState: RenameDatasetState | null
   setRenameDatasetState: (s: RenameDatasetState | null) => void
@@ -777,5 +855,26 @@ function SaveAsComponent(args: {
       stateToInitialValue={s => s.oldName}
       setState={args.setSaveAsState}
       onOkClick={onSaveClick}/>
+  )
+}
+
+function AlertDialogPopup(args: {
+  state: AlertDialogState | null,
+  setState: (s: AlertDialogState | null) => void
+}): React.JSX.Element {
+  return (
+    <AlertDialog open={!!args.state}>
+      <AlertDialogContent className="sm:max-w-[725px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{args.state?.title}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {args.state?.content}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction  type="submit" onClick={() => args.setState(null)}>OK</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

@@ -26,6 +26,9 @@ dependencies:
   '@radix-ui/react-progress':
     specifier: ^1.1.1
     version: 1.1.1(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+  '@radix-ui/react-radio-group':
+    specifier: ^1.2.2
+    version: 1.2.2(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
   '@radix-ui/react-scroll-area':
     specifier: ^1.2.2
     version: 1.2.2(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
@@ -1166,6 +1169,35 @@ packages:
     dependencies:
       '@radix-ui/react-context': 1.1.1(@types/react@18.2.67)(react@18.3.1)
       '@radix-ui/react-primitive': 2.0.1(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+      '@types/react': 18.2.67
+      '@types/react-dom': 18.2.22
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+    dev: false
+
+  /@radix-ui/react-radio-group@1.2.2(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1):
+    resolution: {integrity: sha512-E0MLLGfOP0l8P/NxgVzfXJ8w3Ch8cdO6UDzJfDChu4EJDy+/WdO5LqpdY8PYnCErkmZH3gZhDL1K7kQ41fAHuQ==}
+    peerDependencies:
+      '@types/react': '*'
+      '@types/react-dom': '*'
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+    dependencies:
+      '@radix-ui/primitive': 1.1.1
+      '@radix-ui/react-compose-refs': 1.1.1(@types/react@18.2.67)(react@18.3.1)
+      '@radix-ui/react-context': 1.1.1(@types/react@18.2.67)(react@18.3.1)
+      '@radix-ui/react-direction': 1.1.0(@types/react@18.2.67)(react@18.3.1)
+      '@radix-ui/react-presence': 1.1.2(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+      '@radix-ui/react-primitive': 2.0.1(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+      '@radix-ui/react-roving-focus': 1.1.1(@types/react-dom@18.2.22)(@types/react@18.2.67)(react-dom@18.3.1)(react@18.3.1)
+      '@radix-ui/react-use-controllable-state': 1.1.0(@types/react@18.2.67)(react@18.3.1)
+      '@radix-ui/react-use-previous': 1.1.0(@types/react@18.2.67)(react@18.3.1)
+      '@radix-ui/react-use-size': 1.1.0(@types/react@18.2.67)(react@18.3.1)
       '@types/react': 18.2.67
       '@types/react-dom': 18.2.22
       react: 18.3.1
