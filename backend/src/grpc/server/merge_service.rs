@@ -1,6 +1,9 @@
+use std::fs;
 use itertools::Itertools;
 
 use tonic::Request;
+
+use path_dedot::*;
 
 use crate::merge::analyzer::*;
 use crate::merge::merger;
@@ -70,6 +73,14 @@ impl MergeService for Arc<ChatHistoryManagerServer> {
     async fn merge(&self, req: Request<MergeRequest>) -> TonicResult<MergeResponse> {
         self.process_merge_service_request(req, |self_clone, req, m_dao, m_ds, s_dao, s_ds| {
             let sqlite_dao_dir = Path::new(&req.new_database_dir);
+            let sqlite_dao_dir = sqlite_dao_dir.parse_dot()?;
+            if !sqlite_dao_dir.exists() {
+                if sqlite_dao_dir.parent().is_none_or(|p| p.exists()) {
+                    fs::create_dir(&sqlite_dao_dir)?;
+                } else {
+                    bail!("Parent directory of {} does not exist!", sqlite_dao_dir.display());
+                }
+            }
             let user_merges = req.user_merges.iter().map(|um|
                 ok(match UserMergeType::try_from(um.tpe)? {
                     UserMergeType::Retain => UserMergeDecision::Retain(UserId(um.user_id)),
@@ -127,17 +138,20 @@ impl MergeService for Arc<ChatHistoryManagerServer> {
                     }
                 })
             ).try_collect()?;
-            let (dao, ds) = merger::merge_datasets(sqlite_dao_dir,
+            let (dao, ds) = merger::merge_datasets(&sqlite_dao_dir,
                                                    m_dao, &m_ds,
                                                    s_dao, &s_ds,
                                                    user_merges, chat_merges)?;
             let key = path_to_str(&dao.db_file)?.to_owned();
             Ok((self_clone, key, DaoRwLock::new(Box::new(dao)), ds))
-        }, |(self_clone, key, dao, ds): (Self, DaoKey, DaoRwLock, Dataset)| {
-            let name = read_or_status(&dao)?.name().to_owned();
-            write_or_status(&self_clone.loaded_daos)?.insert(key.clone(), dao);
+        }, |(self_clone, key, dao_lock, ds): (Self, DaoKey, DaoRwLock, Dataset)| {
+            let dao = read_or_status(&dao_lock)?;
+            let name = dao.name().to_owned();
+            let storage_path = path_to_str(dao.storage_path())?.to_owned();
+            drop(dao);
+            write_or_status(&self_clone.loaded_daos)?.insert(key.clone(), dao_lock);
             Ok(MergeResponse {
-                new_file: LoadedFile { key, name },
+                new_file: LoadedFile { key, name, storage_path },
                 new_ds_uuid: ds.uuid.clone(),
             })
         }).await

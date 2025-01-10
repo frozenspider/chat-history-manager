@@ -32,6 +32,7 @@ const nextConfig = {
         return webpackConfig
     },
     compress: false,
+    productionBrowserSourceMaps: true
 };
 
 export default nextConfig;

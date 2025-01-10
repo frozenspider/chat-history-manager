@@ -50,9 +50,10 @@ impl HistoryDaoService for Arc<ChatHistoryManagerServer> {
             sqlite_dao.copy_datasets_from(dao, &dao.datasets()?.into_iter().map(|ds| ds.uuid).collect_vec())?;
             let new_key = path_to_str(&new_db_file)?.to_owned();
             let name = sqlite_dao.name().to_owned();
+            let storage_path = path_to_str(sqlite_dao.storage_path())?.to_owned();
             lock_or_status(&new_key_clone)?.replace(new_key.clone());
             lock_or_status(&new_dao_clone)?.replace(DaoRwLock::new(Box::new(sqlite_dao)));
-            Ok(LoadedFile { key: new_key, name })
+            Ok(LoadedFile { key: new_key, name, storage_path })
         });
 
         if let Some(new_dao) = lock_or_status(&new_dao)?.take() {

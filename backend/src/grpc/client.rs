@@ -6,7 +6,7 @@ use tonic::transport::{Channel, Endpoint};
 use crate::prelude::*;
 use crate::prelude::history_dao_service_client::HistoryDaoServiceClient;
 use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
-
+use crate::prelude::merge_service_client::MergeServiceClient;
 use super::*;
 
 mod user_input_grpc_requester;
@@ -26,16 +26,21 @@ pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn Use
 pub struct ChatHistoryManagerGrpcClients {
     loader: HistoryLoaderServiceClient<Channel>,
     dao: HistoryDaoServiceClient<Channel>,
+    merger: MergeServiceClient<Channel>,
 }
 
 impl ChatHistoryManagerGrpcClients {
     pub async fn grpc<'a, F, T>(
         &'a mut self,
-        cb: impl FnOnce(&'a mut HistoryLoaderServiceClient<Channel>, &'a mut HistoryDaoServiceClient<Channel>) -> F + 'a,
+        cb: impl FnOnce(
+            &'a mut HistoryLoaderServiceClient<Channel>,
+            &'a mut HistoryDaoServiceClient<Channel>,
+            &'a mut MergeServiceClient<Channel>,
+        ) -> F + 'a,
     ) -> Result<T>
         where F: Future<Output=StdResult<tonic::Response<T>, tonic::Status>>
     {
-        match cb(&mut self.loader, &mut self.dao).await {
+        match cb(&mut self.loader, &mut self.dao, &mut self.merger).await {
             Ok(response) => Ok(response.into_inner()),
             Err(status) => Err(anyhow!("{}", status.message()))
         }
@@ -47,8 +52,9 @@ pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcCl
     log::info!("Connecting to clients at URI {uri}");
     let channel = Endpoint::new(uri)?.connect_lazy();
     let loader = HistoryLoaderServiceClient::new(channel.clone());
-    let dao = HistoryDaoServiceClient::new(channel);
-    Ok(ChatHistoryManagerGrpcClients { loader, dao })
+    let dao = HistoryDaoServiceClient::new(channel.clone());
+    let merger = MergeServiceClient::new(channel);
+    Ok(ChatHistoryManagerGrpcClients { loader, dao, merger })
 }
 
 #[derive(Clone, Copy)]

@@ -12,6 +12,7 @@ use tokio::sync::oneshot;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use path_dedot::*;
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Listener, Manager, PhysicalPosition, PhysicalSize, Position, Runtime, State};
 use tauri::menu::{IsMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
@@ -59,6 +60,7 @@ pub struct TauriHandlerWrapper {
 static EVENT_OPEN_FILES_CHANGED: &str = "open-files-changed";
 static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_USERS_CLICKED: &str = "users-clicked";
+static EVENT_MERGE_DATASETS_CLICKED: &str = "merge-datasets-clicked";
 static EVENT_COMPARE_DATASETS_CLICKED: &str = "compare-datasets-clicked";
 static EVENT_BUSY: &str = "busy";
 
@@ -150,7 +152,9 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_grpc_port, report_error_string, file_exists, read_file_base64, save_as]);
+        .invoke_handler(tauri::generate_handler![
+            get_grpc_port, report_error_string, file_exists, read_file_base64, save_as, merge_datasets
+        ]);
     *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
         builder: Some(builder),
         app_handle_rx: Some(app_handle_rx),
@@ -253,7 +257,7 @@ fn create_menu_once<R, M>(app_handle: &M) -> tauri::Result<(Menu<R>, MenuDbSepar
         app_handle, MENU_ID_EDIT.clone(), "Edit", true,
         &[
             &MenuItem::with_id(app_handle, MENU_ID_USERS.clone(), "Users", true, None::<&str>)?,
-            &MenuItem::with_id(app_handle, MENU_ID_MERGE_DATASETS.clone(), "Merge Datasets [NYI]", true, None::<&str>)?,
+            &MenuItem::with_id(app_handle, MENU_ID_MERGE_DATASETS.clone(), "Merge Datasets", true, None::<&str>)?,
             &MenuItem::with_id(app_handle, MENU_ID_COMPARE_DATASETS.clone(), "Compare Datasets", true, None::<&str>)?,
         ])?;
 
@@ -271,19 +275,22 @@ async fn on_menu_event(
         }
         menu_id if menu_id.0.starts_with(MENU_PREFIX_CLOSE) => {
             let key = menu_id.0[(MENU_PREFIX_CLOSE.len() + 1)..].to_owned();
-            clients.grpc(|loader, _| loader.close(CloseRequest { key })).await?;
+            clients.grpc(|loader, _, _| loader.close(CloseRequest { key })).await?;
             refresh_opened_files_list(app_handle, clients, true).await?;
         }
         menu_id if menu_id.0.starts_with(MENU_PREFIX_SAVE_AS) => {
             let key = menu_id.0[(MENU_PREFIX_SAVE_AS.len() + 1)..].to_owned();
             let storage_path_response =
-                clients.grpc(|_, dao| dao.storage_path(StoragePathRequest { key: key.clone() })).await?;
+                clients.grpc(|_, dao, _| dao.storage_path(StoragePathRequest { key: key.clone() })).await?;
             let path = PathBuf::from(storage_path_response.path);
             let old_file_name = path_file_name(&path)?;
-            app_handle.emit(EVENT_SAVE_AS_CLICKED, (key, old_file_name))?;
+            app_handle.emit(EVENT_SAVE_AS_CLICKED, (key, old_file_name, path_to_str(&path)?.to_owned()))?;
         }
         menu_id if menu_id == &*MENU_ID_USERS => {
             app_handle.emit(EVENT_USERS_CLICKED, ())?;
+        }
+        menu_id if menu_id == &*MENU_ID_MERGE_DATASETS => {
+            app_handle.emit(EVENT_MERGE_DATASETS_CLICKED, ())?;
         }
         menu_id if menu_id == &*MENU_ID_COMPARE_DATASETS => {
             app_handle.emit(EVENT_COMPARE_DATASETS_CLICKED, ())?;
@@ -310,7 +317,7 @@ async fn on_menu_event_open(
             let _wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Opening..."))?;
             let path = path_to_str(&picked)?.to_owned();
             let key = path.clone();
-            let _response = clients.grpc(|loader, _| loader.load(LoadRequest { key, path })).await?;
+            let _response = clients.grpc(|loader, _, _| loader.load(LoadRequest { key, path })).await?;
             refresh_opened_files_list(app_handle, clients, true).await?;
         }
         _ => { /* No file picked */ }
@@ -333,7 +340,7 @@ async fn refresh_opened_files_list(
          items.iter().position(|item| item.id() == &separators.after).expect("find separator 2 position"))
     };
 
-    let loaded_files = clients.grpc(|loader, _| loader.get_loaded_files(Empty {})).await?;
+    let loaded_files = clients.grpc(|loader, _, _| loader.get_loaded_files(Empty {})).await?;
     let loaded_files = loaded_files.files;
 
     let new_items: StdResult<Vec<Submenu<_>>, _> = loaded_files.iter()
@@ -395,10 +402,13 @@ fn report_error_string(app_handle: AppHandle, error: String) {
         .show(|_res| () /* Ignore the result */);
 }
 
+/// Path may contain double dot
 #[tauri::command]
-fn file_exists(relative_path: String, ds_root: String) -> tauri::Result<bool> {
-    let path = Path::new(&ds_root).join(&relative_path);
-    Ok(fs::exists(path)?)
+fn file_exists(relative_path: String, root: String) -> tauri::Result<bool> {
+    let path = Path::new(&root).join(&relative_path);
+    let path = path.parse_dot()?;
+    let result = fs::exists(path)?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -424,7 +434,29 @@ fn save_as(
     run_async_callback(app_handle, move |app_handle| {
         let inner = async move {
             let _wip = wip; // Move the WIP RAII inside async closure
-            clients.grpc(|_, dao| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
+            clients.grpc(|_, dao, _| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
+            refresh_opened_files_list(app_handle, clients, true).await
+        };
+        inner
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn merge_datasets(
+    merge_request: Vec<u8>,
+    app_handle: AppHandle,
+    clients: State<ChatHistoryManagerGrpcClients>,
+    busy_state: State<BusyState>,
+) -> tauri::Result<()> {
+    use prost::Message;
+    let merge_request = MergeRequest::decode(merge_request.as_slice()).map_err(|e| tauri::Error::CannotDeserializeScope(Box::new(e)))?;
+    let mut clients = clients.inner().clone();
+    let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Merging..."))?;
+    run_async_callback(app_handle, move |app_handle| {
+        let inner = async move {
+            let _wip = wip; // Move the WIP RAII inside async closure
+            clients.grpc(|_, _, merger| merger.merge(merge_request)).await?;
             refresh_opened_files_list(app_handle, clients, true).await
         };
         inner

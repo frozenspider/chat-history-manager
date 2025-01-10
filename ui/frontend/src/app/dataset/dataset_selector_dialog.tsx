@@ -9,15 +9,15 @@ import DatasetSelector from "@/app/dataset/dataset_selector";
 export default function DatasetSelectorDialog(args: {
   openFiles: LoadedFileState[]
   isOpen: boolean
-  setIsOpen: (isOpen: boolean) => void
   title: string
   description: string
   leftLabel: string
   rightLabel: string
   onConfirm: (left: DatasetState, right: DatasetState) => void
+  onClose: () => void
 }) {
   return <>
-    <Dialog open={args.isOpen} onOpenChange={args.setIsOpen}>
+    <Dialog open={args.isOpen} onOpenChange={(open) => open ? null : args.onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{args.title}</DialogTitle>

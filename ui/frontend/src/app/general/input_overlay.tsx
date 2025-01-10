@@ -1,5 +1,5 @@
 import React from "react";
-import { Assert, AssertUnreachable } from "@/app/utils/utils";
+import { Assert, AssertUnreachable, PromiseCatchReportError } from "@/app/utils/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,8 +26,8 @@ export function InputOverlay<S>(args: {
   }
   state: S | null
   stateToInitialValue: (s: S) => string
-  setState: (s: S | null) => void
-  onOkClick: (newValue: string, oldState: S) => ErrorMessage | null
+  onOkClick: (newValue: string, oldState: S) => Promise<ErrorMessage | null>
+  dispose: () => void
 }): React.JSX.Element {
   let [errorMessage, setErrorMessage] =
     React.useState<ErrorMessage | null>(null)
@@ -38,13 +38,16 @@ export function InputOverlay<S>(args: {
   let onOkClick = React.useCallback(() => {
     Assert(inputRef.current != null)
     Assert(args.state != null)
+    let state = args.state
     let newValue = inputRef.current.value
-    let errorMessage = args.onOkClick(newValue, args.state)
-    if (errorMessage == null) {
-      args.setState(null)
-    } else {
-      setErrorMessage(errorMessage)
-    }
+    PromiseCatchReportError(async () => {
+      let errorMessage = await args.onOkClick(newValue, state)
+      if (errorMessage == null) {
+        args.dispose()
+      } else {
+        setErrorMessage(errorMessage)
+      }
+    })
   }, [args])
 
   return (
@@ -74,7 +77,7 @@ export function InputOverlay<S>(args: {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => args.setState(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel onClick={() => args.dispose()}>Cancel</AlertDialogCancel>
           <AlertDialogAction type="submit" onClick={onOkClick}>{args.config.okButtonLabel}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

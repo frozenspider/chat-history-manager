@@ -19,7 +19,7 @@ export default function UserShortDetailsComponent(args: {
   let colorClass = NameColorClassFromNumber(args.user.id).text
 
   return <>
-    <div className={`mb-2 ${args.isSelected ? 'bg-blue-100 dark:bg-blue-900 rounded-lg' : ''}`}
+    <div className={`${args.isSelected ? 'bg-blue-100 dark:bg-blue-900 rounded-lg' : ''}`}
          onClick={() => args.onClick(args.user, args.dsState)}
          onDoubleClick={() => args.onDoubleClick?.(args.user, args.dsState)}>
       <div

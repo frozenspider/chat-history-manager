@@ -3,7 +3,7 @@
 import React from "react";
 
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
-import { Asc, Noop } from "@/app/utils/utils";
+import { AppEvent, Asc, Noop } from "@/app/utils/utils";
 import { GetUserPrettyName, IdToReadable } from "@/app/utils/entity_utils";
 
 import { User } from "@/protobuf/core/protobuf/entities";
@@ -22,10 +22,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { EventName } from "@tauri-apps/api/event";
+
 
 // Can't define it in popup_manage_users/page.tsx because of a Next.js bug
-export const UserUpdatedEventName: EventName = "user-updated"
+export const UserUpdatedEvent: AppEvent = "user-updated" as AppEvent
 
 export default function ManageUsers(args: {
   openFiles: LoadedFileState[],

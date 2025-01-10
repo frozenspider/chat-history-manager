@@ -1,13 +1,18 @@
 'use client'
 
 import React from "react";
-import { emit, emitTo } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import { message, save } from "@tauri-apps/plugin-dialog";
 
 import {
+  AppEvent,
+  AppEvents,
   Assert,
+  EmitBusy,
+  EmitNotBusy,
   EnsureDefined,
-  InvokeTauri,
+  GetLastPathElement,
+  InvokeTauriAsync,
   Listen,
   PromiseCatchReportError,
   SerializeJson,
@@ -21,19 +26,21 @@ import {
   ServicesContext,
   GetServices,
   GrpcServices,
-  SetPopupStateEventName,
 } from "@/app/utils/state";
-import { UserUpdatedEventName } from "@/app/user/manage_users";
+import { UserUpdatedEvent } from "@/app/user/manage_users";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
 
 import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
+import { ChatWithDetailsPB, MergeRequest } from "@/protobuf/backend/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
 
 import NavigationBar from "@/app/navigation_bar";
+import SelectDatasetsToMergeDialog, { DatasetsMergedEvent } from "@/app/dataset/select_datasets_to_merge_dialog";
+import SaveAs, { SaveAsState } from "@/app/dataset/save_as";
+import ShiftDatasetTime, { ShiftDatasetTimeState } from "@/app/dataset/shift_dataset_time";
 import ChatList from "@/app/chat/chat_list";
 import MessagesList from "@/app/message/message_list";
 import SelectDatasetsToCompareDialog from "@/app/dataset/select_datasets_to_compare_dialog";
@@ -76,6 +83,7 @@ export default function Home() {
 
   let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
   let [compareDatasetsOpenState, setCompareDatasetsOpenState] = React.useState<boolean>(false)
+  let [mergeDatasetsState, setMergeDatasetsState] = React.useState<MergeDatasetsState>({ tpe: "closed" })
   let [shiftDatasetTimeState, setShiftDatasetTimeState] = React.useState<ShiftDatasetTimeState | null>(null)
   let [saveAsState, setSaveAsState] = React.useState<SaveAsState | null>(null)
   let [manageUsersState, setManageUsersState] = React.useState<boolean>(false)
@@ -107,30 +115,33 @@ export default function Home() {
   React.useEffect(() => {
     // Even names here are hardcoded on the backend
     let unlistenPromises = [
-      Listen("open-files-changed", () => {
+      Listen<string | null>(AppEvents.Busy, (ev) => {
+        setBusyState(ev.payload)
+      }),
+      Listen(BackendEvents.OpenFilesChanges, () => {
         setLoaded(false)
         PromiseCatchReportError(loadExisting()
           .then(() => setLoaded(true)))
       }),
-      Listen<[string, string]>("save-as-clicked", (ev) => {
-        let [key, oldName] = ev.payload
-        setSaveAsState({ key: key, oldName: oldName })
+      Listen<[string, string, string]>(BackendEvents.SaveAsClicked, (ev) => {
+        let [key, oldFileName, oldStoragePath] = ev.payload
+        setSaveAsState({ key, oldFileName, oldStoragePath })
       }),
-      Listen<void>("users-clicked", (_ev) => {
+      Listen<void>(BackendEvents.UsersClicked, (_ev) => {
         setManageUsersState(true)
       }),
-      Listen<void>("compare-datasets-clicked", (_ev) => {
+      Listen<void>(BackendEvents.CompareDatasetsClicked, (_ev) => {
         setCompareDatasetsOpenState(true)
       }),
-      Listen<string | null>("busy", (ev) => {
-        setBusyState(ev.payload)
+      Listen<void>(BackendEvents.MergeDatasetsClicked, (_ev) => {
+        setMergeDatasetsState({ tpe: "select-datasets" })
       }),
-      Listen<Array<object>>("choose-myself", (ev) => {
+      Listen<Array<object>>(BackendEvents.ChooseMyself, (ev) => {
         let snakeCaseUsers = ev.payload
         let users = snakeCaseUsers.map(camelcaseKeysDeep).map(User.fromJSON)
         setUserInputRequestState({ $case: "choose_myself", users })
       }),
-      Listen<string>("ask-for-text", (ev) => {
+      Listen<string>(BackendEvents.AskForText, (ev) => {
         let prompt = ev.payload
         setUserInputRequestState({ $case: "ask_for_text", prompt })
       })
@@ -161,22 +172,26 @@ export default function Home() {
     setManageUsersState(false)
   }
 
-  let tabs = openFiles.length > 1 ? (
-    <Tabs defaultValue={currentFileState?.key}
-          onValueChange={(newKey) => {
-            let file = openFiles.find(f => f.key == newKey)
-            if (file) {
-              setCurrentFileState(file)
-            }
-          }}
-          className="w-[400px]">
-      <TabsList>{
-        openFiles.map((file) =>
-          <TabsTrigger key={file.key} value={file.key}>{file.name}</TabsTrigger>
-        )
-      }</TabsList>
-    </Tabs>
-  ) : <></>
+  let tabs = React.useMemo(() => {
+    if (openFiles.length <= 1)
+      return <></>
+    return (
+      <Tabs defaultValue={currentFileState?.key}
+            onValueChange={(newKey) => {
+              let file = openFiles.find(f => f.key == newKey)
+              if (file) {
+                setCurrentFileState(file)
+              }
+            }}
+            className="w-[400px]">
+        <TabsList>{
+          openFiles.map((file) =>
+            <TabsTrigger key={file.key} value={file.key}>{file.name}</TabsTrigger>
+          )
+        }</TabsList>
+      </Tabs>
+    )
+  }, [openFiles, currentFileState])
 
   return (
     <ServicesContext.Provider value={services}> <ChatStateCacheContext.Provider value={chatStateCache}>
@@ -262,18 +277,44 @@ export default function Home() {
                               setOpenFiles={setOpenFiles}
                               currentFileState={currentFileState}
                               setCurrentFileState={setCurrentFileState}/>
-      <ShiftDatasetTimeComponent shiftDatasetTimeState={shiftDatasetTimeState}
-                                 setShiftDatasetTimeState={setShiftDatasetTimeState}
-                                 clearCurrentChatState={() => setCurrentChatState(null)}
-                                 reload={loadExisting}/>
-      <SaveAsComponent saveAsState={saveAsState}
-                       setSaveAsState={setSaveAsState}
-                       reload={loadExisting}/>
+      <ShiftDatasetTime shiftDatasetTimeState={shiftDatasetTimeState}
+                        setShiftDatasetTimeState={setShiftDatasetTimeState}
+                        clearCurrentChatState={() => setCurrentChatState(null)}
+                        reload={loadExisting}/>
+      <SaveAs title="Save dataset as"
+              saveAsState={saveAsState}
+              onNamePicked={(name, _fullPath, oldState) => SaveDatasetAs(name, oldState, loadExisting)}
+              dispose={() => setSaveAsState(null)}/>
       <SelectDatasetsToCompareDialog openFiles={openFiles}
                                      isOpen={compareDatasetsOpenState}
-                                     setIsOpen={setCompareDatasetsOpenState}
                                      onConfirm={(left, right) =>
-                                       CompareDatasets(left, right, setAlertDialogState, services)}/>
+                                       CompareDatasets(left, right, setAlertDialogState, services)}
+                                     onClose={() => setCompareDatasetsOpenState(false)}/>
+      <SelectDatasetsToMergeDialog openFiles={openFiles}
+                                   isOpen={mergeDatasetsState.tpe == "select-datasets"}
+                                   onConfirm={(masterDsState, slaveDsState) =>
+                                     setMergeDatasetsState({ tpe: "pick-name", masterDsState, slaveDsState })}
+                                   onClose={() =>
+                                     setMergeDatasetsState(s => s.tpe == "select-datasets" ? { tpe: "closed" } : s)}/>
+      <SaveAs title="Pick new database name"
+              saveAsState={(() => {
+                if (mergeDatasetsState.tpe == "pick-name") {
+                  let masterFile = EnsureDefined(openFiles.find(f => f.key == mergeDatasetsState.masterDsState.fileKey))
+                  return {
+                    key: mergeDatasetsState.masterDsState.fileKey,
+                    oldFileName: GetLastPathElement(masterFile.storagePath),
+                    oldStoragePath: masterFile.storagePath
+                  }
+                } else {
+                  return null
+                }
+              })()}
+              onNamePicked={async (_name, fullPath, _oldState) => {
+                Assert(mergeDatasetsState.tpe == "pick-name")
+                setMergeDatasetsState({ tpe: "closed" })
+                MergeDatasets(mergeDatasetsState.masterDsState, mergeDatasetsState.slaveDsState, fullPath)
+              }}
+              dispose={() => setMergeDatasetsState({ tpe: "closed" })}/>
       <UserInputRequsterComponent state={userInputRequestState} setState={setUserInputRequestState}/>
     </ChatStateCacheContext.Provider> </ServicesContext.Provider>
   )
@@ -288,15 +329,25 @@ interface RenameDatasetState {
   dsUuid: PbUuid,
   oldName: string
 }
-interface ShiftDatasetTimeState {
-  key: string,
-  dsUuid: PbUuid
-}
-interface SaveAsState {
-  key: string,
-  oldName: string
+type MergeDatasetsState = {
+  tpe: "closed"
+} | {
+  tpe: "select-datasets"
+} | {
+  masterDsState: DatasetState,
+  slaveDsState: DatasetState,
+  tpe: "pick-name"
 }
 
+const BackendEvents = {
+  OpenFilesChanges: "open-files-changed" as AppEvent,
+  SaveAsClicked: "save-as-clicked" as AppEvent,
+  UsersClicked: "users-clicked" as AppEvent,
+  CompareDatasetsClicked: "compare-datasets-clicked" as AppEvent,
+  MergeDatasetsClicked: "merge-datasets-clicked" as AppEvent,
+  ChooseMyself: "choose-myself" as AppEvent,
+  AskForText: "ask-for-text" as AppEvent,
+}
 
 async function LoadExistingData(
   services: GrpcServices,
@@ -311,6 +362,7 @@ async function LoadExistingData(
     let fileState: LoadedFileState = {
       key: file.key,
       name: file.name,
+      storagePath: file.storagePath,
       datasets: [],
     }
 
@@ -368,49 +420,62 @@ async function LoadExistingData(
   })
 }
 
+async function SaveDatasetAs(
+  newName: string,
+  oldState: SaveAsState,
+  reload: () => Promise<void>
+) {
+  // Busy state is managed by Rust here.
+  // TODO: Is that what we want?
+  await InvokeTauriAsync<void>("save_as", {
+    key: oldState.key,
+    newName: newName
+  })
+
+  await reload()
+}
+
 function ShowManageUsersPopup(
   services: GrpcServices,
   openFiles: LoadedFileState[],
   reload: () => void,
 ) {
-  PromiseCatchReportError(async () => {
-    const serializeState = (openFiles: LoadedFileState[]) => {
-      // Cannot pass the payload directly because of BigInt not being serializable by default
-      return SerializeJson(openFiles)
-    }
+  const serializeState = (openFiles: LoadedFileState[]) => {
+    // Cannot pass the payload directly because of BigInt not being serializable by default
+    return SerializeJson(openFiles)
+  }
 
-    let label = "manage-users-window";
-    SpawnPopup<string>(label, "Users", "/user/popup_manage_users", 600, screen.availHeight - 100, {
-      setState: () => serializeState(openFiles),
-      listeners: [
-        // User updated
-        // ============
-        // New user should have the same ID as before
-        [UserUpdatedEventName, async (ev) => {
-          PromiseCatchReportError(async () => {
-            let [newUserObj, dsStateObj] = JSON.parse(ev.payload)
-            let newUser = User.fromJSON(newUserObj)
-            let oldDsState = DatasetState.fromJSON(dsStateObj)
+  let label = "manage-users-window";
+  SpawnPopup<string>(label, "Users", "/user/popup_manage_users", 600, screen.availHeight - 100, {
+    setState: () => serializeState(openFiles),
+    listeners: [
+      // User updated
+      // ============
+      // New user should have the same ID as before
+      [UserUpdatedEvent, async (ev) => {
+        PromiseCatchReportError(async () => {
+          let [newUserObj, dsStateObj] = JSON.parse(ev.payload)
+          let newUser = User.fromJSON(newUserObj)
+          let oldDsState = DatasetState.fromJSON(dsStateObj)
 
-            let [_newDsState, _newOpenFile, newOpenFiles] =
-              ChangeDataset(openFiles, oldDsState.fileKey, oldDsState!.ds!.uuid!, dsState => {
-                let newUsers = new Map(dsState.users)
-                newUsers.set(newUser.id, newUser)
-                return { ...dsState, users: newUsers }
-              })
-
-            await services.daoClient.backup({ key: oldDsState.fileKey })
-            await services.daoClient.updateUser({
-              key: oldDsState.fileKey,
-              user: newUser
+          let [_newDsState, _newOpenFile, newOpenFiles] =
+            ChangeDataset(openFiles, oldDsState.fileKey, oldDsState!.ds!.uuid!, dsState => {
+              let newUsers = new Map(dsState.users)
+              newUsers.set(newUser.id, newUser)
+              return { ...dsState, users: newUsers }
             })
 
-            await emitTo(label, SetPopupStateEventName, serializeState(newOpenFiles))
-            reload()
+          await services.daoClient.backup({ key: oldDsState.fileKey })
+          await services.daoClient.updateUser({
+            key: oldDsState.fileKey,
+            user: newUser
           })
-        }]
-      ]
-    })
+
+          await emitTo(label, AppEvents.Popup.SetState, serializeState(newOpenFiles))
+          reload()
+        })
+      }]
+    ]
   })
 }
 
@@ -466,7 +531,7 @@ function DeleteChat(
   setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
+    await EmitBusy("Deleting...")
 
     chatStateCache.Clear(dsState.fileKey, cc.dsUuid, cc.mainChatId)
 
@@ -503,7 +568,7 @@ function DeleteChat(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
+    .finally(() => EmitNotBusy()))
 }
 
 function SetSecondaryChat(
@@ -515,7 +580,7 @@ function SetSecondaryChat(
   reload: (fileKey: string, dsUuid: PbUuid) => Promise<void>
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
+    await EmitBusy("Updating...")
 
     chatStateCache.Clear(dsState.fileKey, cc.dsUuid, newMainId)
     chatStateCache.Clear(dsState.fileKey, cc.dsUuid, cc.mainChatId)
@@ -528,7 +593,7 @@ function SetSecondaryChat(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
+    .finally(() => EmitNotBusy()))
 }
 
 function ShowCompareChatsPopup(
@@ -538,10 +603,7 @@ function ShowCompareChatsPopup(
   services: GrpcServices
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
-
-    let slaveChat =
-      EnsureDefined(dsState.cwds.find(cwd => cwd.chat!.id == slaveChatId))
+    await EmitBusy("Analyzing...")
 
     const response = await services.mergeClient.analyze({
       masterDaoKey: dsState.fileKey,
@@ -559,7 +621,7 @@ function ShowCompareChatsPopup(
 
     const serializeState = () => {
       // Cannot pass the payload directly because of BigInt not being serializable by default
-      return SerializeJson([[masterChat, slaveChat], [dsState, dsState], analysis])
+      return SerializeJson([dsState, dsState, analysis])
     }
     SpawnPopup<string>("chat-diff-window", "Chat comparison", "/chat/popup_diff",
       screen.availWidth - 100,
@@ -570,7 +632,7 @@ function ShowCompareChatsPopup(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
+    .finally(() => EmitNotBusy()))
 }
 
 function ExportChatAsHtml(
@@ -579,7 +641,7 @@ function ExportChatAsHtml(
   services: GrpcServices
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
+    await EmitBusy("Exporting...")
 
     // No way to set default name to GetChatPrettyName(chat) :(
     const path = await save({
@@ -592,7 +654,7 @@ function ExportChatAsHtml(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
+    .finally(() => EmitNotBusy()))
 }
 
 function CompareDatasets(
@@ -602,7 +664,7 @@ function CompareDatasets(
   services: GrpcServices
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
+    await EmitBusy("Comparing...")
 
     let response = await services.loadClient.ensureSame({
       masterDaoKey: left.fileKey,
@@ -644,7 +706,27 @@ function CompareDatasets(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
+    .finally(() => EmitNotBusy()))
+}
+
+function MergeDatasets(
+  masterDsState: DatasetState,
+  slaveDsState: DatasetState,
+  newDatabaseDir: string
+) {
+  let label = "merge-datasets-window";
+  SpawnPopup<string>(label, "Select chats to merge", "dataset/popup_merge_datasets", 1000, screen.availHeight - 100, {
+    setState: () => SerializeJson([masterDsState, slaveDsState, newDatabaseDir]),
+    listeners: [
+      [DatasetsMergedEvent, async (ev) => {
+        let mergeRequest = MergeRequest.fromJSON(ev.payload)
+        let encodedMergeRequest = MergeRequest.encode(mergeRequest).finish()
+        // This request will be sent by Tauri so it can also update list of open files on its side.
+        // This will manage busy state.
+        await InvokeTauriAsync("merge_datasets", { mergeRequest: encodedMergeRequest })
+      }]
+    ]
+  })
 }
 
 function RenameDatasetComponent(args: {
@@ -658,18 +740,18 @@ function RenameDatasetComponent(args: {
   let services = GetServices()
 
   let onRenameClick =
-    React.useCallback<(newName: string, oldState: RenameDatasetState) => string | null>(
+    React.useCallback<(newName: string, oldState: RenameDatasetState) => Promise<string | null>>(
       (newName, oldState) => {
-        if (newName == oldState.oldName) {
-          return "New name should not match an old name"
-        }
-
-        if (args.currentFileState?.datasets?.some(ds => ds.ds.alias == newName)) {
-          return "Dataset with this name already exists"
-        }
-
         let asyncInner = async () => {
-          await emit("busy", true)
+          if (newName == oldState.oldName) {
+            return "New name should not match an old name"
+          }
+
+          if (args.currentFileState?.datasets?.some(ds => ds.ds.alias == newName)) {
+            return "Dataset with this name already exists"
+          }
+
+          await EmitBusy("Renaming...")
 
           let [newDsState, newOpenFile, newOpenFiles] =
             ChangeDataset(args.openFiles, oldState.key, oldState.dsUuid, dsState => {
@@ -687,11 +769,11 @@ function RenameDatasetComponent(args: {
 
           args.setCurrentFileState(currentFile => currentFile?.key == newOpenFile.key ? newOpenFile : currentFile)
           args.setOpenFiles(newOpenFiles)
+          return null
         }
 
-        PromiseCatchReportError(asyncInner()
-          .finally(() => emit("busy", false)))
-        return null
+        return asyncInner()
+          .finally(() => EmitNotBusy())
       },
       [args])
 
@@ -707,63 +789,8 @@ function RenameDatasetComponent(args: {
       }}
       state={args.renameDatasetState}
       stateToInitialValue={s => s.oldName}
-      setState={args.setRenameDatasetState}
-      onOkClick={onRenameClick}/>
-  )
-}
-
-function ShiftDatasetTimeComponent(args: {
-  shiftDatasetTimeState: ShiftDatasetTimeState | null,
-  setShiftDatasetTimeState: (s: ShiftDatasetTimeState | null) => void,
-  clearCurrentChatState: () => void,
-  reload: () => Promise<void>,
-}) {
-  let services = GetServices()
-  let chatStateCache = React.useContext(ChatStateCacheContext)!
-
-  let onShiftClick =
-    React.useCallback<(newValue: string, oldState: ShiftDatasetTimeState) => string | null>(
-      (newValueString, oldState) => {
-        if (!/^-?\d*$/.test(newValueString)) {
-          return "Provide an integer"
-        }
-
-        let newValue = parseInt(newValueString)
-        if (newValueString == "" || newValue == 0) {
-          return null
-        }
-
-        let asyncInner = async () => {
-          await emit("busy", true)
-
-          await services.daoClient.backup({ key: oldState.key })
-          await services.daoClient.shiftDatasetTime({ key: oldState.key, uuid: oldState.dsUuid, hoursShift: newValue })
-
-          args.clearCurrentChatState()
-          chatStateCache.Clear(oldState.key, oldState.dsUuid.value)
-          await args.reload()
-        }
-
-        PromiseCatchReportError(asyncInner()
-          .finally(() => emit("busy", false)))
-        return null
-      },
-      [args])
-
-  return (
-    <InputOverlay
-      config={{
-        title: "Shift Time",
-        description: "Choose an hours difference",
-        inputType: "integer",
-        okButtonLabel: "Shift",
-        canBeCancelled: true,
-        mutates: true
-      }}
-      state={args.shiftDatasetTimeState}
-      stateToInitialValue={_s => "0"}
-      setState={args.setShiftDatasetTimeState}
-      onOkClick={onShiftClick}/>
+      onOkClick={onRenameClick}
+      dispose={() => args.setRenameDatasetState(null)}/>
   )
 }
 
@@ -777,7 +804,7 @@ function DeleteDataset(
   setCurrentChatState: (change: (v: ChatState | null) => (ChatState | null)) => void
 ) {
   let innerAsync = async () => {
-    await emit("busy", true)
+    await EmitBusy("Deleting...")
 
     let oldOpenFile = EnsureDefined(openFiles.find(f => f.key == dsState.fileKey), "File not found")
     if (oldOpenFile.datasets.length == 1) {
@@ -816,46 +843,7 @@ function DeleteDataset(
   }
 
   PromiseCatchReportError(innerAsync()
-    .finally(() => emit("busy", false)))
-}
-
-function SaveAsComponent(args: {
-  saveAsState: SaveAsState | null
-  setSaveAsState: (s: SaveAsState | null) => void
-  reload: () => Promise<void>
-}): React.JSX.Element {
-  let onSaveClick =
-    React.useCallback<(newName: string, oldState: SaveAsState) => string | null>(
-      (newName, oldState) => {
-        if (newName == oldState.oldName) {
-          return "New name should not match an old name"
-        }
-
-        InvokeTauri<void>("save_as", {
-          key: oldState.key,
-          newName: newName
-        })
-
-        PromiseCatchReportError(args.reload)
-        return null
-      },
-      [args])
-
-  return (
-    <InputOverlay
-      config={{
-        title: "Save As",
-        description: "Pick a new file name",
-        inputType: "text",
-        okButtonLabel: "Save",
-        canBeCancelled: true,
-        mutates: false
-      }}
-      state={args.saveAsState}
-      stateToInitialValue={s => s.oldName}
-      setState={args.setSaveAsState}
-      onOkClick={onSaveClick}/>
-  )
+    .finally(() => EmitNotBusy()))
 }
 
 function AlertDialogPopup(args: {
@@ -872,7 +860,7 @@ function AlertDialogPopup(args: {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogAction  type="submit" onClick={() => args.setState(null)}>OK</AlertDialogAction>
+          <AlertDialogAction type="submit" onClick={() => args.setState(null)}>OK</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

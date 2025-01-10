@@ -2,7 +2,15 @@
 
 import React from "react";
 
-import { Asc, EmitToSelf, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import {
+  AppEvents,
+  Asc,
+  EmitToSelf,
+  EnsureDefined,
+  Listen,
+  PromiseCatchReportError,
+  SerializeJson
+} from "@/app/utils/utils";
 import {
   ChatSourceTypeToString,
   ChatTypeToString,
@@ -15,12 +23,13 @@ import {
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
 
-import { DatasetState, PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
+import { DatasetState } from "@/app/utils/state";
 import LoadSpinner from "@/app/general/load_spinner";
 import ListEntities from "@/app/general/list_entities";
 import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 export default function Home() {
   let [combinedChat, setCombinedChat] =
@@ -40,7 +49,7 @@ export default function Home() {
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
-    let unlisten = Listen<string>(SetPopupStateEventName, (ev) => {
+    let unlisten = Listen<string>(AppEvents.Popup.SetState, (ev) => {
       let json = ev.payload
       let [ccObj, dsStateObj, alertTextStr, personalOnly, isDestructive] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
@@ -53,7 +62,7 @@ export default function Home() {
       setIsDestructive(EnsureDefined(isDestructive))
     })
 
-    PromiseCatchReportError(EmitToSelf(PopupReadyEventName));
+    PromiseCatchReportError(EmitToSelf(AppEvents.Popup.Ready));
 
     return () => PromiseCatchReportError(async () => {
       return (await unlisten)()
@@ -116,7 +125,7 @@ export default function Home() {
         text: "Confirm",
         action: (cwd: ChatWithDetailsPB) => {
           PromiseCatchReportError(async () => {
-            await EmitToSelf(PopupConfirmedEventName, cwd.chat!.id)
+            await EmitToSelf(AppEvents.Popup.Confirmed, SerializeJson(cwd.chat!.id))
             await getCurrentWindow().close()
           })
         }

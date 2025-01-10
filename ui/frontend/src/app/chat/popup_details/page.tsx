@@ -2,12 +2,13 @@
 
 import React from "react";
 
-import { EmitToSelf, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
+import { AppEvents, EmitToSelf, EnsureDefined, Listen, PromiseCatchReportError } from "@/app/utils/utils";
 import { CombinedChat } from "@/app/utils/entity_utils";
-import { DatasetState, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
+import { DatasetState } from "@/app/utils/state";
 
 import LoadSpinner from "@/app/general/load_spinner";
 import ChatFullDetailsComponent from "@/app/chat/chat_details_full";
+
 
 export default function Home() {
   let [combinedChat, setCombinedChat] =
@@ -18,7 +19,7 @@ export default function Home() {
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
-    let unlisten = Listen<string>(SetPopupStateEventName, (ev) => {
+    let unlisten = Listen<string>(AppEvents.Popup.SetState, (ev) => {
       let json = ev.payload
       let [ccObj, dsStateObj] = JSON.parse(json)
       // Parsed object is not a class (it does not have methods)
@@ -28,7 +29,7 @@ export default function Home() {
       setDatasetState(dsState)
     })
 
-    PromiseCatchReportError(EmitToSelf(PopupReadyEventName));
+    PromiseCatchReportError(EmitToSelf(AppEvents.Popup.Ready));
 
     return () => PromiseCatchReportError(async () => {
       return (await unlisten)()

@@ -107,6 +107,7 @@ message GetLoadedFilesResponse {
 message LoadedFile {
   required string key = 1;
   required string name = 2;
+  required string storage_path = 3;
 }
 
 message SaveAsRequest {
@@ -335,6 +336,8 @@ message AnalyzeRequest {
   required string slave_dao_key = 3;
   required PbUuid slave_ds_uuid = 4;
 
+  // If set, everything starting at first mismatch and ending just before trailing match (if any) will be merged into
+  // a single conflict if possible.
   required bool force_conflicts = 6;
   repeated ChatIdPair chat_id_pairs = 5;
 }
@@ -375,6 +378,7 @@ message MergeRequest {
   required string slave_dao_key = 3;
   required PbUuid slave_ds_uuid = 4;
 
+  // `..` is supported
   required string new_database_dir = 5;
 
   repeated UserMerge user_merges = 6;

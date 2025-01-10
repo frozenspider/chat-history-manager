@@ -1,10 +1,9 @@
 'use client'
 
 import { invoke, InvokeArgs } from "@tauri-apps/api/core";
-import { listen, EventCallback, UnlistenFn, Event, EventName, emitTo } from "@tauri-apps/api/event";
+import { listen, EventCallback, UnlistenFn, Event, emitTo, emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ClientError } from "nice-grpc-common";
-import { PopupConfirmedEventName, PopupReadyEventName, SetPopupStateEventName } from "@/app/utils/state";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 export function Noop(): void {
@@ -95,7 +94,7 @@ export async function InvokeTauriAsync<T>(
 
 /** Listens to events emitted to the current webview. */
 // WARNING: Make sure to Listen in useEffect, and unlisten in the cleanup function
-export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise<UnlistenFn> {
+export async function Listen<T>(event: AppEvent, cb: EventCallback<T>): Promise<UnlistenFn> {
   if (IsTauriAvailable()) {
     return listen<T>(event, cb, { target: getCurrentWebview().label })
   } else {
@@ -104,15 +103,62 @@ export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise
   }
 }
 
+//
+// Events
+//
+
+// Newtype idiom, requires explicit casting
+export type AppEvent =
+    string & { readonly __tag: unique symbol };
+
+export const AppEvents = {
+  Busy: "busy" as AppEvent,
+
+  Popup: {
+    /** An event popup sends to itself after it's ready, intended to be caught by the creator. */
+    Ready: "ready" as AppEvent,
+
+    /**
+     * An event popup sends to itself after user confirms selection, intended to be caught by the creator.
+     * Payload depends on the popup.
+     */
+    Confirmed: "confirmed" as AppEvent,
+
+    /** An event to set a state after popup is loaded */
+    SetState: "set-state" as AppEvent,
+  },
+}
+
 /** Emit an event to the current webview. */
-export async function EmitToSelf(event: EventName, payload?: unknown): Promise<void> {
+export async function EmitToSelf(event: AppEvent, payload?: unknown): Promise<void> {
   if (IsTauriAvailable()) {
     return emitTo(getCurrentWebview().label, event, payload)
   } else {
-    console.warn("Listening to " + event + " but Tauri is not available")
+    console.warn("Emitting " + event + " to self but Tauri is not available")
     return Noop()
   }
 }
+
+export async function EmitToEveryone(event: AppEvent, payload?: unknown): Promise<void> {
+  if (IsTauriAvailable()) {
+    return emit(event, payload)
+  } else {
+    console.warn("Emitting " + event + " to everyone but Tauri is not available")
+    return Noop()
+  }
+}
+
+export async function EmitBusy(text: string) {
+  return emit(AppEvents.Busy, text)
+}
+
+export async function EmitNotBusy() {
+  return emit(AppEvents.Busy, null)
+}
+
+//
+// Popup
+//
 
 export function SpawnPopup<T>(
   windowLabel: string,
@@ -124,7 +170,7 @@ export function SpawnPopup<T>(
     setState?: () => T,
     onConfirmed?: (ev: Event<T>) => void,
     // Cannot make this typesafe, let's assume everyone works with JSON
-    listeners?: [eventName: EventName, (ev: Event<string>) => Promise<void>][]
+    listeners?: [eventName: AppEvent, (ev: Event<string>) => Promise<void>][]
   }
 ): void {
   if (!IsTauriAvailable()) {
@@ -147,14 +193,14 @@ export function SpawnPopup<T>(
   let unlistenPromises: Promise<UnlistenFn>[] = []
 
   if (optional?.setState) {
-    unlistenPromises.push(webview.once(PopupReadyEventName, () => {
+    unlistenPromises.push(webview.once(AppEvents.Popup.Ready, () => {
       const state = optional.setState!()
-      PromiseCatchReportError(emitTo(webview.label, SetPopupStateEventName, state));
+      PromiseCatchReportError(emitTo(webview.label, AppEvents.Popup.SetState, state));
     }))
   }
 
   if (optional?.onConfirmed) {
-    unlistenPromises.push(webview.once<T>(PopupConfirmedEventName, (ev) => optional.onConfirmed!(ev)))
+    unlistenPromises.push(webview.once<T>(AppEvents.Popup.Confirmed, (ev) => optional.onConfirmed!(ev)))
   }
 
   if (optional?.listeners) {
@@ -170,8 +216,17 @@ export function SpawnPopup<T>(
   }))
 }
 
+//
+// Other
+//
+
 export function ToAbsolutePath(relativePath: string, dsRoot: string): string {
   return dsRoot + "/" + relativePath
+}
+
+export function GetLastPathElement(path: string): string {
+  let split = path.split(/[/\\]/)
+  return split[split.length - 1]
 }
 
 export async function FilterExistingPathAsync(paths: string[], dsRoot: string): Promise<string[]> {
@@ -181,7 +236,7 @@ export async function FilterExistingPathAsync(paths: string[], dsRoot: string): 
   }
   let res: string[] = []
   for (let p of paths) {
-    if (await InvokeTauriAsync<boolean>("file_exists", { relativePath: p, dsRoot }))
+    if (await InvokeTauriAsync<boolean>("file_exists", { relativePath: p, root: dsRoot }))
       res.push(p)
   }
   return res
@@ -228,8 +283,6 @@ function ZeroPadLeft(s: string | number, desiredWidth: number): string {
   return s.toString().padStart(desiredWidth, '0')
 }
 
-const BigIntZero: bigint = BigInt(0)
-
 /**
  * Returns the value, or null if it's null/undefined/default primitive value
  * (since protobuf doesn't let us distinguish between default primitive value and unset value).
@@ -238,7 +291,7 @@ export function GetNonDefaultOrNull<T>(v: T | null | undefined): T | null {
   if (v === undefined || v === null) return null
   if (typeof v === "string" && v === "") return null
   if (typeof v === "number" && v === 0) return null
-  if (typeof v === "bigint" && v == BigIntZero) return null
+  if (typeof v === "bigint" && v == 0n) return null
   return v
 }
 
@@ -286,6 +339,7 @@ export function Count<T>(iter: IterableIterator<T>, pred: (t: T) => boolean): nu
   return result
 }
 
+/** A rather crude workaround for serializing bigints, sets and maps */
 export function SerializeJson(src: any): string {
   return JSON.stringify(src, (_, v) => {
     switch (typeof v) {

@@ -4,7 +4,7 @@ import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { DatasetState, ServicesContext, GrpcServices } from "@/app/utils/state";
 
-import MessagesList, { PreloadEverythingEventName } from "@/app/message/message_list";
+import MessagesList, { PreloadEverythingEvent } from "@/app/message/message_list";
 
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { createRoot } from "react-dom/client";
@@ -34,7 +34,7 @@ export async function ExportChatHtml(
     })
 
   let unlisten =
-    Listen<{ error: null | any }>(PreloadEverythingEventName, (ev) => {
+    Listen<{ error: null | any }>(PreloadEverythingEvent, (ev) => {
       let error = ev.payload.error
       if (error) {
         rejectCanContinue(error)

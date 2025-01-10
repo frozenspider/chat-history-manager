@@ -32,7 +32,7 @@ export default function ChatShortDetailsComponent(args: {
 
   let interlocutor = GetChatInterlocutor(args.cwd)
 
-  return <div key={chat.id} className={`mb-2 ${args.isSelected ? 'bg-blue-100 dark:bg-blue-900 rounded-lg' : ''}`}>
+  return <div key={chat.id} className={`w-full ${args.isSelected ? 'bg-blue-100 dark:bg-blue-900 rounded-lg' : ''}`}>
     <button
       className={`w-full p-3 ${
         args.isSelected ? '' : 'hover:bg-gray-100 dark:hover:bg-gray-800'

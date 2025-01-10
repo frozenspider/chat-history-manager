@@ -9,13 +9,13 @@ import { CheckSquare, Square } from "lucide-react";
 
 export const SEPARATOR_WIDTH_CLASS = "w-10";
 
-export type DiffType = "no-change" | "change" | "add" | "keep"
+export type DiffType = "no-change" | "change" | "add" | "dont-add" | "keep"
 export type DiffUnits<T> = Array<T> | AbbreviatedArray<T>
 
 /**
  * Left and right:
  * - `"no-change" | "change"`: guaranteed to be of the same size and type
- * - `"add"`: left is empty
+ * - `"add" | "dont-add"`: left is empty
  * - `"keep"`: right is empty
  *
  * We sure could encode it into a type system, but that seems like too much work
@@ -24,6 +24,12 @@ export interface DiffData<T> {
   tpe: DiffType
   left: DiffUnits<T>
   right: DiffUnits<T>
+}
+
+export const DiffData = {
+  IsToggleable(diffData: DiffData<any>): boolean {
+    return diffData.tpe !== "no-change" && diffData.tpe !== "keep" && diffData.tpe !== "dont-add";
+  }
 }
 
 export class AbbreviatedArray<T> {
@@ -43,13 +49,15 @@ export class AbbreviatedArray<T> {
 }
 
 export default function Diff<T>(args: {
+  description: string,
   labels: [string, string],
   diffsData: Array<DiffData<T>>,
   renderOne: (entry: T) => React.JSX.Element
+  setToggleableSelection: (selectableIndexes: Set<number>) => void
 }): React.JSX.Element {
   const allSelectableSections = React.useMemo(() =>
       new Set(args.diffsData
-        .map((d, idx) => IsToggleable(d) ? idx : -1)
+        .map((d, idx) => DiffData.IsToggleable(d) ? idx : -1)
         .filter(idx => idx !== -1)),
     [args.diffsData]
   )
@@ -57,6 +65,10 @@ export default function Diff<T>(args: {
   // Selected sections should only include toggleable sections
   let [selectedSections, setSelectedSections] =
     React.useState<Set<number>>(new Set(allSelectableSections));
+
+  React.useEffect(() => {
+    args.setToggleableSelection(selectedSections);
+  }, [selectedSections])
 
   const toggleSection = (index: number) => {
     setSelectedSections(prev => {
@@ -76,40 +88,41 @@ export default function Diff<T>(args: {
     );
   };
 
-  return <div className="h-[calc(100vh-4rem)] flex flex-col border rounded-lg overflow-hidden">
-    <div className="flex bg-gray-100 p-2 text-center">
-      <div className="w-[calc(50%-60px)] font-semibold">{args.labels[0]}</div>
-      <div className="w-40 flex justify-center">
-        <Button variant="outline"
-                size="sm"
-                onClick={toggleAllSections}
-                className="h-10 flex items-center justify-center gap-2 bg-white hover:bg-gray-100"
-                style={{ width: "7.5rem" /* There is no w-30 class */ }}>
-          {selectedSections.size == allSelectableSections.size ?
-            <CheckSquare className="h-4 w-4"/> :
-            <Square className="h-4 w-4"/>}
-          <span className="font-medium">{selectedSections.size}/{allSelectableSections.size}</span>
-        </Button>
+  return <>
+    {args.description && <p className="text-center text-gray-600 mb-2">
+      {args.description}
+    </p>}
+    <div className="h-[calc(100vh-4rem)] flex flex-col border rounded-lg overflow-hidden">
+      <div className="flex bg-gray-100 p-2 text-center">
+        <div className="w-[calc(50%-60px)] font-semibold">{args.labels[0]}</div>
+        <div className="w-40 flex justify-center">
+          <Button variant="outline"
+                  size="sm"
+                  onClick={toggleAllSections}
+                  className="h-10 flex items-center justify-center gap-2 bg-white hover:bg-gray-100"
+                  style={{ width: "7.5rem" /* There is no w-30 class */ }}>
+            {selectedSections.size == allSelectableSections.size ?
+              <CheckSquare className="h-4 w-4"/> :
+              <Square className="h-4 w-4"/>}
+            <span className="font-medium">{selectedSections.size}/{allSelectableSections.size}</span>
+          </Button>
+        </div>
+        <div className="w-[calc(50%-60px)] font-semibold">{args.labels[1]}</div>
       </div>
-      <div className="w-[calc(50%-60px)] font-semibold">{args.labels[1]}</div>
+      <ScrollArea className="flex-1">
+        {args.diffsData.map((diffData, index) => {
+          const toggleable = DiffData.IsToggleable(diffData);
+          return <DiffSection
+            key={index}
+            index={index}
+            data={diffData}
+            isSelected={!toggleable || selectedSections.has(index)}
+            isToggleable={toggleable}
+            renderOne={args.renderOne}
+            onToggle={() => toggleable ? toggleSection(index) : null}
+          />
+        })}
+      </ScrollArea>
     </div>
-    <ScrollArea className="flex-1">
-      {args.diffsData.map((diffData, index) => {
-        const toggleable = IsToggleable(diffData);
-        return <DiffSection
-          key={index}
-          index={index}
-          data={diffData}
-          isSelected={!toggleable || selectedSections.has(index)}
-          isToggleable={toggleable}
-          renderOne={args.renderOne}
-          onToggle={() => toggleable ? toggleSection(index) : null}
-        />
-      })}
-    </ScrollArea>
-  </div>
-}
-
-function IsToggleable(diffData: DiffData<any>): boolean {
-  return diffData.tpe !== "no-change" && diffData.tpe !== "keep";
+  </>
 }

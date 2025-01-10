@@ -8,13 +8,14 @@ import DiffPair from "@/app/diff/diff_pair";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
-const BG_COLORS: Map<DiffType, string> = new Map([
-  ["no-change", "bg-white"],
-  ["change", "bg-yellow-50"],
-  ["add", "bg-green-50"],
-  ["keep", "bg-white"],
+const BG_COLORS: Record<DiffType, string> = {
+  "no-change": "bg-white",
+  "change": "bg-yellow-50",
+  "add": "bg-green-50",
+  "keep": "bg-white",
+  "dont-add": "bg-white",
 //  ["remove", "bg-red-50"],
-]);
+}
 
 // These colors could theoretically be set as background on entries themselves to make them stand out
 // const ENTRY_COLORS: Map<DiffType, string> = new Map([
@@ -69,8 +70,8 @@ export default function DiffSection<T>(args: {
 
   return (
     <div className={cn(
-      "relative flex p-4 border-b",
-      EnsureDefined(BG_COLORS.get(args.data.tpe)),
+      "relative flex p-2 border-b",
+      EnsureDefined(BG_COLORS[args.data.tpe]),
       args.isToggleable && !args.isSelected ? "opacity-80" : ""
     )}>
       <div className="flex-grow">

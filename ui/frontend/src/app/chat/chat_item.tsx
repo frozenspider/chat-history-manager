@@ -267,7 +267,7 @@ function ShowSelectChatToCompareWithPopup(
       return SerializeJson([masterCc, dsState, notice, false /* showPersonalChatsOnly */, false /* isDestructive */])
     },
     onConfirmed: (ev) => {
-      let selectedChatId = EnsureDefined(ev.payload, "Selected chat ID to compare with") as string
+      let selectedChatId = JSON.parse(EnsureDefined(ev.payload, "Selected chat ID to compare with"))
       onCompareWith(BigInt(selectedChatId))
     }
   })

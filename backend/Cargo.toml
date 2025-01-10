@@ -26,6 +26,7 @@ paste = { workspace = true }
 mime2ext = { workspace = true }
 indexmap = "2.4.0"
 hex = "0.4.3"
+path-dedot = { workspace = true }
 
 # Text processing
 regex = { workspace = true }

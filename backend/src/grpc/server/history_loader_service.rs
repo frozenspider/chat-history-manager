@@ -27,7 +27,12 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
     async fn get_loaded_files(&self, req: Request<Empty>) -> TonicResult<GetLoadedFilesResponse> {
         self.process_request_blocking(req, |self_clone, _| {
             fn dao_to_loaded_file((k, dao): (&DaoKey, &DaoRwLock)) -> StatusResult<LoadedFile> {
-                Ok(LoadedFile { key: k.clone(), name: read_or_status(dao)?.name().to_owned() })
+                let dao = read_or_status(dao)?;
+                Ok(LoadedFile {
+                    key: k.clone(),
+                    name: dao.name().to_owned(),
+                    storage_path: path_to_str(dao.storage_path()).expect("storage path").to_owned()
+                })
             }
             let files: StatusResult<Vec<_>> = read_or_status(&self_clone.loaded_daos)?.iter()
                 .map(dao_to_loaded_file)

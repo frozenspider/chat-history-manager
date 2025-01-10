@@ -1640,6 +1640,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "paste",
+ "path-dedot",
  "pbkdf2",
  "pretty_assertions",
  "prost",
@@ -1695,6 +1696,8 @@ dependencies = [
  "itertools 0.13.0",
  "lazy_static",
  "log",
+ "path-dedot",
+ "prost",
  "run_script",
  "serde",
  "serde_json",
@@ -6216,6 +6219,15 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "path-dedot"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07ba0ad7e047712414213ff67533e6dd477af0a4e1d14fb52343e53d30ea9397"
+dependencies = [
+ "once_cell",
+]
 
 [[package]]
 name = "path_abs"

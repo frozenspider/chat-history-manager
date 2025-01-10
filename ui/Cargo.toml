@@ -14,9 +14,13 @@ chat-history-manager-backend = { workspace = true }
 itertools = { workspace = true }
 lazy_static = { workspace = true }
 anyhow = { workspace = true }
+path-dedot = { workspace = true }
 base64 = "0.22.0"
 
 tokio = { workspace = true }
+
+# Protobuf
+prost = { workspace = true }
 
 # Serde
 serde = { workspace = true }

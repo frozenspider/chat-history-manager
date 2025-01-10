@@ -8,6 +8,7 @@ import { Chat } from "@/protobuf/core/protobuf/entities";
 import { MessageComponent } from "@/app/message/message";
 
 import {
+  AppEvent,
   Assert,
   AssertDefined,
   EmitToSelf,
@@ -26,7 +27,7 @@ import LoadSpinner from "@/app/general/load_spinner";
  */
 const ScrollTriggeringMessageNumber = 15;
 
-export const PreloadEverythingEventName = "preload-everything"
+export const PreloadEverythingEvent = "preload-everything" as AppEvent
 
 export default function MessagesList(args: {
   // We're unrolling arguments like this to make hook dependencies more granular
@@ -129,7 +130,7 @@ export default function MessagesList(args: {
 
           args.setChatState(intermittentChatState)
 
-          await EmitToSelf(PreloadEverythingEventName, { error: null })
+          await EmitToSelf(PreloadEverythingEvent, { error: null })
         })
       }
     }
@@ -251,7 +252,7 @@ async function TryFetchMoreMessages(
       }
     })
     .catch((e) => {
-      EmitToSelf(PreloadEverythingEventName, { error: e })
+      EmitToSelf(PreloadEverythingEvent, { error: e })
       throw e
     })
     .finally(() => {

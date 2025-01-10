@@ -900,6 +900,7 @@ export const TestMessages: Message[] = (() => {
 export const TestLoadedFiles: LoadedFileState[] = [{
   key: "<no-file>",
   name: "<no-name>",
+  storagePath: "<no-storage-path>",
   datasets: [
     {
       fileKey: "<no-file>",
