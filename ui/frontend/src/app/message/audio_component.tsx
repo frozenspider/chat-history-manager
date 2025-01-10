@@ -113,9 +113,9 @@ export default function AudioComponent(args: {
 
   let inner = LazyContent(
     args.elementName,
-    args.relativePath,
+    async () => args.relativePath,
     args.dsRoot,
-    mimeType,
+    async () => mimeType,
     (lazyData) => {
       if (lazyData.state == LazyDataState.Failure) {
         return <SystemMessage>Voice message loading failed</SystemMessage>

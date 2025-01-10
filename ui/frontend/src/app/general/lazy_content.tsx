@@ -4,7 +4,7 @@ import React from "react";
 
 import { convertFileSrc } from "@tauri-apps/api/core";
 
-import { Assert, IsTauriAvailable } from "@/app/utils/utils";
+import { Assert, IsTauriAvailable, PromiseCatchReportError, ToAbsolutePath } from "@/app/utils/utils";
 import SystemMessage from "@/app/message/system_message";
 
 export enum LazyDataState {
@@ -31,9 +31,9 @@ export interface LazyData {
  * */
 export default function LazyContent(
   elementName: string,
-  relativePath: string | null,
+  relativePathAsync: (() => Promise<string | null>) | null,
   dsRoot: string,
-  mimeType: string,
+  mimeTypeAsync: (relativePath: string) => Promise<string>,
   render: (lazyData: LazyData) => React.JSX.Element,
   proceedWithNullPath = false,
   fetchAssetAsBase64 = false
@@ -44,15 +44,15 @@ export default function LazyContent(
   React.useEffect(() => {
     if (content.state == LazyDataState.NotStarted) {
       setContent({ state: LazyDataState.InProgress, dataUri: null, error: null })
-      if (relativePath) {
-        LoadRealData(relativePath, dsRoot, mimeType, fetchAssetAsBase64, setContent)
+      if (relativePathAsync) {
+        LoadRealData(relativePathAsync, dsRoot, mimeTypeAsync, fetchAssetAsBase64, setContent)
       } else if (proceedWithNullPath) {
         setContent({ state: LazyDataState.Success, dataUri: null, error: null })
       }
     }
-  }, [content.state, elementName, relativePath, dsRoot, mimeType, proceedWithNullPath, fetchAssetAsBase64])
+  }, [content.state, elementName, relativePathAsync, dsRoot, mimeTypeAsync, proceedWithNullPath, fetchAssetAsBase64])
 
-  if (!relativePath && !proceedWithNullPath) {
+  if (!relativePathAsync && !proceedWithNullPath) {
     return <SystemMessage>{elementName} not downloaded</SystemMessage>
   }
 
@@ -60,10 +60,10 @@ export default function LazyContent(
 }
 
 function LoadRealData(
-  relativePath: string,
+  relativePathAsync: () => Promise<string | null>,
   dsRoot: string,
   // Unused as of now
-  _mimeType: string | null,
+  _mimeTypeAsync: (relativePath: string) => Promise<string>,
   fetchAssetAsBase64: boolean,
   setter: (data: LazyData) => void
 ) {
@@ -72,24 +72,34 @@ function LoadRealData(
     return
   }
 
-  let path = dsRoot + "/" + relativePath
-  let assertUri = convertFileSrc(path)
+  let assetUriAsync = async () => {
+    let relativePath = await relativePathAsync()
+    if (!relativePath)
+      return null;
+    let absolutePath = ToAbsolutePath(relativePath, dsRoot)
+    return convertFileSrc(absolutePath)
+  }
 
   if (fetchAssetAsBase64) {
-    fetch(assertUri)
-      .then(r => r.blob())
-      .then(blob => {
-        let reader = new FileReader()
-        reader.onload = () => {
-          Assert(typeof reader.result == "string")
-          setter({ state: LazyDataState.Success, dataUri: reader.result, error: null })
-        }
-        reader.readAsDataURL(blob)
-      })
-      .catch(e => {
-        setter({ state: LazyDataState.Failure, dataUri: null, error: e.toString() })
-      })
+    PromiseCatchReportError(async () => {
+      let assertUri = await assetUriAsync()
+      if (!assertUri) {
+        setter({ state: LazyDataState.Success, dataUri: null, error: null })
+        return
+      }
+      let r = await fetch(assertUri)
+      let blob = await r.blob()
+      let reader = new FileReader()
+      reader.onload = () => {
+        Assert(typeof reader.result == "string")
+        setter({ state: LazyDataState.Success, dataUri: reader.result, error: null })
+      }
+      reader.readAsDataURL(blob)
+    })
   } else {
-    setter({ state: LazyDataState.Success, dataUri: assertUri, error: null })
+    PromiseCatchReportError(async () => {
+      let assertUri = await assetUriAsync()
+      setter({ state: LazyDataState.Success, dataUri: assertUri, error: null })
+    })
   }
 }

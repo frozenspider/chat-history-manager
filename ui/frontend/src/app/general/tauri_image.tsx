@@ -13,7 +13,7 @@ const MaxHeight = 768
 
 export default function TauriImage(args: {
   elementName: string,
-  relativePath: string | null,
+  relativePathAsync: (() => Promise<string | null>) | null,
   dsRoot: string,
   width: number,
   height: number,
@@ -21,23 +21,22 @@ export default function TauriImage(args: {
   // Optional properties, grouped together for the ease of use
   additional?: TauriImageAdditionalProps
 }): React.JSX.Element {
-  let mimeType = args.mimeType
-  if (!mimeType) {
-    // Handling some basic MIME types
-    if (!args.relativePath)
-      mimeType = "image/svg+xml" // Placeholder image type
-    else if (args.relativePath.endsWith(".png"))
-      mimeType = "image/png"
-    else if (args.relativePath.endsWith(".jpg") || args.relativePath.endsWith(".jpeg"))
-      mimeType = "image/jpeg"
-    else if (args.relativePath.endsWith(".gif"))
-      mimeType = "image/gif"
-    else if (args.relativePath.endsWith(".webp"))
-      mimeType = "image/webp"
-    else if (args.relativePath.endsWith(".svg"))
-      mimeType = "image/svg+xml"
-    else
-      mimeType = "image/jpeg"
+  let mimeType = async (relativePath: string) => {
+    if (args.mimeType)
+      return args.mimeType
+      // Handling some basic MIME types
+      if (relativePath.endsWith(".png"))
+        return "image/png"
+      else if (relativePath.endsWith(".jpg") || relativePath.endsWith(".jpeg"))
+        return "image/jpeg"
+      else if (relativePath.endsWith(".gif"))
+        return "image/gif"
+      else if (relativePath.endsWith(".webp"))
+        return "image/webp"
+      else if (relativePath.endsWith(".svg"))
+        return "image/svg+xml"
+      else
+        return "image/jpeg"
   }
 
   let maxWidth = args.additional?.maxWidth ?? MaxWidth
@@ -45,7 +44,7 @@ export default function TauriImage(args: {
 
   return LazyContent(
     args.elementName,
-    args.relativePath,
+    args.relativePathAsync,
     args.dsRoot,
     mimeType,
     (lazyData) => {
@@ -66,7 +65,7 @@ export default function TauriImage(args: {
         return (
           <div className="relative inline-block" style={{ minWidth: width, minHeight: height }}>
             <Image src={srcToUse}
-                   alt={args.additional?.altText ?? args.relativePath!}
+                   alt={args.additional?.altText ?? ""}
                    className={args.additional?.addedClasses}
                    width={width}
                    height={height}
@@ -86,7 +85,7 @@ export default function TauriImage(args: {
         return (
           <div style={{ position: "relative", width: maxWidth + "px", height: maxHeight + "px" }}>
             <Image src={srcToUse}
-                   alt={args.additional?.altText ?? args.relativePath!}
+                   alt={args.additional?.altText ?? ""}
                    className={args.additional?.addedClasses}
                    sizes={`${maxWidth}px`}
                    style={{
@@ -100,7 +99,7 @@ export default function TauriImage(args: {
       }
     },
     args.additional?.keepPlaceholderOnNull,
-    false
+    false /* fetchAssetAsBase64 */
   )
 }
 

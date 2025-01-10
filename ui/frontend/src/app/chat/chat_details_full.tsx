@@ -9,7 +9,7 @@ import {
   IdToReadable
 } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
-import { GetNonDefaultOrNull } from "@/app/utils/utils";
+import { FindExistingPathAsync, GetNonDefaultOrNull } from "@/app/utils/utils";
 import TauriImage from "@/app/general/tauri_image";
 
 export default function ChatFullDetailsComponent(args: {
@@ -21,14 +21,17 @@ export default function ChatFullDetailsComponent(args: {
 
   let mainChat = args.cc.mainCwd.chat!
 
-  let imgs = [GetNonDefaultOrNull(mainChat.imgPathOption)]
-  let interlocutors = GetCombinedChat1to1Interlocutors(args.cc)
-  for (let interlocutor of interlocutors) {
-    for (let pp of interlocutor.profilePictures) {
-      imgs.push(GetNonDefaultOrNull(pp.path))
-    }
+  let relativePathAsync = async () => {
+    let interlocutors = GetCombinedChat1to1Interlocutors(args.cc)
+    let pics = [
+      GetNonDefaultOrNull(mainChat.imgPathOption),
+      ...interlocutors
+        .flatMap(i => i.profilePictures)
+        .filter(pp => pp.path)
+        .map(pp => pp.path)
+    ].filter(p => p).map(p => p!)
+    return FindExistingPathAsync(pics, args.dsState.dsRoot)
   }
-  imgs = imgs.filter(i => i)
 
   React.useEffect(() => {
     function handleResize() {
@@ -47,7 +50,7 @@ export default function ChatFullDetailsComponent(args: {
 
       <div style={{ width: "100%" }}>
         <TauriImage elementName={"Image"}
-                    relativePath={GetNonDefaultOrNull(imgs[0])}
+                    relativePathAsync={relativePathAsync}
                     dsRoot={args.dsState.dsRoot}
                     width={0}
                     height={0}

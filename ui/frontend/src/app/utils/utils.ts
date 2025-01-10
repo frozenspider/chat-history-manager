@@ -82,14 +82,14 @@ export function InvokeTauri<T, R = void>(
 export async function InvokeTauriAsync<T>(
   cmd: string,
   args?: InvokeArgs,
-): Promise<T | void> {
+): Promise<T | null> {
   if (IsTauriAvailable()) {
     return invoke<T>(cmd, args)
   } else {
     const msg = "Calling " + cmd + "(" + JSON.stringify(args) + ") but Tauri is not available"
     console.warn(msg)
     window.alert(msg)
-    return Promise.resolve()
+    return Promise.resolve(null)
   }
 }
 
@@ -105,7 +105,7 @@ export async function Listen<T>(event: EventName, cb: EventCallback<T>): Promise
 }
 
 /** Emit an event to the current webview. */
-export async function EmitToSelf<T>(event: EventName, payload?: unknown): Promise<void> {
+export async function EmitToSelf(event: EventName, payload?: unknown): Promise<void> {
   if (IsTauriAvailable()) {
     return emitTo(getCurrentWebview().label, event, payload)
   } else {
@@ -168,6 +168,27 @@ export function SpawnPopup<T>(
       await Promise.all(unlistenPromises.map(p => p.then(f => f())))
     })
   }))
+}
+
+export function ToAbsolutePath(relativePath: string, dsRoot: string): string {
+  return dsRoot + "/" + relativePath
+}
+
+export async function FilterExistingPathAsync(paths: string[], dsRoot: string): Promise<string[]> {
+  if (!IsTauriAvailable()) {
+    console.warn("Can't determine if path exists, returning []")
+    return []
+  }
+  let res: string[] = []
+  for (let p of paths) {
+    if (await InvokeTauriAsync<boolean>("file_exists", { relativePath: p, dsRoot }))
+      res.push(p)
+  }
+  return res
+}
+
+export async function FindExistingPathAsync(paths: string[], dsRoot: string): Promise<string | null> {
+  return FilterExistingPathAsync(paths, dsRoot).then(res => res.length > 0 ? res[0] : null)
 }
 
 /** Convers a numeric timestamp (epoch seconds) to yyyy-MM-dd HH:mm(:ss) string */

@@ -150,7 +150,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_grpc_port, report_error_string, read_file_base64, save_as]);
+        .invoke_handler(tauri::generate_handler![get_grpc_port, report_error_string, file_exists, read_file_base64, save_as]);
     *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
         builder: Some(builder),
         app_handle_rx: Some(app_handle_rx),
@@ -393,6 +393,12 @@ fn report_error_string(app_handle: AppHandle, error: String) {
         .title("Error")
         .kind(MessageDialogKind::Error)
         .show(|_res| () /* Ignore the result */);
+}
+
+#[tauri::command]
+fn file_exists(relative_path: String, ds_root: String) -> tauri::Result<bool> {
+    let path = Path::new(&ds_root).join(&relative_path);
+    Ok(fs::exists(path)?)
 }
 
 #[tauri::command]

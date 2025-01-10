@@ -4,14 +4,14 @@ import { DatasetState } from "@/app/utils/state";
 import TauriImage from "@/app/general/tauri_image";
 
 export function Avatar(args: {
-  relativePath: string | null,
+  relativePathAsync: () => Promise<string | null>,
   maxSize: number,
   fallback: React.JSX.Element | null
   dsState: DatasetState
 }) {
   return (
     <TauriImage elementName="Image"
-                relativePath={args.relativePath}
+                relativePathAsync={args.relativePathAsync}
                 dsRoot={args.dsState.dsRoot}
                 width={args.maxSize}
                 height={args.maxSize}

@@ -75,7 +75,7 @@ export function MessageContentSticker(args: {
     return <>
       <SystemMessage>Animated sticker</SystemMessage>
       <TauriImage elementName="Sticker"
-                  relativePath={GetNonDefaultOrNull(content.thumbnailPathOption)}
+                  relativePathAsync={async () => GetNonDefaultOrNull(content.thumbnailPathOption)}
                   width={w}
                   height={h}
                   mimeType={null /* unknown */}
@@ -97,7 +97,7 @@ export function MessageContentSticker(args: {
   } else {
     return (
       <TauriImage elementName="Sticker"
-                  relativePath={path}
+                  relativePathAsync={async () => path}
                   dsRoot={args.dsRoot}
                   width={w}
                   height={h}
@@ -117,7 +117,7 @@ export function MessageContentPhoto(args: {
   let path = GetNonDefaultOrNull(content.pathOption);
   return (
     <TauriImage elementName={content.isOneTime ? "One-time photo" : "Photo"}
-                relativePath={path}
+                relativePathAsync={async () => path}
                 dsRoot={args.dsRoot}
                 width={content.width}
                 height={content.height}
@@ -212,7 +212,7 @@ function VideoComponent(
   // TODO: Implement video playback, someday
   return (
     <TauriImage elementName={elementName + " thumbnail"}
-                relativePath={relativeThumbnailPath}
+                relativePathAsync={async () => relativeThumbnailPath}
                 dsRoot={dsRoot}
                 width={width}
                 height={height}
@@ -236,7 +236,7 @@ export function MessageContentFile(args: {
       <>
         {header}
         <TauriImage elementName={"File thumbnail"}
-                    relativePath={thumbnailPath}
+                    relativePathAsync={async () => thumbnailPath}
                     dsRoot={args.dsRoot}
                     width={0 /* unknown */}
                     height={0 /* unknown */}
