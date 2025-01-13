@@ -10,7 +10,7 @@ import { User } from "@/protobuf/core/protobuf/entities";
 
 import ListEntities from "@/app/general/list_entities";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import UserShortDetailsComponent from "@/app/user/user_details_short";
+import UserEntryTechncal from "@/app/user/user_entry_technical";
 import {
   Dialog,
   DialogContent,
@@ -81,12 +81,12 @@ export default function ManageUsers(args: {
           <ScrollArea className="flex-grow h-[calc(100vh-200px)] border rounded-md">
             <div className="p-1">
               {idxUsersDs.map(([idx, [user, dsState]]) =>
-                <UserShortDetailsComponent key={`u${user.id}`}
-                                           user={user}
-                                           dsState={dsState}
-                                           isSelected={isSelected(idx)}
-                                           onClick={() => Noop()}
-                                           onDoubleClick={handleDoubleClick}/>)}
+                <UserEntryTechncal key={`u${user.id}`}
+                                   user={user}
+                                   dsState={dsState}
+                                   isSelected={isSelected(idx)}
+                                   onClick={() => Noop()}
+                                   onDoubleClick={handleDoubleClick}/>)}
             </div>
           </ScrollArea>
         )}/>

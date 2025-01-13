@@ -9,7 +9,7 @@ import { User } from "@/protobuf/core/protobuf/entities";
 import { UserAvatar } from "@/app/user/user_avatar";
 import ColoredName from "@/app/message/colored_name";
 
-export default function UserShortDetailsComponent(args: {
+export default function UserEntryTechncal(args: {
   user: User,
   dsState: DatasetState,
   isSelected: boolean

@@ -26,7 +26,7 @@ import { ChatType } from "@/protobuf/core/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import LoadSpinner from "@/app/general/load_spinner";
 import ListEntities from "@/app/general/list_entities";
-import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
+import ChatEntryTechnical from "@/app/chat/chat_entry_technical";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -134,11 +134,11 @@ export default function Home() {
         <ScrollArea className="flex-grow h-[calc(100vh-200px)] border rounded-md">
           <div className="p-1">
             {idxCwds.map(([idx, cwd]) =>
-              <ChatShortDetailsComponent key={`cwd${idx}`}
-                                         cwd={cwd}
-                                         dsState={datasetState!}
-                                         isSelected={isSelected(idx)}
-                                         onClick={() => onClick(idx, cwd)}/>)}
+              <ChatEntryTechnical key={`cwd${idx}`}
+                                  cwd={cwd}
+                                  dsState={datasetState!}
+                                  isSelected={isSelected(idx)}
+                                  onClick={() => onClick(idx, cwd)}/>)}
           </div>
         </ScrollArea>
       )}/>

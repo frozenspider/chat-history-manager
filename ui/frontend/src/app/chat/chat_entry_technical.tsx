@@ -19,7 +19,7 @@ import ColoredName from "@/app/message/colored_name";
 import { Badge } from "@/components/ui/badge";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 
-export default function ChatShortDetailsComponent(args: {
+export default function ChatEntryTechnical(args: {
   cwd: ChatWithDetailsPB,
   dsState: DatasetState,
   isSelected: boolean

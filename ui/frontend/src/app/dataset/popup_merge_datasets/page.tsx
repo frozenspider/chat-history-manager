@@ -27,10 +27,10 @@ import {
   UserMerge,
   UserMergeType
 } from "@/protobuf/backend/protobuf/services";
-import ChatShortDetailsComponent from "@/app/chat/chat_details_short";
-import UserShortDetailsComponent from "@/app/user/user_details_short";
+import ChatEntryShort from "@/app/chat/chat_entry_short";
+import UserEntryTechncal from "@/app/user/user_entry_technical";
 import { Button } from "@/components/ui/button";
-import { GetChatPrettyName } from "@/app/utils/entity_utils";
+import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatsDiffModel, MakeChatsDiffModel } from "@/app/diff/diff_model_chats";
 import { MakeUsersDiffModel, UsersDiffModel } from "@/app/diff/diff_model_users";
 import { MakeMessagesDiffModel, MessagesDiffModel } from "@/app/diff/diff_model_messages";
@@ -233,14 +233,14 @@ export default function Home() {
                          labels={["Master Chats", "Slave Chats"]}
                          diffsData={stage.chatsModel}
                          renderOne={([cwd, dsState]) =>
-                           <ChatShortDetailsComponent cwd={cwd} dsState={dsState} isSelected={false} onClick={Noop}/>}
+                           <ChatEntryShort cc={new CombinedChat(cwd, [])} dsState={dsState} onClick={Noop}/>}
                          setToggleableSelection={setChatsSelection}/>
           } else if (stage.tpe === "select-users") {
             return <Diff description={"Select users whose info should be merged"}
                          labels={["Master Users", "Slave Users"]}
                          diffsData={stage.usersModel}
                          renderOne={([user, dsState]) =>
-                           <UserShortDetailsComponent user={user} dsState={dsState} isSelected={false} onClick={Noop}/>}
+                           <UserEntryTechncal user={user} dsState={dsState} isSelected={false} onClick={Noop}/>}
                          setToggleableSelection={setUsersSelection}/>
           } else {
             Assert(!!stage.messagesModel)
