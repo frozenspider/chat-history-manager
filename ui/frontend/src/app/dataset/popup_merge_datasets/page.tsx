@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import Diff, { DiffData } from "@/app/diff/diff";
+import Diff from "@/app/diff/diff";
 import { CreateGrpcServicesOnce, DatasetState, GrpcServices, ServicesContext } from "@/app/utils/state";
 import {
   AppEvents,
@@ -45,6 +45,7 @@ interface SelectMessagesStage {
   chatsSelection: Set<number>
   usersModel: UsersDiffModel
   usersSelection: Set<number>
+  activeUserIds: Set<bigint>
   messagesModel: MessagesDiffModel | null
   /**
    * Entries from `pendingAnalysis` that has been awaited, should be evicted from (the beginning of) `pendingAnalysis`
@@ -69,6 +70,7 @@ type Stage = {
   chatsModel: ChatsDiffModel
   chatsSelection: Set<number>
   usersModel: UsersDiffModel
+  activeUserIds: Set<bigint>
 } | {
   tpe: "analyzing"
 } | SelectMessagesStage | {
@@ -135,19 +137,19 @@ export default function Home() {
       console.log("=== Chat model", stage.chatsModel, chatsSelection)
 
       // Filter out members of deselected chats
-      let activeUserIds = stage.chatsModel
+      let activeUserIds = new Set(stage.chatsModel
         .map((data, idx) => [data, idx] as [typeof data, typeof idx])
         .filter(([data, _]) => data.tpe !== "dont-add")
-        .filter(([data, idx]) => !DiffData.IsToggleable(data) || chatsSelection.has(idx))
+        .filter(([data, idx]) => data.tpe === "keep" || data.tpe === "no-change" || chatsSelection.has(idx))
         .flatMap(([data, _]) => {
           Assert(Array.isArray(data.left) && Array.isArray(data.right))
           return [...data.left, ...data.right]
         })
-        .flatMap(([cwd, _]) => cwd.chat!.memberIds)
+        .flatMap(([cwd, _]) => cwd.chat!.memberIds))
 
       PromiseCatchReportError(async () => {
-        let usersModel = await MakeUsersDiffModel(masterDsState!, slaveDsState!, new Set(activeUserIds), services)
-        setStage({ tpe: "select-users", chatsModel: stage.chatsModel, chatsSelection, usersModel })
+        let usersModel = await MakeUsersDiffModel(masterDsState!, slaveDsState!, activeUserIds, services)
+        setStage({ tpe: "select-users", chatsModel: stage.chatsModel, chatsSelection, usersModel, activeUserIds })
       })
 
       // Start chat analysis in the background
@@ -165,6 +167,7 @@ export default function Home() {
           chatsSelection: stage.chatsSelection,
           usersModel: stage.usersModel,
           usersSelection,
+          activeUserIds: stage.activeUserIds,
           messagesModel: null,
           analysis: [],
           pendingAnalysis,
@@ -232,15 +235,20 @@ export default function Home() {
             return <Diff description={"Select chats whose messages should be merged"}
                          labels={["Master Chats", "Slave Chats"]}
                          diffsData={stage.chatsModel}
+                         isToggleable={row =>
+                           row.tpe === "change" || row.tpe === "add"}
                          renderOne={([cwd, dsState]) =>
                            <ChatEntryShort cc={new CombinedChat(cwd, [])} dsState={dsState} onClick={Noop}/>}
                          setToggleableSelection={setChatsSelection}/>
           } else if (stage.tpe === "select-users") {
-            return <Diff description={"Select users whose info should be merged"}
+            return <Diff description={"Select users whose info should be merged.\nNote: New users will me merged regardless"}
                          labels={["Master Users", "Slave Users"]}
                          diffsData={stage.usersModel}
+                         isToggleable={row =>
+                           row.tpe === "change"}
                          renderOne={([user, dsState]) =>
-                           <UserEntryTechncal user={user} dsState={dsState} isSelected={false} onClick={Noop}/>}
+                           <UserEntryTechncal user={user} dsState={dsState} isSelected={false}
+                                              onClick={Noop}/>}
                          setToggleableSelection={setUsersSelection}/>
           } else {
             Assert(!!stage.messagesModel)
@@ -250,6 +258,8 @@ export default function Home() {
             return <Diff description={"Select messages to make it to the final chat version"}
                          labels={[GetChatPrettyName(masterCwd.chat!), GetChatPrettyName(slaveCwd.chat!)]}
                          diffsData={stage.messagesModel}
+                         isToggleable={row =>
+                           row.tpe === "change" || row.tpe === "add"}
                          renderOne={([msg, chat, chatState]) =>
                            <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={1}/>}
                          setToggleableSelection={setMessagesSelection}/>
@@ -350,29 +360,28 @@ function MergeChats(
   let userMerges: UserMerge[] =
     stage.usersModel.map((diff, diffIdx) => {
       Assert(Array.isArray(diff.left) && Array.isArray(diff.right));
-      let userMerge: UserMerge = {
-        tpe: UserMergeType.UNRECOGNIZED,
-        userId: diff.right.length > 0 ? diff.right[0][0].id : diff.left[0][0].id,
-      }
-      switch (diff.tpe) {
-        case "no-change":
-          userMerge.tpe = UserMergeType.MATCH_OR_DONT_REPLACE
-          return userMerge
-        case "change":
-          userMerge.tpe = stage.usersSelection.has(diffIdx) ? UserMergeType.REPLACE : UserMergeType.MATCH_OR_DONT_REPLACE
-          return userMerge
-        case "add":
-          userMerge.tpe = stage.usersSelection.has(diffIdx) ? UserMergeType.ADD : UserMergeType.DONT_ADD
-          return userMerge
-        case "dont-add":
-          userMerge.tpe = UserMergeType.DONT_ADD
-          return userMerge
-        case "keep":
-          userMerge.tpe = UserMergeType.RETAIN
-          return userMerge
-        default:
-          AssertUnreachable(diff.tpe)
-      }
+      let userId = diff.right.length > 0 ? diff.right[0][0].id : diff.left[0][0].id
+      let tpe: UserMergeType = (() => {
+        switch (diff.tpe) {
+          case "no-change":
+            return UserMergeType.MATCH_OR_DONT_REPLACE
+          case "change":
+            return stage.usersSelection.has(diffIdx) ?
+              UserMergeType.REPLACE :
+              UserMergeType.MATCH_OR_DONT_REPLACE
+          case "add":
+            return stage.activeUserIds.has(userId) && stage.usersSelection.has(diffIdx) ?
+              UserMergeType.ADD :
+              UserMergeType.DONT_ADD
+          case "dont-add":
+            return UserMergeType.DONT_ADD
+          case "keep":
+            return UserMergeType.RETAIN
+          default:
+            AssertUnreachable(diff.tpe)
+        }
+      })()
+      return { tpe, userId }
     })
 
   let chatMerges: ChatMerge[] =

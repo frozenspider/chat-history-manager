@@ -19,7 +19,7 @@ export default function DiffPair<T>(args: {
           {
             args.left &&
               <div className="flex justify-start h-full">
-                  <div className="flex flex-row items-start max-w-full w-full">
+                  <div className="flex flex-row max-w-full w-full">
                     {args.renderOne(args.left)}
                   </div>
               </div>
@@ -32,7 +32,7 @@ export default function DiffPair<T>(args: {
           {
             args.right &&
               <div className="flex justify-end h-full">
-                  <div className="flex flex-row items-start max-w-full w-full">
+                  <div className="flex flex-row max-w-full w-full">
                     {args.renderOne(args.right)}
                   </div>
               </div>

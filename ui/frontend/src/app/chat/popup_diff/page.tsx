@@ -3,18 +3,14 @@
 import React from "react";
 
 import Diff from "@/app/diff/diff";
-import {
-  CreateGrpcServicesOnce,
-  DatasetState,
-  ServicesContext,
-} from "@/app/utils/state";
+import { CreateGrpcServicesOnce, DatasetState, ServicesContext, } from "@/app/utils/state";
 import { ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { AppEvents, Assert, EmitToSelf, EnsureDefined, Listen, Noop, PromiseCatchReportError } from "@/app/utils/utils";
 
 import { Loader2 } from "lucide-react";
-import { ChatAnalysis, ChatWithDetailsPB, } from "@/protobuf/backend/protobuf/services";
+import { ChatAnalysis, } from "@/protobuf/backend/protobuf/services";
 import { MessageComponent } from "@/app/message/message";
-import { MessagesDiffModel, MakeMessagesDiffModel } from "@/app/diff/diff_model_messages";
+import { MakeMessagesDiffModel, MessagesDiffModel } from "@/app/diff/diff_model_messages";
 
 
 export default function Home() {
@@ -64,6 +60,8 @@ export default function Home() {
         <Diff description=""
               labels={["Left Chat", "Right Chat"]}
               diffsData={model}
+              isToggleable={row =>
+                row.tpe !== "no-change" && row.tpe !== "keep" && row.tpe !== "dont-add"}
               renderOne={([msg, chat, chatState]) =>
                 <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={1}/>}
               setToggleableSelection={Noop}/>

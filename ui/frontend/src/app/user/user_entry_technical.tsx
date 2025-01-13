@@ -49,7 +49,7 @@ export default function UserEntryTechncal(args: {
                   addedClasses="line-clamp-1 break-all"/>
               }/>}
           {args.user.usernameOption &&
-              <Row caption="Username" value={"@" + args.user.usernameOption}/>}
+              <Row caption="Username" value={args.user.usernameOption}/>}
           {args.user.phoneNumberOption &&
               <Row caption="Phone" value={args.user.phoneNumberOption}/>}
         </div>

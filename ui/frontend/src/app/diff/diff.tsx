@@ -26,12 +26,6 @@ export interface DiffData<T> {
   right: DiffUnits<T>
 }
 
-export const DiffData = {
-  IsToggleable(diffData: DiffData<any>): boolean {
-    return diffData.tpe !== "no-change" && diffData.tpe !== "keep" && diffData.tpe !== "dont-add";
-  }
-}
-
 export class AbbreviatedArray<T> {
   leading: Array<T>
   inBetween: number
@@ -52,14 +46,15 @@ export default function Diff<T>(args: {
   description: string,
   labels: [string, string],
   diffsData: Array<DiffData<T>>,
+  isToggleable: (row: DiffData<T>) => boolean
   renderOne: (entry: T) => React.JSX.Element
   setToggleableSelection: (selectableIndexes: Set<number>) => void
 }): React.JSX.Element {
   const allSelectableSections = React.useMemo(() =>
       new Set(args.diffsData
-        .map((d, idx) => DiffData.IsToggleable(d) ? idx : -1)
+        .map((d, idx) => args.isToggleable(d) ? idx : -1)
         .filter(idx => idx !== -1)),
-    [args.diffsData]
+    [args.diffsData, args.isToggleable]
   )
 
   // Selected sections should only include toggleable sections
@@ -111,7 +106,7 @@ export default function Diff<T>(args: {
       </div>
       <ScrollArea className="flex-1">
         {args.diffsData.map((diffData, index) => {
-          const toggleable = DiffData.IsToggleable(diffData);
+          const toggleable = args.isToggleable(diffData);
           return <DiffSection
             key={index}
             index={index}
