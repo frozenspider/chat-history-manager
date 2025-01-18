@@ -5,7 +5,7 @@ import React from "react";
 import Image from "next/image";
 
 import { PlaceholderImageSvg } from "@/app/utils/entity_utils";
-import LazyContent, { LazyDataState } from "@/app/general/lazy_content";
+import LazyContent from "@/app/general/lazy_content";
 import SystemMessage from "@/app/message/system_message";
 
 const MaxWidth = 1024
@@ -48,11 +48,15 @@ export default function TauriImage(args: {
     args.dsRoot,
     mimeType,
     (lazyData) => {
-      if (lazyData.state == LazyDataState.Failure) {
+      if (lazyData.state == "failure") {
         return <SystemMessage>Image loading failed</SystemMessage>
       }
-      let isPlaceholder = lazyData.dataUri == null
-      let srcToUse = lazyData.dataUri ?? PlaceholderImageSvg
+      if (lazyData.state == "system-message") {
+        return <SystemMessage>{lazyData.text}</SystemMessage>
+      }
+      let dataUri = lazyData.state == "success" ? lazyData.dataUri : null
+      let isPlaceholder = dataUri == null
+      let srcToUse = dataUri ?? PlaceholderImageSvg
       if (args.width > 0 && args.height > 0) {
         // TODO: Allow clicking to show full-size image
         let width = args.width

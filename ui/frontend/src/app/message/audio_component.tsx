@@ -6,9 +6,9 @@ import { Pause, Play } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
-import LazyContent, { LazyDataState } from "@/app/general/lazy_content";
+import LazyContent from "@/app/general/lazy_content";
 import LoadSpinner from "@/app/general/load_spinner";
-import { SecondsToHhMmSsString } from "@/app/utils/utils";
+import { AssertUnreachable, SecondsToHhMmSsString } from "@/app/utils/utils";
 import { TestMp3Base64Data } from "@/app/utils/test_entities";
 
 import SystemMessage from "@/app/message/system_message";
@@ -117,37 +117,41 @@ export default function AudioComponent(args: {
     args.dsRoot,
     async () => mimeType,
     (lazyData) => {
-      if (lazyData.state == LazyDataState.Failure) {
-        return <SystemMessage>Voice message loading failed</SystemMessage>
-      } else if (lazyData.dataUri != null || lazyData.state == LazyDataState.TauriNotAvailable) {
-        let dataUri = lazyData.dataUri
-        if (lazyData.state == LazyDataState.TauriNotAvailable) {
+      switch (lazyData.state) {
+        case "failure":
+          return <SystemMessage>Audio loading failed</SystemMessage>
+        case "system-message":
+          return <SystemMessage>{lazyData.text}</SystemMessage>
+        case "not-started": // FALLTHROUGH
+        case "in-progress":
+          return <LoadSpinner center={false} text="Voice message loading..."/>
+        case "success": // FALLTHROUGH
+        case "tauri-not-available":
           // If not using Tauri, use test data
-          dataUri = TestMp3Base64Data
-        }
+          let dataUri = lazyData.state == "tauri-not-available" ? TestMp3Base64Data : lazyData.dataUri
 
-        if (srcUri != dataUri) {
-          setSrcUri(dataUri)
-        }
+          if (srcUri != dataUri) {
+            setSrcUri(dataUri)
+          }
 
-        if (player) {
-          return <>
-            {lazyData.state == LazyDataState.TauriNotAvailable ?
-              <SystemMessage>Test audio</SystemMessage> :
-              <></>}
-            <div className="m-1 flex items-center gap-2">
-              <button onClick={() => isPlaying ? player.pause() : player.play()}>
-                {isPlaying ? <Pause/> : <Play/>}
-              </button>
-              {progressBar}
-              {durationEl}
-            </div>
-          </>
-        } else {
-          return <SystemMessage>Audio player did not load</SystemMessage>
-        }
-      } else {
-        return <LoadSpinner center={false} text="Voice message loading..."/>
+          if (player) {
+            return <>
+              {lazyData.state == "tauri-not-available" ?
+                <SystemMessage>Test audio</SystemMessage> :
+                <></>}
+              <div className="m-1 flex items-center gap-2">
+                <button onClick={() => isPlaying ? player.pause() : player.play()}>
+                  {isPlaying ? <Pause/> : <Play/>}
+                </button>
+                {progressBar}
+                {durationEl}
+              </div>
+            </>
+          } else {
+            return <SystemMessage>Audio player did not load</SystemMessage>
+          }
+        default:
+          AssertUnreachable(lazyData)
       }
     },
     false,
