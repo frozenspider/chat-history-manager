@@ -11,8 +11,8 @@ import { Chat, Message } from "@/protobuf/core/protobuf/entities";
 import { ChatState } from "@/app/utils/chat_state";
 
 
-const MAX_COMBINED_ENTRIES_SHOWN = 10;
-const ABBREVIATED_ENTRIES_SHOWN = 3;
+const MAX_COMBINED_ENTRIES_SHOWN = 20;
+const ABBREVIATED_ENTRIES_SHOWN = 7;
 
 export type MessagesDiffModelRow = [Message, Chat, ChatState]
 export type MessagesDiffModel = DiffData<MessagesDiffModelRow>[]
@@ -60,8 +60,8 @@ export async function MakeMessagesDiffModel(
         await services.daoClient.messagesAbbreviatedSlice({
           key: dsStates[i].fileKey,
           chat: cwds[i].chat,
-          messageInternalId1: firstAndLastIdsEntry[0]!,
-          messageInternalId2: firstAndLastIdsEntry[1]!,
+          messageInternalId1: firstAndLastIdsEntry[0],
+          messageInternalId2: firstAndLastIdsEntry[1],
           combinedLimit: MAX_COMBINED_ENTRIES_SHOWN,
           abbreviatedLimit: ABBREVIATED_ENTRIES_SHOWN
         })

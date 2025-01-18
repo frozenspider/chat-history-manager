@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import Diff from "@/app/diff/diff";
+import Diff, { DiffData } from "@/app/diff/diff";
 import { CreateGrpcServicesOnce, DatasetState, GrpcServices, ServicesContext } from "@/app/utils/state";
 import {
   AppEvents,
@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
 import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
 import { ChatsDiffModel, MakeChatsDiffModel } from "@/app/diff/diff_model_chats";
 import { MakeUsersDiffModel, UsersDiffModel } from "@/app/diff/diff_model_users";
-import { MakeMessagesDiffModel, MessagesDiffModel } from "@/app/diff/diff_model_messages";
+import { MakeMessagesDiffModel, MessagesDiffModel, MessagesDiffModelRow } from "@/app/diff/diff_model_messages";
 import { MessageComponent } from "@/app/message/message";
 import { DatasetsMergedEvent } from "@/app/dataset/select_datasets_to_merge_dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -173,17 +173,7 @@ export default function Home() {
           pendingAnalysis,
           resolutions: []
         }
-        if (pendingAnalysis.length == 0) {
-          // Skip the messages selection
-          setStage({ tpe: "merging" })
-          MergeChats(masterDsState!, slaveDsState!, newDatabaseDir, newStage)
-        } else {
-          let chatAnalysis = await newStage.pendingAnalysis.shift()!
-          console.log("=== chatAnalysis:", chatAnalysis)
-          newStage.messagesModel = await MakeMessagesDiffModel(masterDsState!, slaveDsState!, chatAnalysis, services)
-          newStage.analysis.push(chatAnalysis)
-          setStage(newStage)
-        }
+        PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, masterDsState!, slaveDsState!, services))
       })
     } else if (stage.tpe === "select-messages") {
       console.log("=== select-messages")
@@ -195,22 +185,7 @@ export default function Home() {
         pendingAnalysis: [...stage.pendingAnalysis],
         resolutions: [...stage.resolutions, messagesSelection]
       }
-      if (newStage.pendingAnalysis.length > 0) {
-        PromiseCatchReportError(async () => {
-          console.log("=== Waiting for the next analysis")
-          let chatAnalysis = await newStage.pendingAnalysis.shift()!
-          console.log("=== chatAnalysis:", chatAnalysis)
-          let messagesModel = await MakeMessagesDiffModel(masterDsState!, slaveDsState!, chatAnalysis, services)
-          newStage.analysis.push(chatAnalysis)
-          newStage.messagesModel = messagesModel
-          setStage(newStage)
-        })
-      } else {
-        console.log("=== All conflicts have been resolved")
-        // All conflicts have been resolved
-        setStage({ tpe: "merging" })
-        MergeChats(masterDsState!, slaveDsState!, newDatabaseDir, newStage)
-      }
+      PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, masterDsState!, slaveDsState!, services))
     }
   }, [stage, masterDsState, slaveDsState, newDatabaseDir, chatsSelection, usersSelection, messagesSelection,
     services, analyzeChatsPromises])
@@ -244,8 +219,7 @@ export default function Home() {
             return <Diff description={"Select users whose info should be merged.\nNote: New users will me merged regardless"}
                          labels={["Master Users", "Slave Users"]}
                          diffsData={stage.usersModel}
-                         isToggleable={row =>
-                           row.tpe === "change"}
+                         isToggleable={row => row.tpe === "change"}
                          renderOne={([user, dsState]) =>
                            <UserEntryTechncal user={user} dsState={dsState} isSelected={false}
                                               onClick={Noop}/>}
@@ -258,8 +232,7 @@ export default function Home() {
             return <Diff description={"Select messages to make it to the final chat version"}
                          labels={[GetChatPrettyName(masterCwd.chat!), GetChatPrettyName(slaveCwd.chat!)]}
                          diffsData={stage.messagesModel}
-                         isToggleable={row =>
-                           row.tpe === "change" || row.tpe === "add"}
+                         isToggleable={IsMessageToggleable}
                          renderOne={([msg, chat, chatState]) =>
                            <MessageComponent msg={msg} chat={chat} chatState={chatState} replyDepth={1}/>}
                          setToggleableSelection={setMessagesSelection}/>
@@ -285,6 +258,15 @@ function Throbber(args: { text: string }) {
       </div>
     </div>
   )
+}
+
+function IsMessageToggleable(row: DiffData<MessagesDiffModelRow>) {
+  return row.tpe === "change" || row.tpe === "add"
+}
+
+function ChatHasToggleableChanges(analysis: ChatAnalysis) {
+  return analysis.sections.some(section =>
+    section.tpe === AnalysisSectionType.ADDITION || section.tpe === AnalysisSectionType.CONFLICT)
 }
 
 /** Start chats analysis process in the background, returning a list of promises that should be waited in order */
@@ -345,6 +327,41 @@ function AnalyzeChangedChats(
     .finally(() => EmitNotBusy()))
   console.log("=== Yielding " + result.length + " promises")
   return result
+}
+
+async function AdvanceToNextStage(
+  mutableStage: SelectMessagesStage,
+  newDatabaseDir: string,
+  setStage: (stage: Stage) => void,
+  masterDsState: DatasetState,
+  slaveDsState: DatasetState,
+  services: GrpcServices,
+): Promise<void> {
+  while (true) {
+    if (mutableStage.pendingAnalysis.length > 0) {
+      console.log("=== Waiting for the next analysis")
+      let chatAnalysis = await mutableStage.pendingAnalysis.shift()!
+      console.log("=== chatAnalysis:", chatAnalysis)
+      mutableStage.analysis.push(chatAnalysis)
+      if (ChatHasToggleableChanges(chatAnalysis)) {
+        console.log("=== Has conflicts")
+        mutableStage.messagesModel = await MakeMessagesDiffModel(masterDsState, slaveDsState, chatAnalysis, services)
+        setStage(mutableStage)
+        return
+      } else {
+        console.log("=== No conflicts")
+        // User has nothing to choose from, just resolve the conflict automatically
+        mutableStage.resolutions.push(new Set())
+        // Continue the loop
+      }
+    } else {
+      console.log("=== All conflicts have been resolved")
+      // All conflicts have been resolved
+      setStage({ tpe: "merging" })
+      MergeChats(masterDsState, slaveDsState, newDatabaseDir, mutableStage)
+      return
+    }
+  }
 }
 
 function MergeChats(
