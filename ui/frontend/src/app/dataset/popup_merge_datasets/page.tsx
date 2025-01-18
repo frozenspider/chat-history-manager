@@ -370,7 +370,8 @@ function MergeChats(
               UserMergeType.REPLACE :
               UserMergeType.MATCH_OR_DONT_REPLACE
           case "add":
-            return stage.activeUserIds.has(userId) && stage.usersSelection.has(diffIdx) ?
+            // Users are added depending solely on whether they are present in active chats.
+            return stage.activeUserIds.has(userId) ?
               UserMergeType.ADD :
               UserMergeType.DONT_ADD
           case "dont-add":
