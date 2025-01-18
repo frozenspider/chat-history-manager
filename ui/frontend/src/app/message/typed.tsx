@@ -224,7 +224,7 @@ function MessageTypedRegular(args: {
   }
 
   let contents = args.msg.contents.map((content, idx) => {
-    return <MessageContent key={"content_" + idx}
+    return <MessageContent key={"content_" + args.chat.dsUuid!.value + "_" + args.chat.id + "_" + idx}
                            content={GetNonDefaultOrNull(content)}
                            chatState={args.chatState}/>
   })
