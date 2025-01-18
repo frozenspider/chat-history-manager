@@ -50,6 +50,13 @@ export function InputOverlay<S>(args: {
     })
   }, [args])
 
+  // This would've been way better as a form submission action, but that approach breaks the dialog layout
+  let handleEnterPressed = React.useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      onOkClick()
+    }
+  }, [onOkClick])
+
   return (
     <AlertDialog open={!!args.state}>
       <AlertDialogContent>
@@ -64,12 +71,14 @@ export function InputOverlay<S>(args: {
                   return <Input ref={inputRef}
                                 type="text"
                                 placeholder={args.state ? args.stateToInitialValue(args.state) : ""}
-                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}/>
+                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}
+                                onKeyDown={handleEnterPressed}/>
                 case "integer":
                   return <Input ref={inputRef}
                                 type="number"
                                 placeholder={args.state ? args.stateToInitialValue(args.state) : ""}
-                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}/>
+                                defaultValue={args.state ? args.stateToInitialValue(args.state) : ""}
+                                onKeyDown={handleEnterPressed}/>
                 default:
                   AssertUnreachable(args.config.inputType)
               }
