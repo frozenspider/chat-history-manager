@@ -715,18 +715,20 @@ function MergeDatasets(
   newDatabaseDir: string
 ) {
   let label = "merge-datasets-window";
-  SpawnPopup<string>(label, "Select chats to merge", "dataset/popup_merge_datasets", 1000, screen.availHeight - 100, {
-    setState: () => SerializeJson([masterDsState, slaveDsState, newDatabaseDir]),
-    listeners: [
-      [DatasetsMergedEvent, async (ev) => {
-        let mergeRequest = MergeRequest.fromJSON(ev.payload)
-        let encodedMergeRequest = MergeRequest.encode(mergeRequest).finish()
-        // This request will be sent by Tauri so it can also update list of open files on its side.
-        // This will manage busy state.
-        await InvokeTauriAsync("merge_datasets", { mergeRequest: encodedMergeRequest })
-      }]
-    ]
-  })
+  SpawnPopup<string>(label, "Select chats to merge", "dataset/popup_merge_datasets",
+    screen.availWidth - 100,
+    screen.availHeight - 100, {
+      setState: () => SerializeJson([masterDsState, slaveDsState, newDatabaseDir]),
+      listeners: [
+        [DatasetsMergedEvent, async (ev) => {
+          let mergeRequest = MergeRequest.fromJSON(ev.payload)
+          let encodedMergeRequest = MergeRequest.encode(mergeRequest).finish()
+          // This request will be sent by Tauri so it can also update list of open files on its side.
+          // This will manage busy state.
+          await InvokeTauriAsync("merge_datasets", { mergeRequest: encodedMergeRequest })
+        }]
+      ]
+    })
 }
 
 function RenameDatasetComponent(args: {

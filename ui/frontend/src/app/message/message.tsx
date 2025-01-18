@@ -22,7 +22,7 @@ export function MessageComponent(args: {
 
   // TODO: Limit height/#lines for replyDepth > 0
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pb-4">
       <MessageTitle msg={args.msg}
                     author={author}
                     colorClass={colorClass.text}

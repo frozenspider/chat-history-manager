@@ -207,6 +207,7 @@ export default function Home() {
       <main className="mx-auto p-4 flex flex-col h-screen">
         {(() => {
           if (stage.tpe === "select-chats") {
+            PromiseCatchReportError(getCurrentWindow().setTitle("Select chats to merge"))
             return <Diff description={"Select chats whose messages should be merged"}
                          labels={["Master Chats", "Slave Chats"]}
                          diffsData={stage.chatsModel}
@@ -216,6 +217,7 @@ export default function Home() {
                            <ChatEntryShort cc={new CombinedChat(cwd, [])} dsState={dsState} onClick={Noop}/>}
                          setToggleableSelection={setChatsSelection}/>
           } else if (stage.tpe === "select-users") {
+            PromiseCatchReportError(getCurrentWindow().setTitle("Select users to merge"))
             return <Diff description={"Select users whose info should be merged.\nNote: New users will me merged regardless"}
                          labels={["Master Users", "Slave Users"]}
                          diffsData={stage.usersModel}
@@ -229,6 +231,7 @@ export default function Home() {
             let analysis = stage.analysis[stage.analysis.length - 1]
             let masterCwd = masterDsState!.cwds.find(cwd => cwd.chat!.id == analysis.chatIds!.masterChatId)!
             let slaveCwd = slaveDsState!.cwds.find(cwd => cwd.chat!.id == analysis.chatIds!.slaveChatId)!
+            PromiseCatchReportError(getCurrentWindow().setTitle(`Select messages to merge (${GetChatPrettyName(masterCwd.chat!)})`))
             return <Diff description={"Select messages to make it to the final chat version"}
                          labels={[GetChatPrettyName(masterCwd.chat!), GetChatPrettyName(slaveCwd.chat!)]}
                          diffsData={stage.messagesModel}
