@@ -138,31 +138,25 @@ pub fn list_all_files(p: &Path, recurse: bool) -> Result<Vec<PathBuf>> {
     Ok(res)
 }
 
-/// Files are equal if they are equal byte-by-byte, or if they both don't exist
+/// Files are equal if their sizes and hashes are equal, or if they both don't exist
 pub fn files_are_equal(f1: &Path, f2: &Path) -> Result<bool> {
-    if !f1.exists() { return Ok(!f2.exists()); }
-    if !f2.exists() { return Ok(!f1.exists()); }
-
-    let f1 = File::open(f1)?;
-    let f2 = File::open(f2)?;
-
-    // Check if file sizes are different
-    if f1.metadata().unwrap().len() != f2.metadata().unwrap().len() {
-        return Ok(false);
-    }
-
-    // Use buf readers since they are much faster
-    let f1 = BufReader::with_capacity(FILE_BUF_CAPACITY, f1);
-    let f2 = BufReader::with_capacity(FILE_BUF_CAPACITY, f2);
-
-    // Do a byte to byte comparison of the two files
-    for (b1, b2) in f1.bytes().zip(f2.bytes()) {
-        if b1.unwrap() != b2.unwrap() {
-            return Ok(false);
+    match (f1.metadata(), f2.metadata()) {
+        (Err(_), Err(_)) => {
+            // Both don't exist
+            Ok(true)
         }
-    }
+        (Ok(m1), Ok(m2)) => {
+            // Check if file sizes are different
+            if m1.len() != m2.len() {
+                return Ok(false);
+            }
 
-    Ok(true)
+            let hash1 = file_hash(f1)?;
+            let hash2 = file_hash(f2)?;
+            Ok(hash1 == hash2)
+        },
+        _ => Ok(false)
+    }
 }
 
 //
@@ -229,8 +223,8 @@ pub fn hasher() -> Hasher {
     BuildHasherDefault::<HasherInner>::default()
 }
 
-/// Get a hash string (32 uppercase hex chars) of a file's content.
-pub fn file_hash(path: &Path) -> StdResult<String, io::Error> {
+/// Get a hash of a file's content.
+pub fn file_hash(path: &Path) -> StdResult<u128, io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::with_capacity(FILE_BUF_CAPACITY, file);
     let mut buffer = [0; 512];
@@ -244,7 +238,15 @@ pub fn file_hash(path: &Path) -> StdResult<String, io::Error> {
         hashers[*i].write(&buffer[..count]);
     }
 
-    Ok(format!("{:X}{:X}", hashers[0].finish(), hashers[1].finish()))
+    // Concatenate two hashes into u128
+    let hash1 = hashers[0].finish();
+    let hash2 = hashers[1].finish();
+    Ok((hash1 as u128) << 64 | hash2 as u128)
+}
+
+/// Get a hash string (32 uppercase hex chars) of a file's content.
+pub fn file_hash_string(path: &Path) -> StdResult<String, io::Error> {
+    Ok(format!("{:X}", file_hash(path)?))
 }
 
 //

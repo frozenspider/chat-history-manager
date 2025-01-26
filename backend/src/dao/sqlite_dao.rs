@@ -1270,7 +1270,7 @@ fn copy_file(src_file: &Path,
                 format!("{}{full_name}_thumb{ext_suffix}", main_path.smart_slice(..-(full_name.len() as i32)))
             } else {
                 let inner_path = if subpath.use_hashing {
-                    let hash = file_hash(src_file)?;
+                    let hash = file_hash_string(src_file)?;
                     // Using first two characters of hash as a prefix for better file distribution, same what git does
                     let (prefix, name) = hash.split_at(2);
                     format!("{prefix}/{name}{ext_suffix}")
