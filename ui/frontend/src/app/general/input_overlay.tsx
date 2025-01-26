@@ -35,6 +35,10 @@ export function InputOverlay<S>(args: {
   let inputRef =
     React.useRef<HTMLInputElement>(null)
 
+  React.useEffect(() => {
+    setErrorMessage(null)
+  }, [args])
+
   let onOkClick = React.useCallback(() => {
     Assert(inputRef.current != null)
     Assert(args.state != null)
