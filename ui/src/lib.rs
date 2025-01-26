@@ -62,6 +62,7 @@ static EVENT_SAVE_AS_CLICKED: &str = "save-as-clicked";
 static EVENT_USERS_CLICKED: &str = "users-clicked";
 static EVENT_MERGE_DATASETS_CLICKED: &str = "merge-datasets-clicked";
 static EVENT_COMPARE_DATASETS_CLICKED: &str = "compare-datasets-clicked";
+static EVENT_COMPARE_DATASETS_FINISHED: &str = "compare-datasets-finished";
 static EVENT_BUSY: &str = "busy";
 
 static EVENT_CHOOSE_MYSELF: &str = "choose-myself";
@@ -153,7 +154,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_grpc_port, report_error_string, file_exists, read_file_base64, save_as, merge_datasets
+            get_grpc_port, report_error_string, file_exists, read_file_base64, save_as, compare_datasets, merge_datasets
         ]);
     *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
         builder: Some(builder),
@@ -436,6 +437,33 @@ fn save_as(
             let _wip = wip; // Move the WIP RAII inside async closure
             clients.grpc(|_, dao, _| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
             refresh_opened_files_list(app_handle, clients, true).await
+        };
+        inner
+    });
+    Ok(())
+}
+
+// I didn't find a way to disable 60s timeout on the front-end (at least on Safari webview),
+// so we're using backend to make this request.
+#[tauri::command]
+fn compare_datasets(
+    compare_request: Vec<u8>,
+    app_handle: AppHandle,
+    clients: State<ChatHistoryManagerGrpcClients>,
+    busy_state: State<BusyState>,
+) -> tauri::Result<()> {
+    use prost::Message;
+    let compare_request = EnsureSameRequest::decode(compare_request.as_slice()).map_err(|e| tauri::Error::CannotDeserializeScope(Box::new(e)))?;
+    let mut clients = clients.inner().clone();
+    let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Comparing..."))?;
+    run_async_callback(app_handle, move |app_handle| {
+        let inner = async move {
+            let _wip = wip; // Move the WIP RAII inside async closure
+            let res = clients.grpc(|loader, _, _| loader.ensure_same(compare_request)).await?;
+            let mut encoded_res = Vec::new();
+            EnsureSameResponse::encode(&res, &mut encoded_res).expect("encode EnsureSameResponse");
+            app_handle.emit(EVENT_COMPARE_DATASETS_FINISHED, encoded_res).expect("send busy event");
+            Ok(())
         };
         inner
     });

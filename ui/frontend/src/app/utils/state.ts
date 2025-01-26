@@ -13,7 +13,7 @@ import {
   MergeServiceDefinition
 } from "@/protobuf/backend/protobuf/services";
 import { FileKey } from "@/app/utils/entity_utils";
-import { createChannel, createClient } from "nice-grpc-web";
+import { createChannel, createClientFactory } from "nice-grpc-web";
 import { EnsureDefined } from "@/app/utils/utils";
 
 
@@ -33,11 +33,12 @@ export interface GrpcServices {
 export function CreateGrpcServicesOnce(port: number) {
   // No-dependency useMemo ensures that the services are created only once
   return React.useMemo<GrpcServices>(() => {
+    const clientFactory = createClientFactory()
     const channel = createChannel(`http://localhost:${port}`);
     return {
-      loadClient: createClient(HistoryLoaderServiceDefinition, channel),
-      daoClient: createClient(HistoryDaoServiceDefinition, channel),
-      mergeClient: createClient(MergeServiceDefinition, channel)
+      loadClient: clientFactory.create(HistoryLoaderServiceDefinition, channel),
+      daoClient: clientFactory.create(HistoryDaoServiceDefinition, channel),
+      mergeClient: clientFactory.create(MergeServiceDefinition, channel)
     }
   }, [])
 }

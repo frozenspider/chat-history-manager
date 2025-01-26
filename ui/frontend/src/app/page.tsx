@@ -12,6 +12,7 @@ import {
   EmitNotBusy,
   EnsureDefined,
   GetLastPathElement,
+  InvokeTauri,
   InvokeTauriAsync,
   Listen,
   PromiseCatchReportError,
@@ -34,7 +35,12 @@ import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
 
 import { PbUuid, User } from "@/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB, MergeRequest } from "@/protobuf/backend/protobuf/services";
+import {
+  ChatWithDetailsPB,
+  EnsureSameRequest,
+  EnsureSameResponse,
+  MergeRequest
+} from "@/protobuf/backend/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
 
 import NavigationBar from "@/app/navigation_bar";
@@ -144,6 +150,11 @@ export default function Home() {
       Listen<string>(BackendEvents.AskForText, (ev) => {
         let prompt = ev.payload
         setUserInputRequestState({ $case: "ask_for_text", prompt })
+      }),
+      Listen<Uint8Array>(BackendEvents.CompareDatasetsFinished, (ev) => {
+        let payload = ev.payload
+        let response = EnsureSameResponse.decode(payload)
+        CompareDatasetsFinish(response, setAlertDialogState)
       })
     ]
 
@@ -287,8 +298,10 @@ export default function Home() {
               dispose={() => setSaveAsState(null)}/>
       <SelectDatasetsToCompareDialog openFiles={openFiles}
                                      isOpen={compareDatasetsOpenState}
-                                     onConfirm={(left, right) =>
-                                       CompareDatasets(left, right, setAlertDialogState, services)}
+                                     onConfirm={(left, right) => {
+                                       CompareDatasetsStart(left, right)
+                                       setCompareDatasetsOpenState(false)
+                                     }}
                                      onClose={() => setCompareDatasetsOpenState(false)}/>
       <SelectDatasetsToMergeDialog openFiles={openFiles}
                                    isOpen={mergeDatasetsState.tpe == "select-datasets"}
@@ -344,6 +357,7 @@ const BackendEvents = {
   SaveAsClicked: "save-as-clicked" as AppEvent,
   UsersClicked: "users-clicked" as AppEvent,
   CompareDatasetsClicked: "compare-datasets-clicked" as AppEvent,
+  CompareDatasetsFinished: "compare-datasets-finished" as AppEvent,
   MergeDatasetsClicked: "merge-datasets-clicked" as AppEvent,
   ChooseMyself: "choose-myself" as AppEvent,
   AskForText: "ask-for-text" as AppEvent,
@@ -657,22 +671,30 @@ function ExportChatAsHtml(
     .finally(() => EmitNotBusy()))
 }
 
-function CompareDatasets(
+function CompareDatasetsStart(
   left: DatasetState,
   right: DatasetState,
-  alert: (s: AlertDialogState) => void,
-  services: GrpcServices
 ) {
-  let innerAsync = async () => {
-    await EmitBusy("Comparing...")
+  // I didn't find a way to disable 60s timeout (at least on Safari webview),
+  // so we're using backend to make this request.
+  let req: EnsureSameRequest = {
+    masterDaoKey: left.fileKey,
+    masterDsUuid: left.ds.uuid,
+    slaveDaoKey: right.fileKey,
+    slaveDsUuid: right.ds.uuid
+  }
 
-    let response = await services.loadClient.ensureSame({
-      masterDaoKey: left.fileKey,
-      masterDsUuid: left.ds.uuid,
-      slaveDaoKey: right.fileKey,
-      slaveDsUuid: right.ds.uuid
-    })
+  let encodedReq = EnsureSameRequest.encode(req).finish()
 
+  // Busy state is managed by Rust here.
+  // TODO: Is that what we want?
+  InvokeTauri("compare_datasets", { compareRequest: encodedReq })
+}
+
+function CompareDatasetsFinish(
+  response: EnsureSameResponse,
+  alert: (s: AlertDialogState) => void,
+) {
     let diffs = response.diffs
 
     if (diffs.length == 0) {
@@ -703,10 +725,6 @@ function CompareDatasets(
         </>
       })
     }
-  }
-
-  PromiseCatchReportError(innerAsync()
-    .finally(() => EmitNotBusy()))
 }
 
 function MergeDatasets(
