@@ -446,7 +446,10 @@ function MergeChats(
                 case AnalysisSectionType.RETENTION:
                   return MessageMergeType.RETAIN
                 case AnalysisSectionType.ADDITION:
-                  return resolution.has(idx) ? MessageMergeType.ADD : MessageMergeType.DONT_ADD
+                  return resolution.has(idx) ? MessageMergeType.ADD : (() => {
+                    console.log("=== DON'T ADD!")
+                    return MessageMergeType.DONT_ADD
+                  })()
                 case AnalysisSectionType.CONFLICT:
                   return resolution.has(idx) ? MessageMergeType.REPLACE : MessageMergeType.DONT_REPLACE
                 case AnalysisSectionType.UNRECOGNIZED:

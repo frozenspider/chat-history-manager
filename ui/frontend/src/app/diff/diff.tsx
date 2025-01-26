@@ -50,22 +50,26 @@ export default function Diff<T>(args: {
   renderOne: (entry: T) => React.JSX.Element
   setToggleableSelection: (selectableIndexes: Set<number>) => void
 }): React.JSX.Element {
-  const allSelectableSections = React.useMemo(() =>
-      new Set(args.diffsData
-        .map((d, idx) => args.isToggleable(d) ? idx : -1)
-        .filter(idx => idx !== -1)),
-    [args.diffsData, args.isToggleable]
-  )
 
   // Selected sections should only include toggleable sections
   let [selectedSections, setSelectedSections] =
-    React.useState<Set<number>>(new Set(allSelectableSections));
+    React.useState<Set<number>>(new Set());
+
+  const allSelectableSections = React.useMemo(() => {
+      let res = new Set(args.diffsData
+        .map((d, idx) => args.isToggleable(d) ? idx : -1)
+        .filter(idx => idx !== -1))
+      setSelectedSections(res);
+      return res
+    },
+    [args.diffsData, setSelectedSections]
+  )
 
   React.useEffect(() => {
     args.setToggleableSelection(selectedSections);
   }, [selectedSections])
 
-  const toggleSection = (index: number) => {
+  const toggleSection = React.useCallback((index: number) => {
     setSelectedSections(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {
@@ -75,13 +79,13 @@ export default function Diff<T>(args: {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const toggleAllSections = () => {
+  const toggleAllSections = React.useCallback(() => {
     setSelectedSections(prev =>
       prev.size === allSelectableSections.size ? new Set() : new Set(allSelectableSections)
     );
-  };
+  }, [allSelectableSections]);
 
   return <>
     {args.description && <p className="text-center text-gray-600 mb-2">
