@@ -631,9 +631,9 @@ fn update_chat_change_id() -> EmptyRes {
     for f in new_files.iter() {
         assert!(f.exists(), "File {} does not exist!", f.display());
 
-        let old_hash = &hashes[path_file_name(f).unwrap()];
+        let old_hash = hashes[path_file_name(f).unwrap()];
         let new_hash = file_hash(f).unwrap();
-        assert_eq!(old_hash, &new_hash);
+        assert_eq!(old_hash, new_hash);
     }
 
     let src_cwd = daos.src_dao.chats(&daos.ds_uuid)?.into_iter().find(|cwd2| cwd2.id() == old_id).unwrap();
