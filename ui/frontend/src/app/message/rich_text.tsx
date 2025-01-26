@@ -46,6 +46,7 @@ function MessageRichTextElement(
       let text = rte.val.plain.text
       // Emoji take more than one UTF-16 code unit, so string.length for them would be 2 or more.
       // Special thanks goes to https://cestoliv.com/blog/how-to-count-emojis-with-javascript/
+      // TODO: This seems to be catching singular digits as emojis, which is not intended
       let isLoneEmoji = (
         isSingular
         && /\p{Emoji}/u.test(text)

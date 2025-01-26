@@ -13,7 +13,8 @@ import {
   EmitToSelf,
   Listen,
   Noop,
-  PromiseCatchReportError
+  PromiseCatchReportError,
+  ReportError
 } from "@/app/utils/utils";
 
 import { Loader2 } from "lucide-react";
@@ -31,7 +32,7 @@ import ChatEntryShort from "@/app/chat/chat_entry_short";
 import UserEntryTechncal from "@/app/user/user_entry_technical";
 import { Button } from "@/components/ui/button";
 import { CombinedChat, GetChatPrettyName } from "@/app/utils/entity_utils";
-import { ChatsDiffModel, MakeChatsDiffModel } from "@/app/diff/diff_model_chats";
+import { ChatsDiffModel, ChatsDiffModelRow, MakeChatsDiffModel } from "@/app/diff/diff_model_chats";
 import { MakeUsersDiffModel, UsersDiffModel } from "@/app/diff/diff_model_users";
 import { MakeMessagesDiffModel, MessagesDiffModel, MessagesDiffModelRow } from "@/app/diff/diff_model_messages";
 import { MessageComponent } from "@/app/message/message";
@@ -56,7 +57,7 @@ interface SelectMessagesStage {
    * and added to `analysis` instead.
    */
   pendingAnalysis: Promise<ChatAnalysis>[]
-  /** Corresponds to analyzeResults and will have the same length once all conflicts are resolved */
+  /** Corresponds to `analysis` and will have the same length once all conflicts are resolved */
   resolutions: Set<number>[]
 }
 
@@ -106,6 +107,9 @@ export default function Home() {
   // Promises will be resolved in the order
   const [analyzeChatsPromises, setAnalyzeChatsPromises] =
     React.useState<Promise<ChatAnalysis>[] | null>(null)
+
+  const [isAnalyzing, setIsAnalyzing] =
+    React.useState<boolean>(false)
 
   React.useEffect(() => {
     // Cannot pass the payload directly because of BigInt, Map, etc. not being serializable by default
@@ -158,6 +162,7 @@ export default function Home() {
       setAnalyzeChatsPromises(AnalyzeChangedChats(services, chatsToAnalyze, false /* forceConflicts */))
     } else if (stage.tpe === "select-users") {
       setStage({ tpe: "analyzing" })
+      setIsAnalyzing(true)
       PromiseCatchReportError(async () => {
         console.log("=== We have " + analyzeChatsPromises?.length + " analysis promises")
         let pendingAnalysis = analyzeChatsPromises!
@@ -173,10 +178,11 @@ export default function Home() {
           pendingAnalysis,
           resolutions: []
         }
-        PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, masterDsState!, slaveDsState!, services))
+        PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, setIsAnalyzing, masterDsState!, slaveDsState!, services))
       })
     } else if (stage.tpe === "select-messages") {
       console.log("=== select-messages")
+      setIsAnalyzing(true)
       // Make a deep (-ish) copy
       let newStage: SelectMessagesStage = {
         ...stage,
@@ -185,7 +191,7 @@ export default function Home() {
         pendingAnalysis: [...stage.pendingAnalysis],
         resolutions: [...stage.resolutions, messagesSelection]
       }
-      PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, masterDsState!, slaveDsState!, services))
+      PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, setIsAnalyzing, masterDsState!, slaveDsState!, services))
     }
   }, [stage, masterDsState, slaveDsState, newDatabaseDir, chatsSelection, usersSelection, messagesSelection,
     services, analyzeChatsPromises])
@@ -194,7 +200,7 @@ export default function Home() {
     return <Throbber text="Loading..."/>;
   }
 
-  if (stage.tpe === "analyzing") {
+  if (stage.tpe === "analyzing" || isAnalyzing) {
     return <Throbber text="Analyzing differences..."/>;
   }
 
@@ -316,10 +322,10 @@ function AnalyzeChangedChats(
 
       // Sanity check
       if (diffs.length >= 500) {
-        throw new Error(`Too many differences for ${GetChatPrettyName(masterChat)}!`)
+        rejects[i](new AnalyzeChatError(`Too many differences`, masterChat.id))
+      } else {
+        resolves[i](analysis)
       }
-
-      resolves[i](analysis)
     }
   }
   PromiseCatchReportError(asyncInner()
@@ -336,6 +342,7 @@ async function AdvanceToNextStage(
   mutableStage: SelectMessagesStage,
   newDatabaseDir: string,
   setStage: (stage: Stage) => void,
+  setIsAnalyzing: (analyzing: boolean) => void,
   masterDsState: DatasetState,
   slaveDsState: DatasetState,
   services: GrpcServices,
@@ -343,24 +350,45 @@ async function AdvanceToNextStage(
   while (true) {
     if (mutableStage.pendingAnalysis.length > 0) {
       console.log("=== Waiting for the next analysis")
-      let chatAnalysis = await mutableStage.pendingAnalysis.shift()!
-      console.log("=== chatAnalysis:", chatAnalysis)
-      mutableStage.analysis.push(chatAnalysis)
-      if (ChatHasToggleableChanges(chatAnalysis)) {
-        console.log("=== Has conflicts")
-        mutableStage.messagesModel = await MakeMessagesDiffModel(masterDsState, slaveDsState, chatAnalysis, services)
-        setStage(mutableStage)
-        return
-      } else {
-        console.log("=== No conflicts")
-        // User has nothing to choose from, just resolve the conflict automatically
-        mutableStage.resolutions.push(new Set())
+      let chatAnalysis = await mutableStage.pendingAnalysis.shift()!.catch(err => {
+        Assert(err instanceof AnalyzeChatError)
+        return err
+      })
+      if (chatAnalysis instanceof AnalyzeChatError) {
+        // Skip this chat
+        console.log("=== Error, skipping chat", chatAnalysis)
+        let chatId = chatAnalysis.chatId
+        let chatIdxInModel = mutableStage.chatsModel.findIndex(d => {
+          let left = d.left as Array<ChatsDiffModelRow>
+          return left.length > 0 && left[0][0].chat!.id === chatId
+        })
+        let chat = (mutableStage.chatsModel[chatIdxInModel].left as Array<ChatsDiffModelRow>)[0][0].chat!
+        // TODO: If this is the last chat, dialog will close before we can read this alert
+        ReportError("Chat '" + GetChatPrettyName(chat) + "' will be skipped: " + chatAnalysis.message)
+        Assert(chatIdxInModel != -1)
+        mutableStage.chatsSelection.delete(chatIdxInModel)
         // Continue the loop
+      } else {
+        console.log("=== chatAnalysis:", chatAnalysis)
+        mutableStage.analysis.push(chatAnalysis)
+        if (ChatHasToggleableChanges(chatAnalysis)) {
+          console.log("=== Has conflicts")
+          mutableStage.messagesModel = await MakeMessagesDiffModel(masterDsState, slaveDsState, chatAnalysis, services)
+          setStage(mutableStage)
+          setIsAnalyzing(false)
+          return
+        } else {
+          console.log("=== No conflicts")
+          // User has nothing to choose from, just resolve the conflict automatically
+          mutableStage.resolutions.push(new Set())
+          // Continue the loop
+        }
       }
     } else {
       console.log("=== All conflicts have been resolved")
       // All conflicts have been resolved
       setStage({ tpe: "merging" })
+      setIsAnalyzing(false)
       MergeChats(masterDsState, slaveDsState, newDatabaseDir, mutableStage)
       return
     }
@@ -480,4 +508,16 @@ function MergeChats(
     await EmitToSelf(DatasetsMergedEvent, MergeRequest.toJSON(mergeRequest))
     await getCurrentWindow().close()
   })
+}
+
+class AnalyzeChatError extends Error {
+    chatId: bigint
+
+    constructor(message: string, chatId: bigint) {
+        super(message)
+        this.name = "AnalyzeChatError"
+        this.chatId = chatId
+        // Set the prototype explicitly to maintain the correct prototype chain
+        Object.setPrototypeOf(this, AnalyzeChatError.prototype)
+    }
 }

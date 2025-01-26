@@ -116,7 +116,7 @@ export function GetUserPrettyName(user: User | ContentSharedContact | null): str
 }
 
 export function GetChatPrettyName(chat: Chat | null): string {
-  return chat?.nameOption ?? Unnamed
+  return chat?.nameOption || Unnamed
 }
 
 export function GetChatQualifiedName(chat: Chat): string {
