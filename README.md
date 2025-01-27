@@ -10,10 +10,10 @@ extract history.
 Architecture is extensible, allowing more formats to easily be integrated in the future.
 
 Some general notes:
-- UI functionality is currently very limited.
+- UI functionality is currently somewhat limited.
   - Port cannot be changed from 50051
-  - As an alternative, it exposes a gRPC API which can be used by an external client  - specifically, by this UI
-written in Scala that is available as a [spearate project](https://github.com/frozenspider/chat-history-manager-ui) 
+  - As an alternative, it exposes a gRPC API which can be used by an external client
+    - [UI written in Scala](https://github.com/frozenspider/chat-history-manager-ui) that used this API is now deprecated  
 - Most of these history formats are reverse engineered, so:
   - Some message types may not be supported as I simply haven't encountered them yet.
   - Compatibility might break unexpectedly as apps sometimes decide to change their storage format.

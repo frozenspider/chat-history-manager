@@ -43,7 +43,7 @@ members = [
 
 [workspace.package]
 authors = ["frozenspider"]
-version = "0.3.0"
+version = "0.9.0"
 edition = "2021"
 
 [workspace.dependencies]
