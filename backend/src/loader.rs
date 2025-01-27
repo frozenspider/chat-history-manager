@@ -8,7 +8,6 @@ use itertools::{Either, Itertools};
 use crate::prelude::*;
 use crate::dao::ChatHistoryDao;
 use crate::dao::sqlite_dao::SqliteDao;
-use crate::grpc::client::UserInputRequester;
 use crate::loader::badoo_android::BadooAndroidDataLoader;
 use crate::loader::mra::MailRuAgentDataLoader;
 use crate::loader::signal::SignalDataLoader;
@@ -42,7 +41,7 @@ trait DataLoader: Send + Sync {
 
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
-    fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+    fn load(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
         let root_path_str = ensure_file_presence(path)?;
         measure(|| {
             let now_str = Local::now().format("%Y-%m-%d");
@@ -54,7 +53,7 @@ trait DataLoader: Send + Sync {
         }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str))
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>>;
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>>;
 }
 
 pub struct Loader {
@@ -77,7 +76,7 @@ impl Loader {
     }
 
     /// If the given file is an internal Sqlite DB, open it, otherwise attempt to parse a file as a foreign history.
-    pub fn load(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<dyn ChatHistoryDao>> {
+    pub fn load(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<dyn ChatHistoryDao>> {
         let filename = path_file_name(path)?;
         if filename == SqliteDao::FILENAME {
             Ok(Box::new(SqliteDao::load(path)?))
@@ -87,7 +86,7 @@ impl Loader {
     }
 
     /// Parses a history in a foreign format
-    pub fn parse(&self, path: &Path, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+    pub fn parse(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
         ensure!(path.exists(), "File not found");
         let (named_errors, loads): (Vec<_>, Vec<_>) =
             self.loaders.iter()
@@ -137,7 +136,6 @@ pub mod android {
 
     use crate::loader::DataLoader;
     use crate::prelude::*;
-    use crate::prelude::client::UserInputRequester;
 
     pub const DATABASES: &str = "databases";
 
@@ -180,7 +178,7 @@ pub mod android {
             Ok(())
         }
 
-        fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+        fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
             parse_android_db(self, path, ds)
         }
     }

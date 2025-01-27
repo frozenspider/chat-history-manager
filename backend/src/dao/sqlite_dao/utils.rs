@@ -525,7 +525,7 @@ pub mod message {
                  Some(serialize_photo_and_copy_files(&v.photo, chat_id, src_ds_root, dst_ds_root)?)),
             PinMessage(v) =>
                 ("pin_message", Some(RawMessageContent {
-                    pinned_message_id: Some(v.message_id),
+                    pinned_message_id: Some(v.message_source_id),
                     ..Default::default()
                 })),
             ClearHistory(_) =>
@@ -743,9 +743,9 @@ pub mod message {
 
     fn deserialize_photo(raw: RawMessageContent) -> Result<ContentPhoto> {
         macro_rules! get_or_bail {
-                ($obj:ident.$field:ident) => {
-                    $obj.$field.with_context(|| format!("{} field was missing for a photo!", stringify!($field)))? };
-            }
+            ($obj:ident.$field:ident) => {
+                $obj.$field.with_context(|| format!("{} field was missing for a photo!", stringify!($field)))? };
+        }
         Ok(ContentPhoto {
             path_option: raw.path,
             width: get_or_bail!(raw.width),
@@ -759,14 +759,14 @@ pub mod message {
                            -> Result<message_service::SealedValueOptional> {
         use message_service::SealedValueOptional::*;
         macro_rules! raw_or_bail {
-                () => { raw.with_context(|| format!("Message content was not present for a {} service message!",
-                                                    subtype))? };
-            }
+            () => { raw.with_context(|| format!("Message content was not present for a {} service message!",
+                                                subtype))? };
+        }
         macro_rules! get_or_bail {
-                ($obj:ident.$field:ident) => {
-                    $obj.$field.with_context(|| format!("{} field was missing for a {} service message!",
-                                                        stringify!($field), subtype))? };
-            }
+            ($obj:ident.$field:ident) => {
+                $obj.$field.with_context(|| format!("{} field was missing for a {} service message!",
+                                                    stringify!($field), subtype))? };
+        }
         Ok(match subtype {
             "phone_call" => {
                 let raw = raw_or_bail!();
@@ -785,7 +785,7 @@ pub mod message {
             "pin_message" => {
                 let raw = raw_or_bail!();
                 PinMessage(MessageServicePinMessage {
-                    message_id: get_or_bail!(raw.pinned_message_id),
+                    message_source_id: get_or_bail!(raw.pinned_message_id),
                 })
             }
             "clear_history" =>

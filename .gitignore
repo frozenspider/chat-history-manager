@@ -1,3 +1,6 @@
+# OS
+.DS_Store
+
 # IDEA
 *.iml
 .idea/
@@ -10,8 +13,10 @@
 /target
 
 # Generated
+scalapb/scalapb.proto
 core/src/protobuf/*
 backend/src/protobuf/*
+ui/gen/*
 
 # WhatsApp databases
 backend/resources/test/*/databases/*

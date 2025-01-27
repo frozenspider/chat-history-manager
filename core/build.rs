@@ -1,17 +1,6 @@
 #![allow(unused_imports)]
 use std::{env, fs, path::PathBuf};
 
-struct Cleanup {
-    to_delete: PathBuf,
-}
-
-impl Drop for Cleanup {
-    fn drop(&mut self) {
-        fs::remove_file(&self.to_delete)
-            .unwrap_or_else(|e| log::warn!("failed to remove file {:?}: {}", self.to_delete, e));
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::new()
         .filter(None, log::LevelFilter::Debug)
@@ -20,8 +9,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let curr_dir = env::current_dir().unwrap_or_else(|e| panic!("current directory is inaccessible: {}", e));
 
     let scalapb_target = curr_dir.join("../scalapb/scalapb.proto");
-    fs::copy(scalapb_target.parent().unwrap().join("_scalapb.proto"), &scalapb_target)?;
-    let _cleanup = Cleanup { to_delete: scalapb_target };
+    if !scalapb_target.exists() {
+        fs::copy(scalapb_target.parent().unwrap().join("_scalapb.proto"), &scalapb_target)?;
+    }
 
     let proto_files = vec!["core/protobuf/entities.proto"];
     let proto_includes = vec![".."];
@@ -37,7 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .file_descriptor_set_path(descriptor_path)
         .out_dir(pb_out_dir)
-        .type_attribute(".", "#[derive(deepsize::DeepSizeOf)]")
+        .type_attribute(".", "#[derive(deepsize::DeepSizeOf, serde::Serialize, serde::Deserialize)]")
+        .enum_attribute(".", r#"#[serde(rename_all = "snake_case")]"#)
+        // All oneof fields should be marked with #[serde(flatten)]
+        .field_attribute("Message.typed", r#"#[serde(flatten)]"#)
+        .field_attribute("RichTextElement.val", r#"#[serde(flatten)]"#)
+        .field_attribute("sealed_value_optional", r#"#[serde(flatten)]"#)
         .emit_rerun_if_changed(false)
         .compile(&proto_files, &proto_includes)
         .unwrap_or_else(|e| panic!("protobuf compile error: {}", e));

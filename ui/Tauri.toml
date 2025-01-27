@@ -1,0 +1,36 @@
+identifier = "org.fs.chm"
+
+[build]
+before-dev-command = "pnpm dev"
+before-build-command = "pnpm i && pnpm build"
+dev-url = "http://localhost:3000"
+frontend-dist = "./frontend/out"
+
+[app]
+# Injects window.__TAURI__ global variable
+withGlobalTauri = true
+
+[app.security]
+# There is no external links loading in the app so CSP is unnecessary
+dangerous-disable-asset-csp-modification = true
+
+[app.security.assetProtocol]
+enable = true
+scope = ["**"]
+
+[[app.windows]]
+label = "main"
+title = "Chat History Manager"
+fullscreen = false
+resizable = true
+# Sizes are set dynamically in setup code
+# width = 800
+# height = 600
+
+[bundle]
+# Can't find a way to get rid of these icons
+icon = [
+    "frontend/src/app/32x32.png",
+    "frontend/src/app/icon.icns",
+    "frontend/out/favicon.ico",
+]

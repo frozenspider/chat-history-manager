@@ -16,6 +16,10 @@ deepsize = { workspace = true }
 uuid = { workspace = true }
 paste = { workspace = true }
 
+# Serde
+serde = { workspace = true }
+serde_json = { workspace = true }
+
 # Text processing
 regex = { workspace = true }
 

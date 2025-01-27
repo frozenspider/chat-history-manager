@@ -387,7 +387,7 @@ message MessageServiceSuggestProfilePhoto {
 }
 
 message MessageServicePinMessage {
-  required int64 message_id = 1;
+  required int64 message_source_id = 1;
 }
 
 // Note: for Telegram, `from...` is not always meaningful

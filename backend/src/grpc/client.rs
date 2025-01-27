@@ -1,32 +1,66 @@
+use std::future::Future;
 use itertools::Itertools;
 use tokio::runtime::Handle;
-use tonic::transport::Endpoint;
+use tonic::transport::{Channel, Endpoint};
 
 use crate::prelude::*;
-
+use crate::prelude::history_dao_service_client::HistoryDaoServiceClient;
+use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
+use crate::prelude::merge_service_client::MergeServiceClient;
 use super::*;
 
-mod user_input_requester;
+mod user_input_grpc_requester;
 
-pub trait UserInputRequester: Send + Sync {
-    fn choose_myself(&self, users: &[User]) -> Result<usize>;
-
-    fn ask_for_text(&self, prompt: &str) -> Result<String>;
-}
-
-pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputRequester>> {
+pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputBlockingRequester>> {
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
-    Ok(Box::new(user_input_requester::UserInputRequesterImpl {
+    Ok(Box::new(wrap_async_user_input_requester(
         runtime_handle,
-        channel: lazy_channel,
-    }))
+        user_input_grpc_requester::UserInputGrpcRequester {
+            channel: lazy_channel,
+        },
+    )))
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatHistoryManagerGrpcClients {
+    loader: HistoryLoaderServiceClient<Channel>,
+    dao: HistoryDaoServiceClient<Channel>,
+    merger: MergeServiceClient<Channel>,
+}
+
+impl ChatHistoryManagerGrpcClients {
+    pub async fn grpc<'a, F, T>(
+        &'a mut self,
+        cb: impl FnOnce(
+            &'a mut HistoryLoaderServiceClient<Channel>,
+            &'a mut HistoryDaoServiceClient<Channel>,
+            &'a mut MergeServiceClient<Channel>,
+        ) -> F + 'a,
+    ) -> Result<T>
+        where F: Future<Output=StdResult<tonic::Response<T>, tonic::Status>>
+    {
+        match cb(&mut self.loader, &mut self.dao, &mut self.merger).await {
+            Ok(response) => Ok(response.into_inner()),
+            Err(status) => Err(anyhow!("{}", status.message()))
+        }
+    }
+}
+
+pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcClients> {
+    let uri = format!("http://localhost:{remote_port}");
+    log::info!("Connecting to clients at URI {uri}");
+    let channel = Endpoint::new(uri)?.connect_lazy();
+    let loader = HistoryLoaderServiceClient::new(channel.clone());
+    let dao = HistoryDaoServiceClient::new(channel.clone());
+    let merger = MergeServiceClient::new(channel);
+    Ok(ChatHistoryManagerGrpcClients { loader, dao, merger })
 }
 
 #[derive(Clone, Copy)]
 pub struct NoChooser;
 
-impl UserInputRequester for NoChooser {
+impl UserInputBlockingRequester for NoChooser {
     fn choose_myself(&self, _users: &[User]) -> Result<usize> {
         err!("No way to choose myself!")
     }
@@ -42,7 +76,7 @@ pub struct PredefinedInput {
     pub text: Option<String>,
 }
 
-impl UserInputRequester for PredefinedInput {
+impl UserInputBlockingRequester for PredefinedInput {
     fn choose_myself(&self, users: &[User]) -> Result<usize> {
         let myself_id = self
             .myself_id

@@ -1,5 +1,4 @@
 use super::DataLoader;
-use crate::prelude::client::UserInputRequester;
 use crate::prelude::*;
 
 use std::fs;
@@ -50,14 +49,14 @@ impl DataLoader for SignalDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
         load_sqlite(path, ds, user_input_requester)
     }
 }
 
 type Users = HashMap<Uuid, User>;
 
-fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputRequester) -> Result<Box<InMemoryDao>> {
+fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 

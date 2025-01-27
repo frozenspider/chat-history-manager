@@ -1,0 +1,41 @@
+[package]
+name = "chat-history-manager-ui"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[features]
+run-before-build-command = ["dep:toml", "dep:run_script"]
+
+[dependencies]
+chat-history-manager-core = { workspace = true }
+chat-history-manager-backend = { workspace = true }
+
+itertools = { workspace = true }
+lazy_static = { workspace = true }
+anyhow = { workspace = true }
+path-dedot = { workspace = true }
+base64 = "0.22.0"
+
+tokio = { workspace = true }
+
+# Protobuf
+prost = { workspace = true }
+
+# Serde
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Tauri
+tauri = { version = "2.1.1", features = [
+    "config-toml", "protocol-asset", "custom-protocol", "native-tls"
+] }
+tauri-plugin-dialog = "2.2.0"
+tauri-plugin-fs = "2.2.0"
+
+log = "0.4.21"
+
+[build-dependencies]
+tauri-build = { version = "2.0.3", features = [] }
+toml = { version = "0.8.13", optional = true }
+run_script = { version = "0.10.1",  optional = true }

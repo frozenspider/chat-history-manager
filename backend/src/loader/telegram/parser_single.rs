@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn parse(root_obj: &Object,
                     ds_uuid: &PbUuid,
                     myself: &mut User,
-                    user_input_requester: &dyn UserInputRequester) -> Result<(Users, Vec<ChatWithMessages>)> {
+                    user_input_requester: &dyn UserInputBlockingRequester) -> Result<(Users, Vec<ChatWithMessages>)> {
     let mut users: Users = Default::default();
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
