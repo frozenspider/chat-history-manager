@@ -138,7 +138,6 @@ export default function Home() {
   const handleContinue = React.useCallback(() => {
     if (stage.tpe === "select-chats") {
       setStage({ tpe: "loading" })
-      console.log("=== Chat model", stage.chatsModel, chatsSelection)
 
       // Filter out members of deselected chats
       let activeUserIds = new Set(stage.chatsModel
@@ -164,7 +163,7 @@ export default function Home() {
       setStage({ tpe: "analyzing" })
       setIsAnalyzing(true)
       PromiseCatchReportError(async () => {
-        console.log("=== We have " + analyzeChatsPromises?.length + " analysis promises")
+        console.log("Number of chats analyzing in the background: " + analyzeChatsPromises?.length)
         let pendingAnalysis = analyzeChatsPromises!
         let newStage: SelectMessagesStage = {
           tpe: "select-messages",
@@ -181,7 +180,6 @@ export default function Home() {
         PromiseCatchReportError(AdvanceToNextStage(newStage, newDatabaseDir, setStage, setIsAnalyzing, masterDsState!, slaveDsState!, services))
       })
     } else if (stage.tpe === "select-messages") {
-      console.log("=== select-messages")
       setIsAnalyzing(true)
       // Make a deep (-ish) copy
       let newStage: SelectMessagesStage = {
@@ -294,7 +292,7 @@ function AnalyzeChangedChats(
     }));
   }
 
-  console.log("=== We have " + chatsToAnalyze.length + " changed chats to analyze")
+  console.log("Number of changed chats to analyze: " + chatsToAnalyze.length)
 
   let asyncInner = async () => {
     await EmitBusy("Analyzing...")
@@ -334,7 +332,6 @@ function AnalyzeChangedChats(
       throw err
     })
     .finally(() => EmitNotBusy()))
-  console.log("=== Yielding " + result.length + " promises")
   return result
 }
 
@@ -349,14 +346,14 @@ async function AdvanceToNextStage(
 ): Promise<void> {
   while (true) {
     if (mutableStage.pendingAnalysis.length > 0) {
-      console.log("=== Waiting for the next analysis")
+      console.log("Waiting for the next analysis...")
       let chatAnalysis = await mutableStage.pendingAnalysis.shift()!.catch(err => {
         Assert(err instanceof AnalyzeChatError)
         return err
       })
+      console.log("Analysis ready", chatAnalysis)
       if (chatAnalysis instanceof AnalyzeChatError) {
         // Skip this chat
-        console.log("=== Error, skipping chat", chatAnalysis)
         let chatId = chatAnalysis.chatId
         let chatIdxInModel = mutableStage.chatsModel.findIndex(d => {
           let left = d.left as Array<ChatsDiffModelRow>
@@ -369,23 +366,20 @@ async function AdvanceToNextStage(
         mutableStage.chatsSelection.delete(chatIdxInModel)
         // Continue the loop
       } else {
-        console.log("=== chatAnalysis:", chatAnalysis)
         mutableStage.analysis.push(chatAnalysis)
         if (ChatHasToggleableChanges(chatAnalysis)) {
-          console.log("=== Has conflicts")
           mutableStage.messagesModel = await MakeMessagesDiffModel(masterDsState, slaveDsState, chatAnalysis, services)
           setStage(mutableStage)
           setIsAnalyzing(false)
           return
         } else {
-          console.log("=== No conflicts")
           // User has nothing to choose from, just resolve the conflict automatically
           mutableStage.resolutions.push(new Set())
           // Continue the loop
         }
       }
     } else {
-      console.log("=== All conflicts have been resolved")
+      console.log("All conflicts have been resolved")
       // All conflicts have been resolved
       setStage({ tpe: "merging" })
       setIsAnalyzing(false)
@@ -474,10 +468,7 @@ function MergeChats(
                 case AnalysisSectionType.RETENTION:
                   return MessageMergeType.RETAIN
                 case AnalysisSectionType.ADDITION:
-                  return resolution.has(idx) ? MessageMergeType.ADD : (() => {
-                    console.log("=== DON'T ADD!")
-                    return MessageMergeType.DONT_ADD
-                  })()
+                  return resolution.has(idx) ? MessageMergeType.ADD : MessageMergeType.DONT_ADD
                 case AnalysisSectionType.CONFLICT:
                   return resolution.has(idx) ? MessageMergeType.REPLACE : MessageMergeType.DONT_REPLACE
                 case AnalysisSectionType.UNRECOGNIZED:
@@ -493,7 +484,6 @@ function MergeChats(
       return chatMerge
     })
 
-  console.log("=== MERGE CHATS!", stage, userMerges, chatMerges)
   let mergeRequest: MergeRequest = {
     masterDaoKey: masterDsState.fileKey,
     masterDsUuid: masterDsState.ds.uuid,

@@ -23,7 +23,7 @@ const nextConfig = {
                 ]
             }),
         )
-        webpackConfig.optimization.minimize = false // Can be disabled for debugging
+        webpackConfig.optimization.minimize = true // Can be disabled for debugging
 
         // // Unable to compile reworkcss/css without this:
         // webpackConfig.resolve.fallback = {
@@ -31,8 +31,8 @@ const nextConfig = {
         // }
         return webpackConfig
     },
-    compress: false,
-    productionBrowserSourceMaps: true
+    compress: true, // Can be disabled for debugging
+    productionBrowserSourceMaps: false, // Can be enabled for debugging
 };
 
 export default nextConfig;
