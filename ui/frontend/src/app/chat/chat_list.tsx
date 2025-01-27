@@ -3,7 +3,7 @@
 import React from "react";
 
 import ChatListItem from "@/app/chat/chat_list_item";
-import { AssertDefined, GetNonDefaultOrNull, PromiseCatchReportError } from "@/app/utils/utils";
+import { Deduplicate, EnsureDefined, PromiseCatchReportError } from "@/app/utils/utils";
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import {
   ContextMenu,
@@ -36,6 +36,25 @@ export default function ChatList(args: {
   let [selectedChat, setSelectedChat] =
     React.useState<CombinedChat | null>(null)
 
+  let combinedChatsMap = React.useMemo(() => {
+    return new Map(args.fileState ? args.fileState.datasets.map((dsState) => {
+      // Combine master/slave chats but preserve chat order
+      let mainChatIds = Deduplicate(dsState.cwds.map(cwd => cwd.chat!.mainChatId || cwd.chat!.id))
+
+      let ccs = mainChatIds
+        .map(mainChatId => {
+          let mainCwd = EnsureDefined(dsState.cwds.find(cwd => cwd.chat!.id === mainChatId))
+
+          let slaveCwds = dsState.cwds
+            .filter((cwd) => cwd.chat!.mainChatId === mainCwd.chat!.id)
+
+          return new CombinedChat(mainCwd, slaveCwds)
+        })
+
+      return [dsState.ds.uuid!, ccs]
+    }) : [])
+  }, [args.fileState])
+
   if (!args.fileState)
     return <DatsetHeader text="No open files"/>
 
@@ -43,20 +62,11 @@ export default function ChatList(args: {
   return (
     <ul className="divide-y divide-gray-200 dark:divide-gray-700">{
       args.fileState.datasets.map((dsState) => {
-        let chatComponents = dsState.cwds
-          .filter((cwd) => {
-            AssertDefined(cwd.chat)
-            let mainChatId = GetNonDefaultOrNull(cwd.chat.mainChatId)
-            return mainChatId === null
-          })
-          .map((mainCwd) => {
-            let slaveCwds = dsState.cwds
-              .filter((cwd) => cwd.chat!.mainChatId === mainCwd.chat!.id)
-
-            let cc = new CombinedChat(mainCwd, slaveCwds)
+        let chatComponents = combinedChatsMap.get(dsState.ds.uuid!)!
+          .map(cc => {
             return (
               <ChatListItem
-                key={dsState.fileKey + "_" + mainCwd.chat!.id.toString()}
+                key={dsState.fileKey + "_" + cc.mainChatId.toString()}
                 cc={cc}
                 dsState={dsState}
                 isSelected={cc.dsUuid == selectedChat?.dsUuid && cc.mainChatId == selectedChat.mainChatId}

@@ -84,7 +84,7 @@ function ShowMakeSecondaryPopup(
       return SerializeJson([cc, dsState, notice, true /* showPersonalChatsOnly */, true /* isDestructive */])
     },
     onConfirmed: (ev) => {
-      let selectedChatId = EnsureDefined(ev.payload, "Selected main chat ID") as string
+      let selectedChatId = JSON.parse(EnsureDefined(ev.payload, "Selected main chat ID")) as string
       setSecondaryCallback(BigInt(selectedChatId))
     }
   })

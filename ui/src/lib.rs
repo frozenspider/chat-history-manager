@@ -91,6 +91,7 @@ pub enum TauriInnerState {
     },
 }
 
+// TODO: Icon
 pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWrapper {
     let (app_handle_tx, app_handle_rx) = oneshot::channel::<AppHandle>();
     let res = TauriUiWrapper {
