@@ -1,6 +1,13 @@
 import React from "react";
 
-import { AssertDefined, AssertUnreachable, EnsureDefined, GetNonDefaultOrNull, Unreachable } from "@/app/utils/utils";
+import {
+  AssertDefined,
+  AssertUnreachable,
+  Deduplicate,
+  EnsureDefined,
+  GetNonDefaultOrNull,
+  Unreachable
+} from "@/app/utils/utils";
 import {
   ChatSourceTypeToString,
   CombinedChat,
@@ -24,6 +31,9 @@ export default function ChatEntryShort(args: {
 }): React.JSX.Element {
   let mainChat = EnsureDefined(args.cc.mainCwd.chat)
   let colorClass = NameColorClassFromNumber(mainChat.id).text
+  let sourceTypes = React.useMemo(() => {
+    return Deduplicate([mainChat.sourceType, ...args.cc.cwds.map(cwd => cwd.chat!.sourceType)])
+  }, [args.cc])
 
   let membersCountEl = args.cc.mainCwd.chat?.tpe == ChatType.PRIVATE_GROUP ? (
     <div className="pr-1 text-xs">
@@ -48,7 +58,7 @@ export default function ChatEntryShort(args: {
           <div className="flex items-center justify-between">
             {membersCountEl}
             <Badge variant="outline" className="ml-2 mr-5">
-              {ChatSourceTypeToString(mainChat.sourceType)}
+              {ChatSourceTypeToString(sourceTypes[0]) + (sourceTypes.length > 1 ? ` +${sourceTypes.length - 1}` : "")}
             </Badge>
           </div>
         </div>

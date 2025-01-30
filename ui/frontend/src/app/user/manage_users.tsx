@@ -81,7 +81,7 @@ export default function ManageUsers(args: {
           <ScrollArea className="flex-grow h-[calc(100vh-200px)] border rounded-md">
             <div className="p-1">
               {idxUsersDs.map(([idx, [user, dsState]]) =>
-                <UserEntryTechncal key={`u${user.id}`}
+                <UserEntryTechncal key={`f${dsState.fileKey}_ds${dsState.ds.uuid!.value}_u${user.id}`}
                                    user={user}
                                    dsState={dsState}
                                    isSelected={isSelected(idx)}
@@ -133,14 +133,40 @@ function EditUserDialog(args: {
       <form onSubmit={handleUpdateUser}>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="fileKey" className="text-right" >
+              Database Path
+            </Label>
+
+            <Input
+              id="fileKey"
+              name="fileKey"
+              value={args.userToEdit ? args.userToEdit[1].fileKey : ""}
+              className="col-span-3"
+              disabled
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="dsUuid" className="text-right">
+              Dataset UUID
+            </Label>
+
+            <Input
+              id="dsUuid"
+              name="dsUuid"
+              value={args.userToEdit ? args.userToEdit[1].ds.uuid!.value : ""}
+              className="col-span-3"
+              disabled
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="id" className="text-right">
               ID
             </Label>
+
             <Input
               id="id"
               name="id"
               value={args.userToEdit ? IdToReadable(args.userToEdit[0].id) : ""}
-              onChange={handleInputChange}
               className="col-span-3"
               disabled
             />

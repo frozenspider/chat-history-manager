@@ -70,7 +70,7 @@ export default function DiffSection<T>(args: {
 
   return (
     <div className={cn(
-      "relative flex p-2 border-b",
+      "relative flex p-2 border-b-2",
       EnsureDefined(BG_COLORS[args.data.tpe]),
       args.isToggleable && !args.isSelected ? "opacity-80" : ""
     )}>

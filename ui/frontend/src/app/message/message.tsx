@@ -21,8 +21,9 @@ export function MessageComponent(args: {
   let colorClass = NameColorClassFromMembers(args.msg.fromId, args.chatState.cc.memberIds)
 
   // TODO: Limit height/#lines for replyDepth > 0
+  // Without overflow-wrap, long unbreakable words (like HTTP links) stretch the message container
   return (
-    <div className="flex flex-col pb-4">
+    <div className="flex flex-col pb-4" style={{ overflowWrap: "anywhere" }}>
       <MessageTitle msg={args.msg}
                     author={author}
                     colorClass={colorClass.text}

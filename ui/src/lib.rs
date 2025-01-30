@@ -3,6 +3,7 @@
 
 use std::borrow::Cow;
 use std::{fs, mem};
+use std::fmt::Formatter;
 use std::future::Future;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -71,24 +72,37 @@ static EVENT_CHOOSE_MYSELF_RESPONSE: &str = "choose-myself-response";
 static EVENT_ASK_FOR_TEXT: &str = "ask-for-text";
 static EVENT_ASK_FOR_TEXT_RESPONSE: &str = "ask-for-text-response";
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TauriUiWrapper {
     state: Arc<Mutex<TauriInnerState>>
 }
 
+#[derive(Debug)]
 pub enum TauriInnerState {
     None,
 
-    // Fields are optional so that they can be taken away
-    BuildReady {
-        builder: Option<tauri::Builder<tauri::Wry>>,
-        // To be passed to the next state
-        app_handle_rx: Option<oneshot::Receiver<AppHandle>>,
-    },
+    BuildReady(TauriInnerStateBuildReady),
 
     Running {
         app_handle_rx: oneshot::Receiver<AppHandle>
     },
+}
+
+// Made into a separate struct to implement Debug trait.
+// Fields are optional so that they can be taken away.
+pub struct TauriInnerStateBuildReady {
+    builder: Option<tauri::Builder<tauri::Wry>>,
+    // To be passed to the next state
+    app_handle_rx: Option<oneshot::Receiver<AppHandle>>,
+}
+
+impl std::fmt::Debug for TauriInnerStateBuildReady {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TauriInnerStateBuildReady")
+            .field("builder", &self.builder.is_some())
+            .field("app_handle_rx", &self.app_handle_rx.is_some())
+            .finish()
+    }
 }
 
 // TODO: Icon
@@ -157,10 +171,10 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
         .invoke_handler(tauri::generate_handler![
             get_grpc_port, report_error_string, file_exists, read_file_base64, save_as, compare_datasets, merge_datasets
         ]);
-    *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady {
+    *res.state.lock().expect("Tauri state lock") = TauriInnerState::BuildReady(TauriInnerStateBuildReady {
         builder: Some(builder),
         app_handle_rx: Some(app_handle_rx),
-    };
+    });
     res
 }
 
@@ -168,8 +182,8 @@ impl TauriUiWrapper {
     pub fn start_and_block(&self) {
         let mut guarded_state = self.state.lock().expect("Tauri state lock");
 
-        let TauriInnerState::BuildReady { builder, app_handle_rx } = &mut *guarded_state else {
-            panic!("Tauri UI not in the valid state")
+        let TauriInnerState::BuildReady(TauriInnerStateBuildReady { builder, app_handle_rx }) = &mut *guarded_state else {
+            panic!("Tauri UI was not build-ready: {:?}", *guarded_state)
         };
         let builder = builder.take().unwrap();
         let app_handle_rx = app_handle_rx.take().unwrap();
