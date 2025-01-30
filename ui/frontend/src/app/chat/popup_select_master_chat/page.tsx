@@ -11,14 +11,7 @@ import {
   PromiseCatchReportError,
   SerializeJson
 } from "@/app/utils/utils";
-import {
-  ChatSourceTypeToString,
-  ChatTypeToString,
-  CombinedChat,
-  GetChatInterlocutor,
-  GetUserPrettyName,
-  IdToReadable
-} from "@/app/utils/entity_utils";
+import { ChatMatchesString, CombinedChat } from "@/app/utils/entity_utils";
 
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { ChatType } from "@/protobuf/core/protobuf/entities";
@@ -69,27 +62,6 @@ export default function Home() {
     })
   })
 
-  const filter = React.useCallback((cwd: ChatWithDetailsPB, searchTerm: string) => {
-    let termLc = searchTerm.toLowerCase()
-    let chat = cwd.chat!
-    if (
-      termLc == "" ||
-      chat.id.toString().includes(termLc) ||
-      IdToReadable(chat.id).includes(termLc) ||
-      chat.nameOption?.toLowerCase()?.includes(termLc) ||
-      ChatSourceTypeToString(chat.sourceType).toLowerCase()?.includes(termLc) ||
-      ChatTypeToString(chat.tpe).toLowerCase().includes(termLc) ||
-      chat.msgCount.toString().includes(searchTerm)
-    ) return true
-    // Member 0 is self, so member 1 is interlocutor
-    let interlocutor = GetChatInterlocutor(cwd)
-    return (
-      GetUserPrettyName(interlocutor).includes(termLc) ||
-      interlocutor?.usernameOption?.includes(termLc) ||
-      interlocutor?.phoneNumberOption?.includes(termLc)
-    ) || false
-  }, [combinedChat])
-
   const cwds = React.useMemo(() => {
     let cwds = Array.from(datasetState?.cwds ?? [])
     cwds.sort((a, b) => Asc(a.chat!.id, b.chat!.id))
@@ -117,7 +89,7 @@ export default function Home() {
   return <>
     <ListEntities
       entities={cwds}
-      filter={filter}
+      filter={ChatMatchesString}
       isDangerous={isDestructive}
       description={alertText}
       searchBarText="Search chats..."

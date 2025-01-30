@@ -12,7 +12,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
-import { CombinedChat } from "@/app/utils/entity_utils";
+import { ChatMatchesString, CombinedChat } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { ChatWithDetailsPB } from "@/protobuf/backend/protobuf/services";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -21,6 +21,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 export default function ChatList(args: {
   fileState: LoadedFileState | null,
   setChatState: (s: ChatState) => void,
+  filterTerm: string,
   callbacks: {
     onRenameDatasetClick: (dsState: DatasetState) => void,
     onShiftDatasetTimeClick: (dsState: DatasetState) => void,
@@ -63,6 +64,7 @@ export default function ChatList(args: {
     <ul className="divide-y divide-gray-200 dark:divide-gray-700">{
       args.fileState.datasets.map((dsState) => {
         let chatComponents = combinedChatsMap.get(dsState.ds.uuid!)!
+          .filter(cc => cc.cwds.some(cwd => ChatMatchesString(cwd, args.filterTerm)))
           .map(cc => {
             return (
               <ChatListItem

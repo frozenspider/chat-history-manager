@@ -1,7 +1,7 @@
 'use client'
 
 import React from "react";
-import { Input } from "@/components/ui/input";
+import ListFilterInput from "@/app/general/list_filter_input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
@@ -18,19 +18,12 @@ export default function ListEntities<T>(args: {
   } | null
   render: (es: [number, T][], isSelected: (idx: number) => boolean, onClick: (idx: number, e: T) => void) => React.ReactNode
 }) {
-  let [searchTerm, setSearchTerm] =
-    React.useState("")
 
   let [selected, setSelected] =
     React.useState<[number, T] | null>(null)
 
-  const indexedEntities = React.useMemo(() => {
-    return Array.from(args.entities.entries())
-  }, [args.entities])
-
-  const filtered = React.useMemo(() => {
-    return indexedEntities.filter(([_idx, e]) => args.filter(e, searchTerm))
-  }, [indexedEntities, searchTerm])
+  let [filtered, setFiltered] =
+    React.useState<[number, T][]>([])
 
   const handleSelect = React.useCallback((idx: number, e: T) => {
     if (!selected || selected[0] !== idx) {
@@ -54,11 +47,11 @@ export default function ListEntities<T>(args: {
               }</AlertDescription>
           </Alert>}
 
-      <Input type="text"
-             placeholder={args.searchBarText}
-             value={searchTerm}
-             onChange={(e) => setSearchTerm(e.target.value)}
-             className="mb-4"/>
+      <ListFilterInput entities={args.entities}
+                       filter={args.filter}
+                       searchBarText={args.searchBarText}
+                       onChange={filtered => setFiltered(filtered)}
+                       className="mb-4"/>
 
       {args.render(
         filtered,

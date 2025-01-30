@@ -140,6 +140,28 @@ export function GetCombinedChat1to1Interlocutors(cc: CombinedChat): User[] {
   }
 }
 
+export function ChatMatchesString(cwd: ChatWithDetailsPB, searchTerm: string) {
+  let termLc = searchTerm.toLowerCase()
+  let chat = cwd.chat!
+  if (
+    termLc == "" ||
+    chat.id.toString().includes(termLc) ||
+    IdToReadable(chat.id).includes(termLc) ||
+    chat.nameOption?.toLowerCase()?.includes(termLc) ||
+    ChatSourceTypeToString(chat.sourceType).toLowerCase()?.includes(termLc) ||
+    ChatTypeToString(chat.tpe).toLowerCase().includes(termLc) ||
+    chat.msgCount.toString().includes(searchTerm)
+  ) return true
+  // Member 0 is self
+  let interlocutors = cwd.members.slice(1)
+  return interlocutors.some(u =>
+    u?.firstNameOption?.toLowerCase()?.includes(termLc) ||
+    u?.lastNameOption?.toLowerCase()?.includes(termLc) ||
+    u?.usernameOption?.toLowerCase()?.includes(termLc) ||
+    u?.phoneNumberOption?.toLowerCase()?.includes(termLc)
+  )
+}
+
 export class CombinedChat {
   readonly mainChatId: bigint
   readonly cwds: ChatWithDetailsPB[]

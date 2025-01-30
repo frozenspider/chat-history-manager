@@ -65,6 +65,7 @@ import {
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 
 import { ExportChatHtml } from "@/app/general/export_as_html";
@@ -86,6 +87,9 @@ export default function Home() {
     React.useState<ChatState | null>(() => USE_TEST_DATA ? TestChatState : null)
   let [navigationCallbacks, setNavigationCallbacks] =
     React.useState<NavigationCallbacks | null>(null)
+  let [filterTerm, setFilterTerm] =
+    React.useState("")
+
 
   let [renameDatasetState, setRenameDatasetState] = React.useState<RenameDatasetState | null>(null)
   let [compareDatasetsOpenState, setCompareDatasetsOpenState] = React.useState<boolean>(false)
@@ -210,6 +214,13 @@ export default function Home() {
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={33} minSize={10}>
             <div className="border-r h-full relative flex flex-col">
+              <div className="m-1">
+                <Input type="text"
+                       placeholder="Filter chats..."
+                       value={filterTerm}
+                       onChange={(e) => setFilterTerm(e.target.value)}/>
+              </div>
+
               <ScrollArea className="w-full rounded-md border">
                 {tabs}
                 <ScrollBar orientation="horizontal"/>
@@ -219,6 +230,7 @@ export default function Home() {
                 {loaded ?
                   <ChatList fileState={currentFileState}
                             setChatState={setCurrentChatState}
+                            filterTerm={filterTerm}
                             callbacks={{
                               onRenameDatasetClick: (dsState) => {
                                 setRenameDatasetState({
@@ -695,36 +707,36 @@ function CompareDatasetsFinish(
   response: EnsureSameResponse,
   alert: (s: AlertDialogState) => void,
 ) {
-    let diffs = response.diffs
+  let diffs = response.diffs
 
-    if (diffs.length == 0) {
-      alert({
-        title: "Datasets are identical",
-        content: <p>There are no differences between the datasets</p>
-      })
-    } else {
-      // TODO: Improve a design, and rework the comparison endpoint overall
-      alert({
-        title: "Datasets differ",
-        content: <>
-          <p>There are differences between the datasets</p>
-          <ScrollArea className="h-[600px] pr-4">
-            <ul>
-              {diffs.map((diff, idx) =>
-                <li key={idx} className="mb-2 break-all">
-                  <p>{diff.message}</p>
-                  {diff.values &&
-                      <>
-                          <p>Was: {diff.values.old}</p>
-                          <p>Now: {diff.values.new}</p>
-                      </>}
-                </li>
-              )}
-            </ul>
-          </ScrollArea>
-        </>
-      })
-    }
+  if (diffs.length == 0) {
+    alert({
+      title: "Datasets are identical",
+      content: <p>There are no differences between the datasets</p>
+    })
+  } else {
+    // TODO: Improve a design, and rework the comparison endpoint overall
+    alert({
+      title: "Datasets differ",
+      content: <>
+        <p>There are differences between the datasets</p>
+        <ScrollArea className="h-[600px] pr-4">
+          <ul>
+            {diffs.map((diff, idx) =>
+              <li key={idx} className="mb-2 break-all">
+                <p>{diff.message}</p>
+                {diff.values &&
+                    <>
+                        <p>Was: {diff.values.old}</p>
+                        <p>Now: {diff.values.new}</p>
+                    </>}
+              </li>
+            )}
+          </ul>
+        </ScrollArea>
+      </>
+    })
+  }
 }
 
 function MergeDatasets(
