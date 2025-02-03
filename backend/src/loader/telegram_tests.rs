@@ -1076,6 +1076,26 @@ fn loading_2024_08() -> EmptyRes {
 }
 
 #[test]
+fn loading_2025_02() -> EmptyRes {
+    let res = resource("telegram_2025-02_joined");
+    LOADER.looks_about_right(&res)?;
+
+    let dao =
+        LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len() as i32, 1);
+
+    assert_matches!(&msgs[0].typed, Some(message_service_pat!(Notice(_))));
+    assert_eq!(msgs[0].text, vec![
+        RichText::make_plain("Joined Telegram".to_owned()),
+    ]);
+
+    Ok(())
+}
+
+#[test]
 fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;

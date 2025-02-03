@@ -981,6 +981,10 @@ fn parse_service_message(message_json: &mut MessageJson,
             (SealedValueOptional::Notice(MessageServiceNotice {}),
              Some(format!("Group boosted by {boosts}")))
         }
+        "joined_telegram" => {
+            (SealedValueOptional::Notice(MessageServiceNotice {}),
+             Some("Joined Telegram".to_owned()))
+        }
         "edit_chat_theme" => {
             // Not really interesting to track.
             return Ok(ShouldProceed::SkipMessage);
