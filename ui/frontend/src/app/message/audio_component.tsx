@@ -174,14 +174,12 @@ type OgvPlayer = HTMLMediaElement & {
 function Time(args: {
   value: number | null
 }): React.JSX.Element {
-  if (args.value == null) {
-    return <>??:??</>
-  }
-  let mainPart = SecondsToHhMmSsString(Math.trunc(args.value))
-  let decimals = Math.round((args.value % 1) * 10)
-  return <p>
-    <span>{mainPart}</span><span className="text-xs">{decimals > 0 ? "." + decimals : ""}</span>
-  </p>
+  let inner: React.JSX.Element = args.value == null ? <>??:??</> : (() => {
+    let mainPart = SecondsToHhMmSsString(Math.trunc(args.value))
+    let decimals = Math.round((args.value % 1) * 10)
+    return <><span>{mainPart}</span><span className="text-xs">{decimals > 0 ? "." + decimals : ""}</span></>
+  })()
+  return <p className="whitespace-nowrap">{inner}</p>
 }
 
 let __globalOgv: any = null
