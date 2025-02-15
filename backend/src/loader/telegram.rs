@@ -667,6 +667,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
     // Helpers to reduce boilerplate, since we can't have match guards for separate pattern arms.
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
+        message_json.add_optional("file_size");
+        message_json.add_optional("thumbnail_file_size");
         Ok(Some(content!(Audio {
             path_option: message_json.field_opt_path("file")?,
             file_name_option: message_json.field_opt_str("file_name")?,
@@ -679,6 +681,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
     };
     let make_content_video = |message_json: &mut MessageJson| -> Result<Option<_>> {
         message_json.add_optional("media_spoiler");
+        message_json.add_optional("file_size");
+        message_json.add_optional("thumbnail_file_size");
         Ok(Some(content!(Video {
             path_option: message_json.field_opt_path("file")?,
             file_name_option: message_json.field_opt_str("file_name")?,
@@ -703,6 +707,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
         (Some("sticker"), None, true, false, false, false) => {
             // Ignoring animated sticker duration
             message_json.add_optional("duration_seconds");
+            message_json.add_optional("file_size");
+            message_json.add_optional("thumbnail_file_size");
             Some(content!(Sticker {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -713,18 +719,22 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
         }
-        (Some("voice_message"), None, true, false, false, false) =>
+        (Some("voice_message"), None, true, false, false, false) => {
+            message_json.add_optional("file_size");
             Some(content!(VoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 mime_type: mime_type_option.unwrap(),
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
-            })),
+            }))
+        }
         (Some("audio_file"), None, true, false, false, false) =>
             make_content_audio(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("audio/")) =>
             make_content_audio(message_json)?,
-        (Some("video_message"), None, true, false, false, false) =>
+        (Some("video_message"), None, true, false, false, false) => {
+            message_json.add_optional("file_size");
+            message_json.add_optional("thumbnail_file_size");
             Some(content!(VideoMsg {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -734,9 +744,12 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
-            })),
+            }))
+        }
         (Some("animation"), None, true, false, false, false) => {
             message_json.add_optional("media_spoiler");
+            message_json.add_optional("file_size");
+            message_json.add_optional("thumbnail_file_size");
             Some(content!(Video {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -758,6 +771,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             // Ignoring dimensions of downloadable image
             message_json.add_optional("width");
             message_json.add_optional("height");
+            message_json.add_optional("file_size");
             Some(content!(File {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -767,6 +781,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         }
         (None, Some(_), false, false, false, false) => {
             message_json.add_optional("media_spoiler");
+            message_json.add_optional("photo_file_size");
             let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
             match self_destruct {
                 None => {

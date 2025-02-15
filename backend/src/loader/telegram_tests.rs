@@ -1077,7 +1077,7 @@ fn loading_2024_08() -> EmptyRes {
 
 #[test]
 fn loading_2025_02() -> EmptyRes {
-    let res = resource("telegram_2025-02_joined");
+    let res = resource("telegram_2025-02_joined_file-size");
     LOADER.looks_about_right(&res)?;
 
     let dao =
@@ -1085,12 +1085,41 @@ fn loading_2025_02() -> EmptyRes {
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
-    assert_eq!(msgs.len() as i32, 1);
+    assert_eq!(msgs.len() as i32, 2);
 
     assert_matches!(&msgs[0].typed, Some(message_service_pat!(Notice(_))));
     assert_eq!(msgs[0].text, vec![
         RichText::make_plain("Joined Telegram".to_owned()),
     ]);
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(Video {
+                    path_option: Some("video_files/my-gif.gif.mp4".to_owned()),
+                    file_name_option: Some("my-gif.gif.mp4".to_owned()),
+                    title_option: None,
+                    performer_option: None,
+                    width: 320,
+                    height: 160,
+                    mime_type: "video/mp4".to_owned(),
+                    duration_sec_option: Some(3),
+                    thumbnail_path_option: Some("video_files/my-gif.gif.mp4_thumb.jpg".to_owned()),
+                    is_one_time: false,
+                })
+            ],
+        }),
+    });
 
     Ok(())
 }

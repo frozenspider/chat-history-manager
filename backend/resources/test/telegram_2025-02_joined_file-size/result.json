@@ -26,6 +26,26 @@
       "action": "joined_telegram",
       "text": "",
       "text_entities": []
+     },
+     {
+      "id": 11112,
+      "type": "message",
+      "date": "2022-10-11T22:49:16",
+      "date_unixtime": "1665499756",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "file": "video_files/my-gif.gif.mp4",
+      "file_name": "my-gif.gif.mp4",
+      "file_size": 1337,
+      "thumbnail": "video_files/my-gif.gif.mp4_thumb.jpg",
+      "thumbnail_file_size": 666,
+      "media_type": "animation",
+      "mime_type": "video/mp4",
+      "duration_seconds": 3,
+      "width": 320,
+      "height": 160,
+      "text": "",
+      "text_entities": []
      }
     ]
    }
