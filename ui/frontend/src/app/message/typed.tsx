@@ -201,7 +201,7 @@ function MessageTypedRegular(args: {
   if (fwdFromName) {
     let colorClass = NameColorClassFromPrettyName(fwdFromName, args.chatState.cc.members).text
     fwdFrom = <p>
-      <span className="text-gray-400">Forwarded from</span>
+      <span className="text-gray-400 text-sm">Forwarded from </span>
       <ColoredName name={fwdFromName} colorClass={colorClass}/>
     </p>
   }
