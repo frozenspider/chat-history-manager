@@ -772,6 +772,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             message_json.add_optional("width");
             message_json.add_optional("height");
             message_json.add_optional("file_size");
+            message_json.add_optional("thumbnail_file_size");
             Some(content!(File {
                 path_option: message_json.field_opt_path("file")?,
                 file_name_option: message_json.field_opt_str("file_name")?,
@@ -830,6 +831,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             Some(content!(Poll { question }))
         }
         (None, None, false, false, false, true) => {
+            message_json.add_optional("contact_vcard_file_size");
             let (
                 first_name_option,
                 last_name_option,
