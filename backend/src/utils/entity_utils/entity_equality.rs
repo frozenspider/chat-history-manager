@@ -54,7 +54,7 @@ impl<'a, T: 'a> Tup<'a, T> {
 }
 
 /// Since equality for String is equality for path, two missing paths are equal even if one of them is None
-impl<'a, > PracticalEq for Tup<'a, Option<String>> {
+impl PracticalEq for Tup<'_, Option<String>> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         lazy_static! { static ref MISSING: String = String::from("[MISSING]"); }
         let lhs = self.with(self.v.as_ref().unwrap_or(&MISSING));
@@ -106,7 +106,7 @@ macro_rules! cloned_equals_without {
 // User
 //
 
-impl<'a> PracticalEq for Tup<'a, User> {
+impl PracticalEq for Tup<'_, User> {
     /// Note that we do NOT check profile pictures here!
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         Ok(cloned_equals_without!(self.v, other.v, User, profile_pictures: vec![]))
@@ -117,7 +117,7 @@ impl<'a> PracticalEq for Tup<'a, User> {
 // Chat
 //
 
-impl<'a> PracticalEq for Tup<'a, Chat> {
+impl PracticalEq for Tup<'_, Chat> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         Ok(cloned_equals_without!(self.v, other.v, Chat, img_path_option: None, member_ids: vec![]) &&
             self.v.member_ids.len() == other.v.member_ids.len() &&
@@ -130,7 +130,7 @@ impl<'a> PracticalEq for Tup<'a, Chat> {
 //  Message
 //
 
-impl<'a> PracticalEq for Tup<'a, Message> {
+impl PracticalEq for Tup<'_, Message> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         Ok(cloned_equals_without!(self.v, other.v, Message,
                                   internal_id: 0,
@@ -141,7 +141,7 @@ impl<'a> PracticalEq for Tup<'a, Message> {
     }
 }
 
-impl<'a> PracticalEq for Tup<'a, message::Typed> {
+impl PracticalEq for Tup<'_, message::Typed> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         use message::Typed::*;
         match (self.v, other.v) {
@@ -152,14 +152,14 @@ impl<'a> PracticalEq for Tup<'a, message::Typed> {
     }
 }
 
-impl<'a> PracticalEq for Tup<'a, MessageRegular> {
+impl PracticalEq for Tup<'_, MessageRegular> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         Ok(cloned_equals_without!(self.v, other.v, MessageRegular, forward_from_name_option: None, contents: vec![]) &&
             self.apply(|v| &v.contents).practically_equals(&other.apply(|v| &v.contents))?)
     }
 }
 
-impl<'a> PracticalEq for Tup<'a, MessageService> {
+impl PracticalEq for Tup<'_, MessageService> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         use message_service::SealedValueOptional::*;
         macro_rules! case {
@@ -206,7 +206,7 @@ impl<'a> PracticalEq for Tup<'a, MessageService> {
 // Content
 //
 
-impl<'a> PracticalEq for Tup<'a, Content> {
+impl PracticalEq for Tup<'_, Content> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         use content::SealedValueOptional::*;
         match (self.v.sealed_value_optional.as_ref(), other.v.sealed_value_optional.as_ref()) { // @formatter:off
@@ -227,7 +227,7 @@ impl<'a> PracticalEq for Tup<'a, Content> {
 
 /// Treating String as a relative path here.
 /// (Cannot use newtype idiom - there's nobody to own the value)
-impl<'a> PracticalEq for Tup<'a, String> {
+impl PracticalEq for Tup<'_, String> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         files_are_equal(&self.ds_root.0.join(self.v), &other.ds_root.0.join(other.v))
     }
@@ -261,14 +261,14 @@ practical_eq_with_path!(ContentVideo, [path_option, thumbnail_path_option], [fil
 practical_eq_with_path!(ContentFile, [path_option, thumbnail_path_option], [file_name_option]);
 practical_eq_with_path!(ContentSharedContact, [vcard_path_option], []);
 
-impl<'a> PracticalEq for Tup<'a, ContentPoll> {
+impl PracticalEq for Tup<'_, ContentPoll> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         // We don't really care about poll result
         Ok(self.v == other.v)
     }
 }
 
-impl<'a> PracticalEq for Tup<'a, ContentLocation> {
+impl PracticalEq for Tup<'_, ContentLocation> {
     fn practically_equals(&self, other: &Self) -> Result<bool> {
         // lat/lon are strings, trailing zeros should be ignored,
         Ok(self.v.lat()? == other.v.lat()? && self.v.lon()? == other.v.lon()? &&

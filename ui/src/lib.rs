@@ -125,7 +125,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
             app_handle.set_menu(menu)?;
             assert!(app_handle.manage(separator_ids));
 
-            if let Err(_) = app_handle_tx.send(app_handle.clone()) {
+            if app_handle_tx.send(app_handle.clone()).is_err() {
                 panic!("Failed to send AppHandle through the oneshot channel");
             }
 
@@ -448,12 +448,11 @@ fn save_as(
     let mut clients = clients.inner().clone();
     let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Saving..."))?;
     run_async_callback(app_handle, move |app_handle| {
-        let inner = async move {
+        async move {
             let _wip = wip; // Move the WIP RAII inside async closure
             clients.grpc(|_, dao, _| dao.save_as(SaveAsRequest { key, new_folder_name: new_name })).await?;
             refresh_opened_files_list(app_handle, clients, true).await
-        };
-        inner
+        }
     });
     Ok(())
 }
@@ -472,15 +471,14 @@ fn compare_datasets(
     let mut clients = clients.inner().clone();
     let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Comparing..."))?;
     run_async_callback(app_handle, move |app_handle| {
-        let inner = async move {
+        async move {
             let _wip = wip; // Move the WIP RAII inside async closure
             let res = clients.grpc(|loader, _, _| loader.ensure_same(compare_request)).await?;
             let mut encoded_res = Vec::new();
             EnsureSameResponse::encode(&res, &mut encoded_res).expect("encode EnsureSameResponse");
             app_handle.emit(EVENT_COMPARE_DATASETS_FINISHED, encoded_res).expect("send busy event");
             Ok(())
-        };
-        inner
+        }
     });
     Ok(())
 }
@@ -497,12 +495,11 @@ fn merge_datasets(
     let mut clients = clients.inner().clone();
     let wip = WorkInProgress::start(app_handle.clone(), busy_state.inner().clone(), Cow::Borrowed("Merging..."))?;
     run_async_callback(app_handle, move |app_handle| {
-        let inner = async move {
+        async move {
             let _wip = wip; // Move the WIP RAII inside async closure
             clients.grpc(|_, _, merger| merger.merge(merge_request)).await?;
             refresh_opened_files_list(app_handle, clients, true).await
-        };
-        inner
+        }
     });
     Ok(())
 }
@@ -536,7 +533,7 @@ impl WorkInProgress {
         if !matches!(*locked, BusyStateValue::NotBusy) {
             return Err(tauri::Error::Anyhow(anyhow!("Work in progress!")));
         }
-        app_handle.emit(EVENT_BUSY, message.to_owned()).expect("send busy event");
+        app_handle.emit(EVENT_BUSY, &message).expect("send busy event");
         *locked = BusyStateValue::Busy(message);
         drop(locked);
         Ok(Self { app_handle, state })

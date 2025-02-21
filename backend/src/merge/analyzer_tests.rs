@@ -804,12 +804,12 @@ fn present_absent_not_downloaded() -> EmptyRes {
             match msg.typed_mut() {
                 message_regular_pat! { contents, .. } => {
                     for c in contents.iter_mut() {
-                        if let Content { sealed_value_optional: Some(Photo(ref mut photo)) } = c {
+                        if let Content { sealed_value_optional: Some(Photo(photo)) } = c {
                             transform(photo)
                         }
                     }
                 }
-                message_service_pat!(GroupEditPhoto(ref mut edit_photo)) => {
+                message_service_pat!(GroupEditPhoto(edit_photo)) => {
                     transform(&mut edit_photo.photo)
                 }
                 _ => unreachable!()

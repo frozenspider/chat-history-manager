@@ -25,7 +25,7 @@ pub const DB_FILENAME: &str = "tinder-3.db";
 type UserKey = String;
 type Users = HashMap<UserKey, User>;
 
-impl<'a, H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'a, H> {
+impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
     const NAME: &'static str = NAME;
     const DB_FILENAME: &'static str = DB_FILENAME;
 

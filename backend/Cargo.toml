@@ -12,7 +12,7 @@ simd-json = { workspace = true }
 chrono = "0.4.38"
 lazy_static = { workspace = true }
 hashers = "1.0.1"
-rand = { version = "0.8.5", features = ["small_rng"] }
+rand = { version = "0.9.0", features = ["small_rng"] }
 derive_deref = { workspace = true }
 anyhow = { workspace = true }
 ical = "0.11.0"
@@ -41,14 +41,14 @@ num-traits = "0.2.19"
 num-derive = "0.4.2"
 
 # Database
-rusqlite = { version = "0.32.1", features = ["bundled-sqlcipher", "backup"] }
+rusqlite = { version = "0.33.0", features = ["bundled-sqlcipher", "backup"] }
 diesel = { version = "2.2.3", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
 
 # Protobuf and web service
 prost = { workspace = true }
 tonic = { workspace = true }
-tonic-web = "0.11.0"
+tonic-web = { workspace = true }
 tonic-reflection = { workspace = true }
 
 # Async processing
@@ -68,7 +68,7 @@ log = { workspace = true }
 
 [dev-dependencies]
 chat-history-manager-core = { workspace = true, features = ["test-utils"] }
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
 
 [build-dependencies]
 prost = { workspace = true }

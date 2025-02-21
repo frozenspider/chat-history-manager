@@ -312,7 +312,7 @@ impl Message {
 
     pub fn files_relative(&self) -> Vec<&str> {
         let possibilities: Vec<Option<&str>> = match self.typed() {
-            message::Typed::Regular(ref mr) => {
+            message::Typed::Regular(mr) => {
                 mr.contents.iter()
                     .flat_map(|content| {
                         use content::SealedValueOptional::*;
@@ -331,7 +331,7 @@ impl Message {
                     })
                     .collect_vec()
             }
-            message_service_pat!(ref ms) => {
+            message_service_pat!(ms) => {
                 use message_service::SealedValueOptional::*;
                 match ms {
                     PhoneCall(_) => vec![],

@@ -133,7 +133,7 @@ where
             // We cannot use the current thread since when called via RPC, current thread is already used for async tasks.
             std::thread::spawn(move || {
                 let spawned = handle.spawn(logic);
-                Ok(handle.block_on(spawned)??)
+                handle.block_on(spawned)?
             }).join().unwrap() // We're unwrapping join() to propagate panic.
         }
     }

@@ -448,13 +448,13 @@ struct BatchedMessageIterator<'a, T: WithTypedId> {
     last_id_option: Option<T::Item>,
 }
 
-impl<'a, T: WithTypedId> BatchedMessageIterator<'a, T> {
+impl<T: WithTypedId> BatchedMessageIterator<'_, T> {
     fn peek(&self) -> Option<&T> {
         self.next_option.as_ref()
     }
 }
 
-impl<'a, T: WithTypedId> Iterator for BatchedMessageIterator<'a, T> {
+impl<T: WithTypedId> Iterator for BatchedMessageIterator<'_, T> {
     type Item = Result<T>;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -30,7 +30,7 @@ fn run_tauri_before_build_command() -> Result<(), Box<dyn std::error::Error>> {
     opts.working_directory = Some(PathBuf::from(".").join("frontend"));
 
     let (code, stdout, stderr) =
-        run_script::run(&before_build_command, &vec![], &opts)?;
+        run_script::run(before_build_command, &vec![], &opts)?;
 
     if code != 0 {
         warn!("Failed to run before build command");

@@ -760,10 +760,10 @@ fn parse_rtf(rtf: &str) -> Result<Vec<RichTextElement>> {
         let start = Token::ControlWord { name: "fonttbl".to_owned(), arg: None };
         for token in tokens.iter().skip_while(|&t| t != &start).skip(1) {
             match token {
-                Token::ControlWord { ref name, arg: Some(arg) } if name == "f" => {
+                Token::ControlWord { name, arg: Some(arg) } if name == "f" => {
                     ensure!(*arg == fonttbl_charsets.len() as i32, "Malformed RTF fonts table!\nRTF: {rtf}");
                 }
-                Token::ControlWord { ref name, arg: Some(charset_num) } if name == "fcharset" => {
+                Token::ControlWord { name, arg: Some(charset_num) } if name == "fcharset" => {
                     fonttbl_charsets.push(get_rtf_charset(*charset_num));
                 }
                 Token::StartGroup => {

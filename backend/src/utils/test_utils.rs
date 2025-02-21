@@ -39,7 +39,7 @@ lazy_static! {
 }
 
 thread_local! {
-    static RNG: UnsafeCell<SmallRng> = UnsafeCell::new(SmallRng::from_entropy());
+    static RNG: UnsafeCell<SmallRng> = UnsafeCell::new(SmallRng::from_os_rng());
 }
 
 #[macro_export]
@@ -85,7 +85,7 @@ pub fn dt(s: &str, offset: Option<&FixedOffset>) -> DateTime<FixedOffset> {
 
 pub fn random_alphanumeric(length: usize) -> String {
     rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
+        .sample_iter(&rand::distr::Alphanumeric)
         .take(length)
         .map(char::from)
         .collect()
@@ -229,7 +229,7 @@ pub struct MergerHelper {
 
 impl MergerHelper {
     pub fn random_user_id(max: usize) -> usize {
-        rng().gen_range(1..=max)
+        rng().random_range(1..=max)
     }
 
     pub fn new_as_is(num_users: usize,
@@ -381,7 +381,7 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
     let rng = rng();
     // Any previous message
     let reply_to_message_id_option =
-        if idx > 0 { Some(rng.gen_range(0..idx) as i64) } else { None };
+        if idx > 0 { Some(rng.random_range(0..idx) as i64) } else { None };
 
     let typed = message_regular! {
         edit_timestamp_option: Some(

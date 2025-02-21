@@ -1040,7 +1040,7 @@ fn parse_rich_text(json_path: &str, rt_json: &BorrowedValue) -> Result<Vec<RichT
         }
         BorrowedValue::Array(arr) => {
             let mut result: Vec<RichTextElement> = vec![];
-            for json_el in arr {
+            for json_el in arr.iter() {
                 let val: Option<RichTextElement> = match json_el {
                     BorrowedValue::String(s) =>
                         parse_plain_option(s),
@@ -1310,7 +1310,7 @@ fn parse_datetime(s: &str) -> Result<Timestamp> {
     // NaiveDateTime::parse_from_str is very slow! So we're parsing by hand.
     // Otherwise, we would use const DATE_TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
     let split =
-        s.split(|c| c == '-' || c == ':' || c == 'T')
+        s.split(['-', ':', 'T'])
             .map(|s| s.parse::<u32>())
             .collect::<StdResult<Vec<u32>, ParseIntError>>()
             .with_context(|| format!("Failed to parse date {s}"))?;

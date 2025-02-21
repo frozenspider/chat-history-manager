@@ -241,7 +241,7 @@ pub fn file_hash(path: &Path) -> StdResult<u128, io::Error> {
     // Concatenate two hashes into u128
     let hash1 = hashers[0].finish();
     let hash2 = hashers[1].finish();
-    Ok((hash1 as u128) << 64 | hash2 as u128)
+    Ok(((hash1 as u128) << 64) | (hash2 as u128))
 }
 
 /// Get a hash string (32 uppercase hex chars) of a file's content.
