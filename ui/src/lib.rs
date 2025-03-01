@@ -114,6 +114,7 @@ pub fn create_ui(clients: ChatHistoryManagerGrpcClients, port: u16) -> TauriUiWr
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(GrpcPort(port))
         .manage(Arc::clone(&res.state))
         .manage(clients)

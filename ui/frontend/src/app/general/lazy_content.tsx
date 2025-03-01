@@ -3,8 +3,10 @@
 import React from "react";
 
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import { Assert, IsTauriAvailable, PromiseCatchReportError, ToAbsolutePath } from "@/app/utils/utils";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 export type LazyData = {
   state: "not-started",
@@ -15,6 +17,7 @@ export type LazyData = {
   state: "success",
   /** Could be a base64-encoded URI (i.e. "data:xxx/xxx;base64,xxxx") as well */
   dataUri: string | null
+  filePath: string | null
 } | {
   state: "failure",
   error: string
@@ -37,7 +40,8 @@ export default function LazyContent(
   mimeTypeAsync: (relativePath: string) => Promise<string>,
   render: (lazyData: LazyData) => React.JSX.Element,
   proceedWithNullPath = false,
-  fetchAssetAsBase64 = false
+  fetchAssetAsBase64 = false,
+  handleRightClickReveal = true
 ): React.JSX.Element {
   let [content, setContent] =
     React.useState<LazyData>({ state: "not-started" })
@@ -51,7 +55,7 @@ export default function LazyContent(
           let mimeType = await mimeTypeAsync(relativePath)
           await LoadRealDataAsync(relativePath, dsRoot, mimeType, fetchAssetAsBase64, setContent)
         } else if (proceedWithNullPath) {
-          setContent({ state: "success", dataUri: null })
+          setContent({ state: "success", dataUri: null, filePath: null })
         } else {
           setContent({ state: "system-message", text: `${elementName} not downloaded` })
         }
@@ -59,7 +63,20 @@ export default function LazyContent(
     })
   }, [content.state, elementName, relativePathAsync, dsRoot, mimeTypeAsync, proceedWithNullPath, fetchAssetAsBase64])
 
-  return render(content)
+  let rendered = render(content)
+  let filePath = content.state == "success" ? content.filePath : null
+  return (!handleRightClickReveal || !filePath) ? rendered : (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        {rendered}
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => PromiseCatchReportError(revealItemInDir(filePath))}>
+          Reveal in file explorer
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
 }
 
 async function LoadRealDataAsync(
@@ -80,7 +97,7 @@ async function LoadRealDataAsync(
 
   if (fetchAssetAsBase64) {
     if (!assetUri) {
-      setter({ state: "success", dataUri: null })
+      setter({ state: "success", dataUri: null, filePath: null })
       return
     }
     let r = await fetch(assetUri)
@@ -88,10 +105,10 @@ async function LoadRealDataAsync(
     let reader = new FileReader()
     reader.onload = () => {
       Assert(typeof reader.result == "string")
-      setter({ state: "success", dataUri: reader.result })
+      setter({ state: "success", dataUri: reader.result, filePath: absolutePath })
     }
     reader.readAsDataURL(blob)
   } else {
-    setter({ state: "success", dataUri: assetUri })
+    setter({ state: "success", dataUri: assetUri, filePath: absolutePath })
   }
 }

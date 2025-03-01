@@ -67,7 +67,7 @@ export default function TauriImage(args: {
         }
         // TODO: This sometimes triggers warning
         return (
-          <div className="relative inline-block" style={{ minWidth: width, minHeight: height }}>
+          <div className="relative inline-block mx-auto" style={{ minWidth: width, minHeight: height }}>
             <Image src={srcToUse}
                    alt={args.additional?.altText ?? ""}
                    className={args.additional?.addedClasses}
@@ -87,14 +87,14 @@ export default function TauriImage(args: {
         // https://nextjs.org/docs/pages/api-reference/components/image#responsive-image-with-fill
         // TODO: Doesn't look good! Image is too large
         return (
-          <div style={{ position: "relative", width: maxWidth + "px", height: maxHeight + "px" }}>
+          <div className="relative mx-auto" style={{ width: maxWidth + "px", height: maxHeight + "px" }}>
             <Image src={srcToUse}
                    alt={args.additional?.altText ?? ""}
                    className={args.additional?.addedClasses}
                    sizes={`${maxWidth}px`}
                    style={{
                      objectFit: "contain",
-                     objectPosition: "left",
+                     objectPosition: "center",
                    }}
                    fill
                    priority={isPlaceholder}/>
@@ -103,7 +103,8 @@ export default function TauriImage(args: {
       }
     },
     args.additional?.keepPlaceholderOnNull,
-    false /* fetchAssetAsBase64 */
+    false /* fetchAssetAsBase64 */,
+    args.additional?.handleRightClick ?? true /* handleRightClickReveal */
   )
 }
 
@@ -113,5 +114,6 @@ export interface TauriImageAdditionalProps {
   keepPlaceholderOnNull?: boolean,
   addedClasses?: string
   maxWidth?: number,
-  maxHeight?: number
+  maxHeight?: number,
+  handleRightClick?: boolean
 }

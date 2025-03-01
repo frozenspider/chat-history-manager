@@ -13,6 +13,7 @@
     "core:webview:allow-create-webview",
     "core:webview:allow-create-webview-window",
     "dialog:default",
-    "fs:write-all"
+    "fs:write-all",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

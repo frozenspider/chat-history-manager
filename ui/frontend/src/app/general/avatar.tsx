@@ -21,6 +21,7 @@ export function Avatar(args: {
                   placeholderOverlay: args.fallback ?? undefined,
                   keepPlaceholderOnNull: true,
                   addedClasses: "rounded-md",
+                  handleRightClick: false
                 }}/>
   )
 }
