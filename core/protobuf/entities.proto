@@ -143,6 +143,7 @@ message MessageRegular {
 }
 
 message MessageService {
+  // Removed: group_call = 11, message_deleted = 14
   oneof sealed_value_optional {
     MessageServicePhoneCall             phone_call = 1;
     MessageServiceSuggestProfilePhoto   suggest_profile_photo = 13;
@@ -159,8 +160,6 @@ message MessageService {
     MessageServiceGroupRemoveMembers    group_remove_members = 8;
     MessageServiceGroupMigrateFrom      group_migrate_from = 9;
     MessageServiceGroupMigrateTo        group_migrate_to = 10;
-
-    // Removed: group_call = 11, message_deleted = 14
   }
 }
 
@@ -335,6 +334,8 @@ message ContentVideo {
   required bool is_one_time = 7;
 }
 
+// Removed: width_option = 3, height_option = 4, duration_sec_option = 6, performer_option = 8
+// TODO: Add file size
 message ContentFile {
   // Path relative to data root!
   optional string path_option = 1;
@@ -344,7 +345,6 @@ message ContentFile {
 
   // Path relative to data root!
   optional string thumbnail_path_option = 7;
-  // Removed: width_option = 3, height_option = 4, duration_sec_option = 6, performer_option = 8
 }
 
 message ContentLocation {

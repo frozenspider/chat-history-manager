@@ -150,7 +150,8 @@ export function ChatMatchesString(cwd: ChatWithDetailsPB, searchTerm: string) {
     chat.nameOption?.toLowerCase()?.includes(termLc) ||
     ChatSourceTypeToString(chat.sourceType).toLowerCase()?.includes(termLc) ||
     ChatTypeToString(chat.tpe).toLowerCase().includes(termLc) ||
-    chat.msgCount.toString().includes(searchTerm)
+    chat.msgCount.toString().includes(termLc) ||
+    cwd.lastMsgOption?.searchableString?.toLowerCase()?.includes(termLc)
   ) return true
   // Member 0 is self
   let interlocutors = cwd.members.slice(1)
