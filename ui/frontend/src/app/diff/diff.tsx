@@ -108,7 +108,7 @@ export default function Diff<T>(args: {
         </div>
         <div className="w-[calc(50%-60px)] font-semibold">{args.labels[1]}</div>
       </div>
-      <ScrollArea className="flex-1" scrollHideDelay={2000 /* TODO: Don't user ScrollArea, scrollbar must be visible and wide */}>
+      <div className="flex-1 overflow-y-scroll">
         {args.diffsData.map((diffData, index) => {
           const toggleable = args.isToggleable(diffData);
           return <DiffSection
@@ -121,7 +121,7 @@ export default function Diff<T>(args: {
             onToggle={() => toggleable ? toggleSection(index) : null}
           />
         })}
-      </ScrollArea>
+      </div>
     </div>
   </>
 }

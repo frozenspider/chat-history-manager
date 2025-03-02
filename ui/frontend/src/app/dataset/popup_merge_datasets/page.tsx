@@ -455,7 +455,7 @@ function MergeChats(
       }
 
       if (diff.tpe === "change" && stage.chatsSelection.has(diffIdx)) {
-        // TODO: We could use maps, but meh
+        // We could use maps, but meh
         let idx = stage.analysis.findIndex(analysis => analysis.chatIds!.masterChatId === chatMerge.chatId)
         Assert(idx >= 0, "Analysis not found for chat " + chatMerge.chatId)
         let [analysis, resolution] = [stage.analysis[idx], stage.resolutions[idx]]
