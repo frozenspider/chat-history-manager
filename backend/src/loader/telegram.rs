@@ -902,7 +902,8 @@ fn parse_service_message(message_json: &mut MessageJson,
             (SealedValueOptional::PinMessage(MessageServicePinMessage {
                 message_source_id: message_json.field_i64("message_id")?
             }), None),
-        "suggest_profile_photo" =>
+        "suggest_profile_photo" => {
+            message_json.add_optional("photo_file_size");
             (SealedValueOptional::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
@@ -911,7 +912,8 @@ fn parse_service_message(message_json: &mut MessageJson,
                     mime_type_option: None,
                     is_one_time: false,
                 }
-            }), None),
+            }), None)
+        }
         "clear_history" =>
             (SealedValueOptional::ClearHistory(MessageServiceClearHistory {}), None),
         "create_group" =>
@@ -924,7 +926,8 @@ fn parse_service_message(message_json: &mut MessageJson,
                 title: message_json.field_str("title")?,
                 members: vec![],
             }), None),
-        "edit_group_photo" =>
+        "edit_group_photo" => {
+            message_json.add_optional("photo_file_size");
             (SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
@@ -933,7 +936,8 @@ fn parse_service_message(message_json: &mut MessageJson,
                     mime_type_option: None,
                     is_one_time: false,
                 }
-            }), None),
+            }), None)
+        }
         "delete_group_photo" =>
             (SealedValueOptional::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}), None),
         "edit_group_title" =>

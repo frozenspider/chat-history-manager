@@ -1125,6 +1125,56 @@ fn loading_2025_02() -> EmptyRes {
 }
 
 #[test]
+fn loading_2025_03() -> EmptyRes {
+    let res = resource("telegram_2025-03_service-photo-size");
+    LOADER.looks_about_right(&res)?;
+
+    let dao = LOADER.load(&res, &client::NoChooser)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len(), 2);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499756,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_service!(GroupEditPhoto(MessageServiceGroupEditPhoto {
+            photo: ContentPhoto {
+                path_option: Some("path/to/photo.jpg".to_owned()),
+                width: 800,
+                height: 600,
+                mime_type_option: None,
+                is_one_time: false,
+            }
+        }))),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499757,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_service!(SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
+            photo: ContentPhoto {
+                path_option: Some("path/to/suggested_photo.jpg".to_owned()),
+                width: 800,
+                height: 600,
+                mime_type_option: None,
+                is_one_time: false,
+            }
+        }))),
+    });
+
+    Ok(())
+}
+
+#[test]
 fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;

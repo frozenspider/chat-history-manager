@@ -1,0 +1,53 @@
+{
+  "about": "This is a minimalistic test.",
+  "personal_information": {
+    "user_id": 11111111
+  },
+  "profile_pictures": [],
+  "contacts": {
+    "about": "If you allow access, your contacts are continuously synced with Telegram. Thanks to this, you can easily switch to Telegram and immediately connect with friends across all your devices. We use data about your contacts to let you know when they join Telegram, and to display them by the name you set for them in your phone.\n\nYou can disable contact syncing or delete your stored contacts in Settings > Privacy & Security on Telegram's mobile apps.",
+    "list": []
+  },
+  "chats": {
+    "about": "This page lists all chats from this export.",
+    "list": [
+      {
+        "name": "Dummy Chat",
+        "type": "personal_chat",
+        "id": 123123123,
+        "messages": [
+          {
+            "id": 11111,
+            "type": "service",
+            "date": "2022-10-11T22:49:16",
+            "date_unixtime": "1665499756",
+            "actor": "Aaaaa Aaaaaaaaaaa",
+            "actor_id": "user11111111",
+            "action": "edit_group_photo",
+            "photo": "path/to/photo.jpg",
+            "photo_file_size": 12345,
+            "width": 800,
+            "height": 600,
+            "text": "",
+            "text_entities": []
+          },
+          {
+            "id": 11112,
+            "type": "service",
+            "date": "2022-10-11T22:49:17",
+            "date_unixtime": "1665499757",
+            "actor": "Aaaaa Aaaaaaaaaaa",
+            "actor_id": "user11111111",
+            "action": "suggest_profile_photo",
+            "photo": "path/to/suggested_photo.jpg",
+            "photo_file_size": 67890,
+            "width": 800,
+            "height": 600,
+            "text": "",
+            "text_entities": []
+          }
+        ]
+      }
+    ]
+  }
+}
