@@ -358,6 +358,8 @@ fn parse_chat(json_path: &str,
         m.internal_id = idx as i64;
     }
 
+    deduplicate(&mut messages)?;
+
     chat.msg_count = messages.len() as i32;
 
     // Undo the shifts introduced by Telegram 2021-05.
@@ -616,6 +618,8 @@ fn parse_message(json_path: &str,
             bail!("{}: message fields not found: {:?}", message_json.json_path, ef.required_fields);
         }
     }
+
+    ensure!(source_id_option.is_some(), "source_id not set");
 
     Ok(ParsedMessage::Ok(Box::new(Message::new(
         *NO_INTERNAL_ID,
@@ -1273,6 +1277,29 @@ fn parse_inline_bot_buttons(json_path: &str, json: &BorrowedValue) -> Result<Vec
 //
 // Other
 //
+
+
+/// At 2025-03, I've encountered exported history with messages in two groups being duplicated like this:
+///
+///     1, ..., N, 1, ..., N
+///
+/// This is a workaround to remove the duplicates if this situation is detected.
+fn deduplicate(messages: &mut Vec<Message>) -> EmptyRes {
+    let mut seen_ids = HashSet::with_capacity_and_hasher(messages.len(), hasher());
+    let deduplication_needed = {
+        messages.iter().any(|m| !seen_ids.insert(m.source_id_option))
+    };
+    if deduplication_needed {
+        log::warn!("Duplicated messages detected!");
+        let prev_len = messages.len();
+        measure(|| {
+            seen_ids.clear();
+            messages.retain(|m| seen_ids.insert(m.source_id_option));
+            messages.len()
+        }, |new_len, t| log::warn!("Number of messages: {prev_len} -> {new_len}, deduplicated in {t} ms"));
+    };
+    Ok(())
+}
 
 fn append_user(short_user: ShortUser,
                users: &mut Users,

@@ -205,7 +205,12 @@ impl SqliteDao {
                             conn.transaction(|txn| {
                                 self.copy_messages(txn, &src_msgs, src_cwd.chat.id,
                                                    &raw_ds.uuid, &src_ds_root, &dst_ds_root)
-                            })?;
+                            }).with_context(||
+                                format!("Failed to copy messages #{} through #{} (offset {offset}) of chat {}",
+                                        src_msgs.first().unwrap().internal_id,
+                                        src_msgs.last().unwrap().internal_id,
+                                        src_cwd.chat.qualified_name())
+                            )?;
 
                             if src_msgs.len() < BATCH_SIZE { break; }
                             offset += BATCH_SIZE;
