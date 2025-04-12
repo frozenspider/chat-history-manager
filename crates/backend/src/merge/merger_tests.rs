@@ -720,21 +720,13 @@ fn merge_chats_merge_all_modes() -> EmptyRes {
 }
 
 /// `Replace(1, n/2-1), DontReplace(n/2, ns)`
-///
-/// Note: this test is slow due to thousands of files being created, copied and deleted - that's responsible for
-/// over 80% of test running time.
 #[test]
 fn merge_chats_merge_a_lot_of_messages() -> EmptyRes {
     const MAX_MSG_ID: i64 = (BATCH_SIZE as i64) * 3 + 1;
 
     let msgs_a = (1..=MAX_MSG_ID).map(|idx| create_regular_message(idx as usize, 1)).collect_vec();
     let msgs_b = msgs_a.changed(|_| true);
-    let helper = MergerHelper::new(
-        2, msgs_a, msgs_b,
-        &|_is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
-            amend_with_content(ContentMode::Full, ds_root, msg)
-        },
-    );
+    let helper = MergerHelper::new_as_is(2, msgs_a, msgs_b);
 
     let half = MAX_MSG_ID / 2;
 
