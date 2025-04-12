@@ -1278,10 +1278,11 @@ fn parse_inline_bot_buttons(json_path: &str, json: &BorrowedValue) -> Result<Vec
 // Other
 //
 
-
 /// At 2025-03, I've encountered exported history with messages in two groups being duplicated like this:
 ///
-///     1, ..., N, 1, ..., N
+/// ```text
+/// 1, ..., N, 1, ..., N
+/// ```
 ///
 /// This is a workaround to remove the duplicates if this situation is detected.
 fn deduplicate(messages: &mut Vec<Message>) -> EmptyRes {

@@ -3,7 +3,7 @@ syntax = "proto2";
 package history;
 
 import "scalapb/scalapb.proto";
-import "core/protobuf/entities.proto";
+import "crates/core/protobuf/entities.proto";
 
 option (scalapb.options) = {
   package_name: "org.fs.chm.protobuf"

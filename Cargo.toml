@@ -11,7 +11,7 @@ ui-full = ["ui-core", "dep:tauri-cli", "chat-history-manager-ui/run-before-build
 
 [dependencies]
 chat-history-manager-backend = { workspace = true }
-chat-history-manager-ui = { path = "ui", optional = true }
+chat-history-manager-ui = { workspace = true, optional = true }
 
 # General
 mimalloc = "0.1.39" # As advise by SIMD Json docs
@@ -36,9 +36,9 @@ tauri-cli = { version = "2.0.0-beta.17", optional = true }
 
 [workspace]
 members = [
-    "core",
-    "backend",
-    "ui"
+    "crates/core",
+    "crates/backend",
+    "crates/ui"
 ]
 
 [workspace.package]
@@ -47,8 +47,9 @@ version = "0.9.0"
 edition = "2024"
 
 [workspace.dependencies]
-chat-history-manager-core = { path = "core" }
-chat-history-manager-backend = { path = "backend" }
+chat-history-manager-core = { path = "crates/core" }
+chat-history-manager-backend = { path = "crates/backend" }
+chat-history-manager-ui = { path = "crates/ui" }
 
 itertools = "0.14.0"
 lazy_static = "1.5.0"

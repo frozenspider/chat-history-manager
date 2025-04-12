@@ -14,12 +14,11 @@
 
 # Generated
 scalapb/scalapb.proto
-core/src/protobuf/*
-backend/src/protobuf/*
-ui/gen/*
+crates/*/src/protobuf/*
+crates/ui/gen/*
 
 # WhatsApp databases
-backend/resources/test/*/databases/*
+crates/backend/resources/test/*/databases/*
 
 # Development
 #/_build

@@ -27,6 +27,7 @@ regex = { workspace = true }
 prost = { workspace = true }
 
 [build-dependencies]
+anyhow = { workspace = true }
 prost = { workspace = true }
 tonic-build = { workspace = true }
 
