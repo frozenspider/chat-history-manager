@@ -14,7 +14,7 @@ use utf16string::{LE, WStr};
 
 use message_service::SealedValueOptional as ServiceSvo;
 
-use crate::dao::in_memory_dao::{DatasetEntry, InMemoryDao};
+use chat_history_manager_dao::in_memory_dao::{DatasetEntry, InMemoryDao};
 use crate::loader::DataLoader;
 use crate::prelude::*;
 use crate::prelude::blob_utils::*;

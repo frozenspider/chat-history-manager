@@ -1747,6 +1747,8 @@ dependencies = [
  "base64 0.22.1",
  "cbc",
  "chat-history-manager-core",
+ "chat-history-manager-dao",
+ "chat-history-manager-loaders",
  "chrono",
  "const_format",
  "deepsize",
@@ -1791,7 +1793,6 @@ dependencies = [
  "unicode-segmentation",
  "utf16string",
  "uuid",
- "zip 2.2.2",
 ]
 
 [[package]]
@@ -1799,9 +1800,11 @@ name = "chat-history-manager-core"
 version = "0.9.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "deepsize",
  "derive_deref",
  "env_logger 0.11.6",
+ "hashers",
  "itertools 0.14.0",
  "lazy_static",
  "log",
@@ -1809,8 +1812,91 @@ dependencies = [
  "prost",
  "regex",
  "serde",
- "serde_json",
  "tonic-build",
+ "unicode-segmentation",
+ "uuid",
+]
+
+[[package]]
+name = "chat-history-manager-dao"
+version = "0.9.0"
+dependencies = [
+ "anyhow",
+ "chat-history-manager-core",
+ "chrono",
+ "const_format",
+ "deepsize",
+ "diesel",
+ "diesel_migrations",
+ "hashers",
+ "itertools 0.14.0",
+ "lazy_static",
+ "log",
+ "mime2ext",
+ "num-derive",
+ "pretty_assertions",
+ "rand 0.9.0",
+ "regex",
+ "rusqlite",
+ "simd-json",
+ "tokio",
+ "unicode-segmentation",
+ "uuid",
+ "zip 2.2.2",
+]
+
+[[package]]
+name = "chat-history-manager-loaders"
+version = "0.9.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "base64 0.22.1",
+ "cbc",
+ "chat-history-manager-core",
+ "chat-history-manager-dao",
+ "chrono",
+ "const_format",
+ "deepsize",
+ "derive_deref",
+ "diesel",
+ "diesel_migrations",
+ "encoding_rs",
+ "env_logger 0.11.6",
+ "fs_extra",
+ "futures",
+ "hex",
+ "hmac",
+ "ical",
+ "indexmap 2.7.1",
+ "itertools 0.14.0",
+ "lazy_static",
+ "log",
+ "mime2ext",
+ "num-derive",
+ "num-traits",
+ "paste",
+ "path-dedot",
+ "pbkdf2",
+ "pretty_assertions",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "rand 0.9.0",
+ "regex",
+ "reqwest 0.12.12",
+ "rtf-grimoire",
+ "rusqlite",
+ "sha1",
+ "sha2",
+ "simd-json",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tonic-reflection",
+ "tonic-web",
+ "unicode-segmentation",
+ "utf16string",
  "uuid",
 ]
 
@@ -1841,9 +1927,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.39"
+version = "0.4.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
+checksum = "1a7964611d71df112cb1730f2ee67324fcf4d0fc6606acbbe9bfe06df124637c"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -1851,7 +1937,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-targets 0.52.6",
+ "windows-link",
 ]
 
 [[package]]

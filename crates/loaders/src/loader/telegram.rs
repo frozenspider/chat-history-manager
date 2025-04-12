@@ -11,7 +11,7 @@ use regex::Regex;
 use simd_json::borrowed::Object;
 use simd_json::BorrowedValue;
 use simd_json::prelude::*;
-use crate::dao::in_memory_dao::InMemoryDao;
+use chat_history_manager_dao::in_memory_dao::InMemoryDao;
 use crate::loader::DataLoader;
 use crate::prelude::*;
 // Reexporting JSON utils for simplicity.

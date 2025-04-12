@@ -8,7 +8,6 @@ use indexmap::IndexMap;
 use tokio::runtime::Handle;
 use tonic::{Code, Request, Response, Status, transport::Server};
 
-use crate::dao::ChatHistoryDao;
 use crate::loader::Loader;
 use crate::prelude::*;
 use crate::protobuf::history::user_input_service_server::UserInputServiceServer;

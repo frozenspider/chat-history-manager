@@ -1,15 +1,18 @@
 #![allow(dead_code)]
 
+use crate::sqlite_dao::{self, subpaths};
+use crate::{DaoCacheInner, UserCacheForDataset};
+use chat_history_manager_core::{message_regular, message_service, message_service_pat, message_service_pat_unreachable};
+use chat_history_manager_core::protobuf::history::*;
+use chat_history_manager_core::utils::entity_utils::*;
+use chat_history_manager_core::utils::*;
 use const_format::concatcp;
 use diesel::prelude::*;
 use diesel::sql_query;
 use diesel::sql_types::*;
 use itertools::Itertools;
+use std::path::Path;
 use uuid::Uuid;
-
-use crate::dao::{DaoCacheInner, UserCacheForDataset};
-use crate::dao::sqlite_dao::{self, subpaths};
-use crate::prelude::*;
 
 use super::mapping::*;
 
@@ -139,6 +142,7 @@ pub mod user {
 
     pub mod profile_picture {
         use super::*;
+        use chat_history_manager_core::utils::entity_utils::UserId;
 
         pub fn serialize_and_copy(user_id: UserId,
                                   raw_ds_uuid: &[u8],

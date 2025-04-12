@@ -1,3 +1,5 @@
+pub mod entity_equality;
+
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};

@@ -1,13 +1,22 @@
+pub mod in_memory_dao;
+pub mod sqlite_dao;
+
+use deepsize::DeepSizeOf;
+use std::fmt::{Debug, Display, Formatter};
+use std::path::Path;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 
-use deepsize::DeepSizeOf;
+use std::collections::{HashMap, HashSet};
+
+use chat_history_manager_core::protobuf::history::*;
+use chat_history_manager_core::utils::entity_utils::entity_equality::*;
+use chat_history_manager_core::utils::entity_utils::*;
+use chat_history_manager_core::utils::*;
+
 use itertools::Itertools;
 
-use crate::prelude::*;
-
-pub mod in_memory_dao;
-pub mod sqlite_dao;
+const BATCH_SIZE: usize = 5_000;
 
 pub trait WithCache {
     /// For internal use
@@ -258,22 +267,43 @@ impl DaoCache {
     }
 }
 
-const BATCH_SIZE: usize = 5_000;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatasetDiff {
+    pub message: String,
+    pub values: Option<DatasetDiffValues>,
+}
+
+impl Display for DatasetDiff {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)?;
+        if let Some(ref values) = self.values {
+            write!(f, "\nWas:    {}\nBecame: {}", values.old, values.new)?;
+        }
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatasetDiffValues {
+    pub old: String,
+    pub new: String,
+}
 
 pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                          master_ds_uuid: &PbUuid,
                          slave_dao: &dyn ChatHistoryDao,
                          slave_ds_uuid: &PbUuid,
-                         max_diffs: usize) -> Result<Vec<Difference>> {
+                         max_diffs: usize) -> Result<Vec<DatasetDiff>> {
     let mut differences = Vec::with_capacity(max_diffs);
 
     macro_rules! check_diff {
         ($expr:expr, $critical:literal, $msg:expr, $values:expr) => {
             if !$expr {
                 let values: Option<(_, _)> = $values;
-                differences.push(Difference {
+                differences.push(DatasetDiff {
                     message: $msg.to_string(),
-                    values: values.map(|vs| DifferenceValues { old: vs.0.to_string(), new: vs.1.to_string()}),
+                    values: values.map(|vs| DatasetDiffValues { old: vs.0.to_string(), new: vs.1.to_string()}),
                 });
                 if $critical || differences.len() >= max_diffs { return Ok(differences.clone()); }
             }

@@ -37,6 +37,8 @@ tauri-cli = { version = "2.0.0-beta.17", optional = true }
 [workspace]
 members = [
     "crates/core",
+    "crates/dao",
+    "crates/loaders",
     "crates/backend",
     "crates/ui"
 ]
@@ -48,6 +50,8 @@ edition = "2024"
 
 [workspace.dependencies]
 chat-history-manager-core = { path = "crates/core" }
+chat-history-manager-dao = { path = "crates/dao" }
+chat-history-manager-loaders = { path = "crates/loaders" }
 chat-history-manager-backend = { path = "crates/backend" }
 chat-history-manager-ui = { path = "crates/ui" }
 
@@ -60,6 +64,8 @@ paste = "1.0.15"
 mime2ext = "0.1.53"
 simd-json = "0.14.3"
 path-dedot = "3.1.1"
+chrono = "0.4.40"
+const_format = "0.2.32"
 
 # Async processing
 futures = "0.3.30"
@@ -71,6 +77,7 @@ serde_json = "1.0.115"
 
 # Text processing
 regex = "1.10.6"
+unicode-segmentation = "1.11.0"
 
 # Protobuf
 prost = "0.12.6"

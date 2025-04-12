@@ -6,12 +6,11 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use pretty_assertions::{assert_eq, assert_ne};
 
-use crate::dao::ChatHistoryDao;
 use crate::entity_utils::*;
-use crate::protobuf::history::content::SealedValueOptional::*;
-use crate::protobuf::history::message::*;
-use crate::protobuf::history::message_service::SealedValueOptional::*;
-use crate::protobuf::history::User;
+use chat_history_manager_core::protobuf::history::content::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::message::*;
+use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::User;
 
 use super::*;
 

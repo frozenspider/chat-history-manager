@@ -1,10 +1,6 @@
-use std::{cmp, thread};
-use std::path::{Path, PathBuf};
-
-use deepsize::DeepSizeOf;
-use itertools::Itertools;
-
 use super::*;
+use std::path::PathBuf;
+use chat_history_manager_core::err;
 
 #[cfg(test)]
 #[path = "in_memory_dao_tests.rs"]
@@ -255,7 +251,7 @@ impl ChatHistoryDao for InMemoryDao {
 
 impl MutableChatHistoryDao for InMemoryDao {
     fn backup(&mut self) -> Result<JoinHandle<()>> {
-        Ok(thread::spawn(|| {})) // NOOP
+        Ok(std::thread::spawn(|| {})) // NOOP
     }
 
     fn insert_dataset(&mut self, _ds: Dataset) -> Result<Dataset> {
@@ -360,7 +356,7 @@ pub struct DatasetEntry {
 
 fn cutout<T: Clone>(slice: &[T], start_inc: usize, end_exc: usize) -> Vec<T> {
     fn sanitize<T>(idx: usize, slice: &[T]) -> usize {
-        cmp::min(cmp::max(idx, 0), slice.len())
+        std::cmp::min(std::cmp::max(idx, 0), slice.len())
     }
     slice[sanitize(start_inc, slice)..sanitize(end_exc, slice)].to_vec()
 }

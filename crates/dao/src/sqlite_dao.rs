@@ -1,28 +1,29 @@
-use std::default::Default;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-
-use chrono::Local;
-use diesel::{delete, insert_into, sql_query, sql_types, update};
-use diesel::migration::MigrationSource;
-use diesel::prelude::*;
-use diesel::sqlite::Sqlite;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use itertools::{Either, Itertools};
-use uuid::Uuid;
-
-use mapping::*;
-
-use super::*;
-
 mod mapping;
 mod utils;
 
 #[cfg(test)]
 #[path = "sqlite_dao_tests.rs"]
 mod tests;
+
+use super::*;
+
+use std::default::Default;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+use chrono::Local;
+use diesel::migration::MigrationSource;
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use diesel::sqlite::Sqlite;
+use diesel::{delete, insert_into, sql_query, sql_types, update};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use itertools::{Either, Itertools};
+use uuid::Uuid;
+
+use mapping::*;
+
 
 // TODO: Make Send + Sync
 pub struct SqliteDao {

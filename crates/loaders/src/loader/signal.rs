@@ -2,7 +2,6 @@ use super::DataLoader;
 use crate::prelude::*;
 
 use std::fs;
-use std::path::Path;
 
 use itertools::Itertools;
 

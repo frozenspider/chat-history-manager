@@ -3,10 +3,9 @@
 use chrono::prelude::*;
 use pretty_assertions::assert_eq;
 
-use crate::dao::ChatHistoryDao;
-use crate::protobuf::history::message::*;
-use crate::protobuf::history::message_service::SealedValueOptional::*;
-use crate::protobuf::history::User;
+use chat_history_manager_core::protobuf::history::message::*;
+use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::User;
 
 use super::*;
 

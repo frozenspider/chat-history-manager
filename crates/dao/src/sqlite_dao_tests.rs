@@ -1,4 +1,4 @@
-#![allow(unused_imports)]
+use super::*;
 
 use std::cmp;
 use std::fs::File;
@@ -6,18 +6,15 @@ use std::fs::File;
 use pretty_assertions::{assert_eq, assert_ne};
 use regex::Regex;
 
-use crate::dao::ChatHistoryDao;
+use crate::ChatHistoryDao;
 use crate::entity_utils::*;
-use crate::loader::Loader;
-use crate::protobuf::history::message::*;
+use chat_history_manager_core::protobuf::history::message::*;
 
-
-use super::*;
 
 const TELEGRAM_DIR: &str = "telegram_2020-01";
 
 thread_local! {
-    static LOADER: Loader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
+    static LOADER: TelegramDataLoader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
 }
 
 /// Chat to be deleted in delete tests. It has an image and orphan users with profile pics, so deleting it is
@@ -28,6 +25,7 @@ type Tup<'a, T> = PracticalEqTuple<'a, T>;
 
 #[test]
 fn relevant_files_are_copied() -> EmptyRes {
+let x: TelegramDataLoader = 123;
     let daos = init();
     let src_files = dataset_files(daos.src_dao.as_ref(), &daos.ds_uuid);
 

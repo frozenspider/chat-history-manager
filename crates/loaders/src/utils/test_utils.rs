@@ -16,7 +16,6 @@ use uuid::Uuid;
 
 pub use chat_history_manager_core::utils::test_utils::*;
 
-use crate::dao::ChatHistoryDao;
 use crate::prelude::*;
 
 lazy_static! {
