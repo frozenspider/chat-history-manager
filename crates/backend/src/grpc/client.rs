@@ -1,14 +1,14 @@
+use super::*;
+use crate::prelude::*;
+use crate::history_dao_service_client::HistoryDaoServiceClient;
+use crate::history_loader_service_client::HistoryLoaderServiceClient;
+use crate::merge_service_client::MergeServiceClient;
+
 use itertools::Itertools;
 use std::fmt::Debug;
 use std::future::Future;
 use tokio::runtime::Handle;
 use tonic::transport::{Channel, Endpoint};
-
-use super::*;
-use crate::prelude::history_dao_service_client::HistoryDaoServiceClient;
-use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
-use crate::prelude::merge_service_client::MergeServiceClient;
-use crate::prelude::*;
 
 mod user_input_grpc_requester;
 
@@ -56,19 +56,6 @@ pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcCl
     let dao = HistoryDaoServiceClient::new(channel.clone());
     let merger = MergeServiceClient::new(channel);
     Ok(ChatHistoryManagerGrpcClients { loader, dao, merger })
-}
-
-#[derive(Clone, Copy)]
-pub struct NoChooser;
-
-impl UserInputBlockingRequester for NoChooser {
-    fn choose_myself(&self, _users: &[User]) -> Result<usize> {
-        err!("No way to choose myself!")
-    }
-
-    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
-        err!("No way to ask user!")
-    }
 }
 
 #[derive(Clone)]

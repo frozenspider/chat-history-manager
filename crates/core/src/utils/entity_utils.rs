@@ -1,5 +1,9 @@
 pub mod entity_equality;
 
+pub use entity_equality::*;
+
+use crate::protobuf::history::*;
+
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -11,8 +15,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use uuid::Uuid;
-
-use crate::protobuf::history::*;
 
 pub const UNNAMED: &str = "[unnamed]";
 pub const UNKNOWN: &str = "[unknown]";

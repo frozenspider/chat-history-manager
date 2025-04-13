@@ -1,11 +1,6 @@
 #![allow(unused_imports)]
 
-use std::fmt::format;
-use std::fs;
-use std::path::PathBuf;
-use chrono::prelude::*;
-use lazy_static::lazy_static;
-use pretty_assertions::{assert_eq, assert_ne};
+use super::*;
 
 use crate::entity_utils::*;
 use chat_history_manager_core::protobuf::history::content::SealedValueOptional::*;
@@ -13,7 +8,12 @@ use chat_history_manager_core::protobuf::history::message::*;
 use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
 use chat_history_manager_core::protobuf::history::User;
 
-use super::*;
+use std::fmt::format;
+use std::fs;
+use std::path::PathBuf;
+use chrono::prelude::*;
+use lazy_static::lazy_static;
+use pretty_assertions::{assert_eq, assert_ne};
 
 const RESOURCE_DIR: &str = "tinder-android";
 
@@ -29,7 +29,7 @@ fn loading_2023_11() -> EmptyRes {
     let _media_dir = TmpDir::new_at(db_dir.path.parent().unwrap().join(MEDIA_DIR));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &client::NoChooser)?;
+    let dao = loader.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -117,7 +117,7 @@ fn loading_2024_07_photos() -> EmptyRes {
     let _media_dir = TmpDir::new_at(db_dir.path.parent().unwrap().join(MEDIA_DIR));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &client::NoChooser)?;
+    let dao = loader.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

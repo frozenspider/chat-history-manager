@@ -1,11 +1,10 @@
 #![allow(unused_imports)]
 
 use chrono::prelude::*;
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_ne};
 
 use chat_history_manager_core::protobuf::history::message::*;
 use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
-use chat_history_manager_core::protobuf::history::User;
 
 use super::*;
 
@@ -20,8 +19,7 @@ fn loading_2020_01() -> EmptyRes {
     let res = resource("telegram_2020-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -126,8 +124,7 @@ fn loading_2021_05() -> EmptyRes {
     let res = resource("telegram_2021-05");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -197,8 +194,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
     let res = resource("telegram_2021-06_supergroup");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -327,8 +323,7 @@ fn loading_2021_07() -> EmptyRes {
     let res = resource("telegram_2021-07");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -405,8 +400,7 @@ fn loading_2023_01() -> EmptyRes {
     let res = resource("telegram_2023-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     // Parsing as UTC+5.
     let offset = FixedOffset::east_opt(5 * 3600).unwrap();
@@ -564,8 +558,7 @@ fn loading_2023_08() -> EmptyRes {
     let res = resource("telegram_2023-08");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -650,8 +643,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
     let res = resource("telegram_2023-10_audio-video");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -808,8 +800,7 @@ fn loading_2023_11_diff() -> EmptyRes {
     let res = resource("telegram_2023-11");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -828,8 +819,7 @@ fn loading_2024_01() -> EmptyRes {
     let res = resource("telegram_2024-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -854,8 +844,7 @@ fn loading_2024_02() -> EmptyRes {
     let res = resource("telegram_2024-02_create-channel_saved-from");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -890,8 +879,7 @@ fn loading_2024_05() -> EmptyRes {
     let res = resource("telegram_2024-05_boosts_file-name_etc");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -965,8 +953,7 @@ fn loading_2024_06() -> EmptyRes {
     let res = resource("telegram_2024-06_blockquote-collapsed");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -996,8 +983,7 @@ fn loading_2024_08() -> EmptyRes {
     let res = resource("telegram_2024-08");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1079,8 +1065,7 @@ fn loading_2025_02() -> EmptyRes {
     let res = resource("telegram_2025-02_joined_file-size");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1128,7 +1113,7 @@ fn loading_2025_03() -> EmptyRes {
     let res = resource("telegram_2025-03_service-photo-size");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1178,8 +1163,7 @@ fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;
 
-    let dao =
-        LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;

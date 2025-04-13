@@ -1,3 +1,8 @@
+use crate::loader::DataLoader;
+use crate::prelude::*;
+// Reexporting JSON utils for simplicity.
+pub use crate::utils::json_utils::*;
+
 use std::fs;
 use std::num::ParseIntError;
 use std::ops::Deref;
@@ -12,10 +17,6 @@ use simd_json::borrowed::Object;
 use simd_json::BorrowedValue;
 use simd_json::prelude::*;
 use chat_history_manager_dao::in_memory_dao::InMemoryDao;
-use crate::loader::DataLoader;
-use crate::prelude::*;
-// Reexporting JSON utils for simplicity.
-pub use crate::utils::json_utils::*;
 
 mod parser_full;
 mod parser_single;

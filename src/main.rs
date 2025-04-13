@@ -89,7 +89,7 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
                             text: None,
                         })
                     } else {
-                        Box::new(client::NoChooser)
+                        Box::new(NoChooser)
                     };
                 parse_file(&path, chooser.as_ref()).with_context(|| format!("Failed to parse {path}"))
             });

@@ -1,11 +1,6 @@
 #![allow(unused_imports)]
 
-use std::fmt::format;
-use std::fs;
-use std::path::PathBuf;
-use chrono::prelude::*;
-use lazy_static::lazy_static;
-use pretty_assertions::{assert_eq, assert_ne};
+use super::*;
 
 use crate::entity_utils::*;
 use chat_history_manager_core::protobuf::history::content::SealedValueOptional::*;
@@ -13,7 +8,12 @@ use chat_history_manager_core::protobuf::history::message::*;
 use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
 use chat_history_manager_core::protobuf::history::User;
 
-use super::*;
+use std::fmt::format;
+use std::fs;
+use std::path::PathBuf;
+use chrono::prelude::*;
+use lazy_static::lazy_static;
+use pretty_assertions::{assert_eq, assert_ne};
 
 const RESOURCE_DIR: &str = "badoo-android";
 const LOADER: BadooAndroidDataLoader = BadooAndroidDataLoader;
@@ -27,7 +27,7 @@ fn loading_2023_12() -> EmptyRes {
     let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2023-12", "", DB_FILENAME);
 
     LOADER.looks_about_right(&res)?;
-    let dao = LOADER.load(&res, &client::NoChooser)?;
+    let dao = LOADER.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

@@ -1,5 +1,10 @@
 pub mod in_memory_dao;
 pub mod sqlite_dao;
+pub mod utils;
+
+use chat_history_manager_core::protobuf::history::*;
+use chat_history_manager_core::utils::entity_utils::*;
+use chat_history_manager_core::utils::*;
 
 use deepsize::DeepSizeOf;
 use std::fmt::{Debug, Display, Formatter};
@@ -8,11 +13,6 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread::JoinHandle;
 
 use std::collections::{HashMap, HashSet};
-
-use chat_history_manager_core::protobuf::history::*;
-use chat_history_manager_core::utils::entity_utils::entity_equality::*;
-use chat_history_manager_core::utils::entity_utils::*;
-use chat_history_manager_core::utils::*;
 
 use itertools::Itertools;
 

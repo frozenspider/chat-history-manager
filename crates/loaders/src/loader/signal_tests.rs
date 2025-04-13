@@ -1,16 +1,19 @@
 #![allow(unused_imports)]
 
+use super::*;
+
+use crate::entity_utils::*;
+use chat_history_manager_core::protobuf::history::content::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::message::*;
+use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::User;
+use chat_history_manager_dao::ChatHistoryDao;
+
 use std::fs;
 use aes::Aes256;
 use cbc::cipher::BlockEncryptMut;
 use cbc::Encryptor;
 use pretty_assertions::{assert_eq, assert_ne};
-
-use crate::dao::ChatHistoryDao;
-use crate::protobuf::history::message_service::SealedValueOptional::*;
-use crate::protobuf::history::User;
-
-use super::*;
 
 const RESOURCE_DIR: &str = "signal";
 
@@ -27,7 +30,7 @@ fn loading_v7_27_macos_plaintext() -> EmptyRes {
     let _attachments_dir = TmpDir::new_at(root_dir.join(DECRYPTED_ATTACHMENTS_DIR_NAME));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &client::NoChooser)?;
+    let dao = loader.load(&res, &NoChooser)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

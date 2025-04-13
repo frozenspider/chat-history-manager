@@ -1,47 +1,34 @@
+#![allow(unused_imports)]
+
 use super::*;
+
+use crate::ChatHistoryDao;
+use crate::in_memory_dao::InMemoryDao;
+use crate::utils::test_utils::*;
+use chat_history_manager_core::protobuf::history::content::SealedValueOptional::*;
+use chat_history_manager_core::protobuf::history::message::*;
+use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional::*;
+use chat_history_manager_core::utils::entity_utils::*;
+use chat_history_manager_core::utils::test_utils::*;
+use chat_history_manager_core::{message_regular, message_regular_pat, message_service, message_service_pat};
 
 use std::cmp;
 use std::fs::File;
 
 use pretty_assertions::{assert_eq, assert_ne};
 use regex::Regex;
-
-use crate::ChatHistoryDao;
-use crate::entity_utils::*;
-use chat_history_manager_core::protobuf::history::message::*;
-
-
-const TELEGRAM_DIR: &str = "telegram_2020-01";
-
-thread_local! {
-    static LOADER: TelegramDataLoader = Loader::new::<NoopHttpClient>(&NoopHttpClient);
-}
+const TEST_DATASET_ROOT_DIR: &str = "test-data";
 
 /// Chat to be deleted in delete tests. It has an image and orphan users with profile pics, so deleting it is
 /// a bit trickier than the rest.
-const CHAT_ID_TO_DELETE: ChatId = ChatId(8123123123 + 0x100000000_i64 * 2);
+const CHAT_ID_TO_DELETE: ChatId = ChatId(9001);
 
 type Tup<'a, T> = PracticalEqTuple<'a, T>;
 
 #[test]
 fn relevant_files_are_copied() -> EmptyRes {
-let x: TelegramDataLoader = 123;
     let daos = init();
     let src_files = dataset_files(daos.src_dao.as_ref(), &daos.ds_uuid);
-
-    // Sanity check: dataset_files() does the right thing.
-    {
-        let src = fs::read_to_string(daos.src_dir.join("result.json"))?;
-        let path_regex = Regex::new(r#""(chats/[a-zA-Z0-9()\[\]./\\_ -]+)""#).unwrap();
-        let mut src_files_2 = path_regex.captures_iter(&src)
-            .map(|c| c.get(1).unwrap().as_str())
-            .map(|p| daos.src_ds_root.to_absolute(p))
-            .sorted().collect_vec();
-        // Add an artificially generated file that was not in result.json
-        src_files_2.push(daos.src_ds_root.to_absolute("_artificial/chat_imgs/chat_8123123123.jpg"));
-        assert_eq!(src_files.iter().sorted().collect_vec(), src_files_2.iter().sorted().collect_vec());
-    }
-
     let dst_files = dataset_files(&daos.dst_dao, &daos.ds_uuid);
     assert_files(&src_files, &dst_files);
 
@@ -538,7 +525,7 @@ fn update_user_change_id() -> EmptyRes {
     let daos = init();
     let mut dao = daos.dst_dao;
 
-    let old_id = UserId(777777777);
+    let old_id = UserId(7777);
     let new_id = UserId(112233);
 
     assert_eq!(dao.datasets()?.len(), 1);
@@ -730,9 +717,11 @@ fn combine_chats() -> EmptyRes {
     let mut combine_chats_and_check = |master_chat_id: i64, slave_chat_id: i64| -> EmptyRes {
         let old_chats = dao.chats(&daos.ds_uuid)?;
         let old_master_cwd = old_chats.iter()
-            .find(|cwd| cwd.chat.id == master_chat_id).cloned().unwrap();
+            .find(|cwd| cwd.chat.id == master_chat_id).cloned()
+            .with_context(|| format!("chat #{master_chat_id}")).unwrap();
         let old_slave_cwd = old_chats.iter()
-            .find(|cwd| cwd.chat.id == slave_chat_id).cloned().unwrap();
+            .find(|cwd| cwd.chat.id == slave_chat_id).cloned()
+            .with_context(|| format!("chat #{slave_chat_id}")).unwrap();
         let old_slave_cwds = old_chats.iter()
             .filter(|cwd| cwd.chat.id == slave_chat_id || cwd.chat.main_chat_id == Some(slave_chat_id))
             .cloned().sorted_by_key(|cwd| cwd.chat.id).collect_vec();
@@ -773,9 +762,8 @@ fn combine_chats() -> EmptyRes {
         Ok(())
     };
 
-    combine_chats_and_check(9777777777, 9333333333)?;
-    combine_chats_and_check(4321012345, 9777777777)?;
-
+    combine_chats_and_check(9002, 9004)?;
+    combine_chats_and_check(9003, 9002)?;
 
     Ok(())
 }
@@ -935,28 +923,893 @@ struct TestDaos {
 }
 
 fn init() -> TestDaos {
-    let src_dir = resource(TELEGRAM_DIR);
-    let mut src_dao = LOADER.with(|loader| loader.parse(&src_dir, &client::NoChooser).unwrap());
+    let src_dir = resource(TEST_DATASET_ROOT_DIR);
+    let ds_uuid = PbUuid::random();
 
-    {
-        // Amend user with profile pic
-        let cache = src_dao.get_cache_mut_unchecked();
-        let mut cache = cache.inner.write().unwrap();
-        let users_cache = cache.users.values_mut().next().unwrap();
-        // User only participates in a group chat
-        let user = users_cache.user_by_id.get_mut(&UserId(44444444)).unwrap();
-        user.profile_pictures = vec![ProfilePicture {
-            path: "_artificial/profile_pics/user_44444444.jpg".to_owned(),
+    let myself = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 1111,
+        first_name_option: Some("Aaaaa".to_owned()),
+        last_name_option: Some("Aaaaaaaaaaa".to_owned()),
+        username_option: Some("@frozenspider".to_owned()),
+        phone_number_option: Some("+998 91 1234567".to_owned()),
+        profile_pictures: vec![],
+    };
+
+    let member222 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 2222,
+        first_name_option: Some("Wwwwww".to_owned()),
+        last_name_option: Some("Www".to_owned()),
+        username_option: None,
+        phone_number_option: Some("+998 90 9998877".to_owned()),
+        profile_pictures: vec![],
+    };
+
+    let member333 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 3333,
+        first_name_option: Some("Ddddddd".to_owned()),
+        last_name_option: Some("Uuuuuuuu".to_owned()),
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+
+    let member444 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 4444,
+        first_name_option: Some("Eeeee".to_owned()),
+        last_name_option: Some("Eeeeeeeeee".to_owned()),
+        username_option: None,
+        phone_number_option: Some("+7 999 333 44 55".to_owned()),
+        profile_pictures: vec![ProfilePicture {
+            path: "_artificial/profile_pics/user_4444.jpg".to_owned(),
             frame_option: None,
-        }];
-    }
+        }],
+    };
 
-    {
-        // Amend chat with chat pic
-        let cwms = src_dao.cwms.values_mut().next().unwrap();
-        let cwm = cwms.iter_mut().find(|cwm| cwm.chat.id() == CHAT_ID_TO_DELETE).unwrap();
-        cwm.chat.img_path_option = Some("_artificial/chat_imgs/chat_8123123123.jpg".to_owned())
-    }
+    let member555 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 5555,
+        first_name_option: Some("Nnnnnnn".to_owned()),
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: Some("+998 90 1112233".to_owned()),
+        profile_pictures: vec![],
+    };
+
+    let member666 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 6666,
+        first_name_option: Some("Iiiii".to_owned()),
+        last_name_option: Some("Kkkkkkkkkk".to_owned()),
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+
+    let member777 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 7777,
+        first_name_option: Some("Vvvvv".to_owned()),
+        last_name_option: Some("Vvvvvvvvv".to_owned()),
+        username_option: None,
+        phone_number_option: Some("+7 910 765 43 21".to_owned()),
+        profile_pictures: vec![],
+    };
+
+    let member888 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 8888,
+        first_name_option: None,
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+
+    let member999 = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 9999,
+        first_name_option: None,
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+
+    let cwm1 = {
+        let mut chat = Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: CHAT_ID_TO_DELETE.0,
+            name_option: Some("ppppppp gggggg".to_owned()),
+            source_type: SourceType::Telegram as i32,
+            tpe: ChatType::PrivateGroup as i32,
+            img_path_option: Some("_artificial/chat_imgs/chat_9001.jpg".to_owned()),
+            member_ids: vec![myself.id, member222.id, member333.id, member444.id, member666.id, member777.id, member888.id],
+            msg_count: 0, // Will be set later
+            main_chat_id: None,
+        };
+
+        let mut internal_id = -1;
+        let mut next_internal_id = || {
+            internal_id += 1;
+            internal_id
+        };
+
+        let messages = vec![
+            // 0. Service: create_group
+            Message::new(
+                next_internal_id(),
+                Some(4720),
+                dt("2016-11-09 00:26:24", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_service!(GroupCreate(MessageServiceGroupCreate {
+                    title: "ppppppp gggggg".to_owned(),
+                    members: vec![
+                        "Wwwwww Www".to_owned(),
+                        "Nnnnnnn".to_owned(),
+                        "Aaaaa Aaaaaaaaaaa".to_owned(),
+                        "Eeeee Eeeeeeeeee".to_owned(),
+                    ],
+                })),
+            ),
+            // 1. Service: edit_group_photo
+            Message::new(
+                next_internal_id(),
+                Some(4721),
+                dt("2016-11-09 00:29:02", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_service!(GroupEditPhoto(
+                    MessageServiceGroupEditPhoto {
+                        photo: ContentPhoto {
+                            path_option: Some("chats/chat_01/group_photo_1.jpg".to_owned()),
+                            width: 640,
+                            height: 640,
+                            mime_type_option: None,
+                            is_one_time: false,
+                        }
+                    }
+                )),
+            ),
+            // 2. Service: remove_members
+            Message::new(
+                next_internal_id(),
+                Some(4722),
+                dt("2016-11-09 00:29:03", None).timestamp(),
+                member333.id(),
+                vec![],
+                message_service!(GroupRemoveMembers(MessageServiceGroupRemoveMembers {
+                    members: vec!["Ddddddd Uuuuuuuu".to_owned()],
+                })),
+            ),
+            // 3. Regular: photo message
+            Message::new(
+                next_internal_id(),
+                Some(4725),
+                dt("2016-11-09 00:29:16", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Photo(ContentPhoto {
+                            path_option: Some("chats/chat_01/group_photo_2.jpg".to_owned()),
+                            width: 1280,
+                            height: 723,
+                            mime_type_option: None,
+                            is_one_time: false,
+                        })),
+                    }],
+                ),
+            ),
+            // 4. Regular: text message
+            Message::new(
+                next_internal_id(),
+                Some(4730),
+                dt("2016-11-09 00:36:45", None).timestamp(),
+                member444.id(),
+                vec![RichText::make_plain("Some plaintext message".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            // 5. Service: pin_message (it does not exist)
+            Message::new(
+                next_internal_id(),
+                Some(4740),
+                dt("2016-11-09 00:46:45", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_service!(PinMessage(MessageServicePinMessage {
+                    message_source_id: 4723,
+                })),
+            ),
+            // 6. Regular: sticker
+            Message::new(
+                next_internal_id(),
+                Some(4744),
+                dt("2016-11-09 01:25:16", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Sticker(ContentSticker {
+                            path_option: Some("chats/chat_01/stickers/sticker.webp".to_owned()),
+                            thumbnail_path_option: Some("chats/chat_01/stickers/sticker.webp_thumb.jpg".to_owned()),
+                            width: 512,
+                            height: 512,
+                            emoji_option: Some("😆".to_owned()),
+                            file_name_option: None,
+                            mime_type_option: None,
+                        })),
+                    }],
+                ),
+            ),
+            // 7. Service: invite_members member777
+            Message::new(
+                next_internal_id(),
+                Some(4756),
+                dt("2016-11-09 22:56:24", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_service!(GroupInviteMembers(MessageServiceGroupInviteMembers {
+                    members: vec!["Vvvvv Vvvvvvvvv".to_owned()],
+                })),
+            ),
+            // 8. Regular: text from member777
+            Message::new(
+                next_internal_id(),
+                Some(5104),
+                dt("2016-11-18 18:38:12", None).timestamp(),
+                member777.id(),
+                vec![RichText::make_plain("Hello there!".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            // 9. Regular: voice message
+            Message::new(
+                next_internal_id(),
+                Some(10355),
+                dt("2016-12-13 18:25:51", None).timestamp(),
+                member444.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("@author".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(VoiceMsg(ContentVoiceMsg {
+                            path_option: Some("chats/chat_01/voice_messages/test.mp3".to_owned()),
+                            mime_type: "audio/mpeg".to_owned(),
+                            file_name_option: None,
+                            duration_sec_option: Some(2),
+                        })),
+                    }],
+                ),
+            ),
+            // 10. Regular: text with link
+            Message::new(
+                next_internal_id(),
+                Some(10415),
+                dt("2016-12-13 19:57:06", None).timestamp(),
+                myself.id(),
+                vec![
+                    RichText::make_plain("before-text".to_owned()),
+                    RichText::make_link(Some("http://my.link.com/my-image.jpg".to_owned()), "http://my.link.com/my-image.jpg".to_owned(), false),
+                    RichText::make_plain("after-text".to_owned()),
+                ],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            // 11. Regular: animation (file not included)
+            Message::new(
+                next_internal_id(),
+                Some(10699),
+                dt("2016-12-14 16:15:43", None).timestamp(),
+                member444.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Video(ContentVideo {
+                            width: 258,
+                            height: 329,
+                            mime_type: "video/mp4".to_owned(),
+                            duration_sec_option: Some(11),
+                            ..Default::default()
+                        })),
+                    }],
+                ),
+            ),
+            // 12. Regular: forwarded message with link
+            Message::new(
+                next_internal_id(),
+                Some(27100),
+                dt("2017-07-28 13:41:40", None).timestamp(),
+                member555.id(),
+                vec![
+                    RichText::make_plain("Plaintext".to_owned()),
+                    RichText::make_link(Some("https://t.me/joinchat/mylink".to_owned()), "https://t.me/joinchat/mylink".to_owned(), false),
+                ],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("My Channel".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![],
+                ),
+            ),
+            // 13. Regular: message with various formats
+            Message::new(
+                next_internal_id(),
+                Some(31325),
+                dt("2017-09-22 17:50:57", None).timestamp(),
+                member555.id(),
+                vec![
+                    RichText::make_prefmt_block("Кириллический текст".to_owned(), None),
+                    RichText::make_bold("bold text".to_owned()),
+                    RichText::make_italic("italic text".to_owned()),
+                    RichText::make_strikethrough("strikethrough text".to_owned()),
+                    RichText::make_plain("".to_owned())
+                ],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            // 14. Regular: video_message (file not included)
+            Message::new(
+                next_internal_id(),
+                Some(38952),
+                dt("2017-12-30 19:52:33", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("Wwwwww Www".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(VideoMsg(ContentVideoMsg {
+                            width: 240,
+                            height: 240,
+                            mime_type: "video/mp4".to_owned(),
+                            duration_sec_option: Some(12),
+                            ..Default::default()
+                        })),
+                    }],
+                ),
+            ),
+            // 15. Regular: video_file (file not included)
+            Message::new(
+                next_internal_id(),
+                Some(39115),
+                dt("2017-12-31 13:40:45", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Video(ContentVideo {
+                            width: 480,
+                            height: 480,
+                            mime_type: "video/mp4".to_owned(),
+                            duration_sec_option: Some(14),
+                            ..Default::default()
+                        })),
+                    }],
+                ),
+            ),
+            // 16. Regular: emoji text
+            Message::new(
+                next_internal_id(),
+                Some(39125),
+                dt("2017-12-31 16:10:55", None).timestamp(),
+                myself.id(),
+                vec![RichText::make_plain("🐶🍾🎄".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            // 17. Regular: reply to previous message
+            Message::new(
+                next_internal_id(),
+                Some(39740),
+                dt("2018-01-18 21:22:47", None).timestamp(),
+                myself.id(),
+                vec![RichText::make_plain("Here's a reply".to_owned())],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: Some(39125),
+                    contents: vec![],
+                ),
+            ),
+            // 18. Regular: forwarded message with a hidden text_link and bold
+            Message::new(
+                next_internal_id(),
+                Some(61541),
+                dt("2018-10-01 16:54:30", None).timestamp(),
+                member222.id(),
+                vec![
+                    RichText::make_link(Some("\u{200B}".to_owned()), "https://telegra.ph/file/hidden.jpg".to_owned(), true),
+                    RichText::make_bold("bold text and then empty plaintext".to_owned()),
+                    RichText::make_plain("".to_owned())
+                ],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("Some Channel".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![],
+                ),
+            ),
+            // 19. Regular: edited message with link and code
+            Message::new(
+                next_internal_id(),
+                Some(67346),
+                dt("2018-11-17 00:58:01", None).timestamp(),
+                myself.id(),
+                vec![RichText::make_plain("edited message".to_owned())],
+                message_regular!(
+                    edit_timestamp_option: Some(dt("2018-11-17 00:58:05", None).timestamp()),
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![],
+                ),
+            ),
+            // 20. Regular: forwarded photo with bold and italic
+            Message::new(
+                next_internal_id(),
+                Some(70625),
+                dt("2018-12-09 19:44:02", None).timestamp(),
+                member222.id(),
+                vec![
+                    RichText::make_bold("bold text".to_owned()),
+                    RichText::make_plain(" plaintext ending with line breaks\n\n".to_owned()),
+                    RichText::make_italic("italic!".to_owned()),
+                ],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("My Channel".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Photo(ContentPhoto {
+                            width: 420,
+                            height: 280,
+                            ..Default::default()
+                        })),
+                    }],
+                ),
+            ),
+            // 21. Regular: contact message
+            Message::new(
+                next_internal_id(),
+                Some(74752),
+                dt("2018-12-25 15:18:42", None).timestamp(),
+                myself.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(SharedContact(ContentSharedContact {
+                            first_name_option: Some("Vvvvv".to_owned()),
+                            last_name_option: Some("Vvvvvvvvv".to_owned()),
+                            phone_number_option: Some("+7 910 041 13 85".to_owned()),
+                            vcard_path_option: None,
+                        })),
+                    }],
+                ),
+            ),
+            // 22. Regular: forwarded message with a bunch of rich text blocks
+            Message::new(
+                next_internal_id(),
+                Some(78768),
+                dt("2019-01-15 06:13:31", None).timestamp(),
+                member555.id(),
+                vec![
+                    RichText::make_plain("1".to_owned()),
+                    RichText::make_italic("2".to_owned()),
+                    RichText::make_plain("3".to_owned()),
+                    RichText::make_blockquote("4".to_owned()),
+                    RichText::make_plain("5".to_owned()),
+                    RichText::make_strikethrough("6".to_owned()),
+                    RichText::make_plain("7".to_owned()),
+                    RichText::make_bold("8".to_owned()),
+                    RichText::make_plain("9".to_owned()),
+                    RichText::make_bold("10".to_owned()),
+                ],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("My Channel".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![],
+                ),
+            ),
+            // 23. Regular: contact message with vcard
+            Message::new(
+                next_internal_id(),
+                Some(103927),
+                dt("2019-06-25 18:18:37", None).timestamp(),
+                member222.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(SharedContact(ContentSharedContact {
+                            first_name_option: Some("Saved Name".to_owned()),
+                            last_name_option: None,
+                            phone_number_option: None,
+                            vcard_path_option: Some("chats/chat_10/contacts/contact_2.vcard".to_owned()),
+                        })),
+                    }],
+                ),
+            ),
+            // 24. Regular: another contact message with vcard
+            Message::new(
+                next_internal_id(),
+                Some(129125),
+                dt("2019-09-23 18:30:21", None).timestamp(),
+                member555.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(SharedContact(ContentSharedContact {
+                            first_name_option: None,
+                            last_name_option: None,
+                            phone_number_option: Some("+998 90 9222229".to_owned()),
+                            vcard_path_option: Some("chats/chat_08/contacts/contact_1.vcard".to_owned()),
+                        })),
+                    }],
+                ),
+            ),
+            // 25. Regular: live location message
+            Message::new(
+                next_internal_id(),
+                Some(129455),
+                dt("2019-09-24 20:47:19", None).timestamp(),
+                member666.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: Some(dt("2019-09-24 20:49:31", None).timestamp()),
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Location(ContentLocation {
+                            title_option: None,
+                            address_option: None,
+                            lat_str: "41.311194".to_owned(),
+                            lon_str: "69.279725".to_owned(),
+                            duration_sec_option: Some(132),
+                        })),
+                    }],
+                ),
+            ),
+            // 26. Regular: poll message
+            Message::new(
+                next_internal_id(),
+                Some(132894),
+                dt("2019-09-30 18:23:26", None).timestamp(),
+                member888.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: Some("My Channel".to_owned()),
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Poll(ContentPoll {
+                            question: "What is an answer to ultimate question of life, universe and everything?".to_owned(),
+                        })),
+                    }],
+                ),
+            ),
+        ];
+
+        chat.msg_count = messages.len() as i32;
+        ChatWithMessages { chat, messages }
+    };
+
+    let cwm2 = {
+        let mut chat = Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: 9002,
+            name_option: Some("Vvvvv".to_owned()),
+            source_type: SourceType::Telegram as i32,
+            tpe: ChatType::Personal as i32,
+            img_path_option: None,
+            member_ids: vec![myself.id, member777.id],
+            msg_count: 0, // Will be set later
+            main_chat_id: None,
+        };
+
+        let mut internal_id = -1;
+        let mut next_internal_id = || {
+            internal_id += 1;
+            internal_id
+        };
+
+        let messages = vec![
+            // 0. Regular: sticker
+            Message::new(
+                next_internal_id(),
+                Some(32616),
+                dt("2017-10-17 16:41:03", None).timestamp(),
+                myself.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Sticker(ContentSticker {
+                            path_option: Some("chats/chat_01/stickers/sticker (100).webp".to_owned()),
+                            thumbnail_path_option: Some("chats/chat_01/stickers/sticker (100).webp_thumb.jpg".to_owned()),
+                            width: 512,
+                            height: 512,
+                            emoji_option: Some("👍".to_owned()),
+                            file_name_option: None,
+                            mime_type_option: None,
+                        })),
+                    }],
+                ),
+            ),
+            // 1. Regular: animation (not included)
+            Message::new(
+                next_internal_id(),
+                Some(36066),
+                dt("2017-11-09 23:59:12", None).timestamp(),
+                member777.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Video(ContentVideo {
+                            width: 320,
+                            height: 240,
+                            mime_type: "video/mp4".to_owned(),
+                            duration_sec_option: Some(119),
+                            ..Default::default()
+                        })),
+                    }],
+                ),
+            ),
+            // 2. Service: phone_call missed
+            Message::new(
+                next_internal_id(),
+                Some(40149),
+                dt("2018-01-25 14:44:24", None).timestamp(),
+                member777.id(),
+                vec![],
+                message_service!(PhoneCall(MessageServicePhoneCall {
+                    duration_sec_option: None,
+                    discard_reason_option: Some("missed".to_owned()),
+                    members: vec![],
+                })),
+            ),
+            // 3. Service: phone_call hangup
+            Message::new(
+                next_internal_id(),
+                Some(40163),
+                dt("2018-01-25 15:01:52", None).timestamp(),
+                member777.id(),
+                vec![],
+                message_service!(PhoneCall(MessageServicePhoneCall {
+                    duration_sec_option: Some(77),
+                    discard_reason_option: Some("hangup".to_owned()),
+                    members: vec![],
+                })),
+            ),
+            // 4. Regular: sticker
+            Message::new(
+                next_internal_id(),
+                Some(124133),
+                dt("2019-09-15 22:30:14", None).timestamp(),
+                myself.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(Sticker(ContentSticker {
+                            path_option: Some("chats/chat_02/stickers/sticker (8).webp".to_owned()),
+                            thumbnail_path_option: Some("chats/chat_02/stickers/sticker (8).webp_thumb.jpg".to_owned()),
+                            width: 512,
+                            height: 512,
+                            emoji_option: Some("🍖".to_owned()),
+                            file_name_option: None,
+                            mime_type_option: None,
+                        })),
+                    }],
+                ),
+            ),
+            // 5. Regular: pdf file (not included)
+            Message::new(
+                next_internal_id(),
+                Some(124134),
+                dt("2019-09-16 16:04:32", None).timestamp(),
+                myself.id(),
+                vec![],
+                message_regular!(
+                    edit_timestamp_option: None,
+                    is_deleted: false,
+                    forward_from_name_option: None,
+                    reply_to_message_id_option: None,
+                    contents: vec![Content {
+                        sealed_value_optional: Some(File(ContentFile {
+                            path_option: None,
+                            file_name_option: None,
+                            mime_type_option: Some("application/pdf".to_owned()),
+                            thumbnail_path_option: None,
+                        })),
+                    }],
+                ),
+            ),
+        ];
+
+        chat.msg_count = messages.len() as i32;
+        ChatWithMessages { chat, messages }
+    };
+
+    let cwm3 = {
+        let mut chat = Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: 9003,
+            name_option: None,
+            source_type: SourceType::Telegram as i32,
+            tpe: ChatType::Personal as i32,
+            img_path_option: None,
+            member_ids: vec![myself.id, member999.id],
+            msg_count: 0, // Will be set later
+            main_chat_id: None,
+        };
+
+        let mut internal_id = -1;
+        let mut next_internal_id = || {
+            internal_id += 1;
+            internal_id
+        };
+
+        let some_ts = dt("2020-06-06 12:01:02", None).timestamp();
+
+        let messages = vec![
+            Message::new(
+                next_internal_id(),
+                Some(24712),
+                dt("2017-06-23 20:11:00", None).timestamp(),
+                member999.id(),
+                vec![RichText::make_plain("Message from null-names contact".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            Message::new(
+                next_internal_id(),
+                Some(24713),
+                some_ts,
+                member999.id(),
+                vec![RichText::make_plain("These messages...".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            Message::new(
+                next_internal_id(),
+                Some(24714),
+                some_ts,
+                member999.id(),
+                vec![RichText::make_plain("...have the same timestamp...".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            Message::new(
+                next_internal_id(),
+                Some(24715),
+                some_ts,
+                member999.id(),
+                vec![RichText::make_plain("...but different IDs...".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+            Message::new(
+                next_internal_id(),
+                Some(24716),
+                some_ts,
+                member999.id(),
+                vec![RichText::make_plain("...and we expect order to be preserved.".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+        ];
+        chat.msg_count = messages.len() as i32;
+        ChatWithMessages { chat, messages }
+    };
+
+    let cwm4 = {
+        let mut chat = Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: 9004,
+            name_option: Some("Ddddddd".to_owned()),
+            source_type: SourceType::Telegram as i32,
+            tpe: ChatType::Personal as i32,
+            img_path_option: None,
+            member_ids: vec![myself.id, member333.id],
+            msg_count: 0, // Will be set later
+            main_chat_id: None,
+        };
+
+        let mut internal_id = -1;
+        let mut next_internal_id = || {
+            internal_id += 1;
+            internal_id
+        };
+
+        let messages = vec![
+            // Service: clear_history
+            Message::new(
+                next_internal_id(),
+                Some(91190),
+                dt("2019-04-27 00:57:16", None).timestamp(),
+                myself.id(), // Aaaaa Aaaaaaaaaaa
+                vec![],
+                message_service!(ClearHistory(MessageServiceClearHistory {})),
+            ),
+            // Regular: plaintext
+            Message::new(
+                next_internal_id(),
+                Some(98749),
+                dt("2019-05-31 10:32:27", None).timestamp(),
+                member333.id(),
+                vec![RichText::make_plain("my message".to_owned())],
+                MESSAGE_REGULAR_NO_CONTENT.clone(),
+            ),
+        ];
+
+        chat.msg_count = messages.len() as i32;
+        ChatWithMessages { chat, messages }
+    };
+
+    let chats_with_messages = vec![
+        cwm1,
+        cwm2,
+        cwm3,
+        cwm4,
+    ];
+
+    let src_dao = Box::new(InMemoryDao::new_single(
+        "test_dataset".to_owned(),
+        Dataset {
+            uuid: ds_uuid,
+            alias: "Test Dataset".to_owned(),
+        },
+        src_dir.clone(),
+        myself.id(),
+        vec![myself, member222, member333, member444, member555, member666, member777, member888, member999],
+        chats_with_messages,
+    ));
 
     init_from(src_dao, src_dir, None)
 }

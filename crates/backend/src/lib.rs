@@ -20,10 +20,7 @@ pub mod prelude {
 
     pub use crate::grpc::client;
     pub use crate::protobuf::history::*;
-    #[cfg(test)]
-    pub use crate::test_utils::*;
     pub use chat_history_manager_loaders::prelude::*;
-    pub use chat_history_manager_core::utils::entity_utils::entity_equality::*;
 }
 
 //

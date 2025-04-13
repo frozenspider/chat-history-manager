@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub mod test_utils;
+
 use std::fmt::{Display, Formatter};
 
 use crate::prelude::*;

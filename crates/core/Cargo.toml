@@ -4,9 +4,6 @@ authors.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[features]
-test-utils = []
-
 [dependencies]
 itertools = { workspace = true }
 lazy_static = { workspace = true }
@@ -16,6 +13,7 @@ deepsize = { workspace = true }
 uuid = { workspace = true }
 paste = { workspace = true }
 chrono = { workspace = true }
+rand = { workspace = true }
 hashers = "1.0.1"
 
 # Serde

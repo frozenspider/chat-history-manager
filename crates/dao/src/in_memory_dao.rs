@@ -47,8 +47,11 @@ impl InMemoryDao {
                 myself_id,
                 user_by_id: users.into_iter().map(|u| (u.id(), u)).collect(),
             });
-            ds_roots.insert(ds_uuid.clone(),
-                            DatasetRoot(ds_root.canonicalize().expect("Could not canonicalize dataset root")));
+            let ds_root_canonicalized =
+                ds_root.canonicalize()
+                    .with_context(|| format!("Could not canonicalize dataset root: {}", ds_root.display()))
+                    .unwrap();
+            ds_roots.insert(ds_uuid.clone(), DatasetRoot(ds_root_canonicalized));
             cwms_map.insert(ds_uuid, cwms);
         }
 

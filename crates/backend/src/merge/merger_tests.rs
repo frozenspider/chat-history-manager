@@ -1,13 +1,14 @@
 #![allow(unused_imports)]
+use super::*;
+
+use crate::prelude::*;
+use crate::utils::test_utils::*;
+use chat_history_manager_core::coerce_enum;
+use chat_history_manager_dao::{UserCacheForDataset, WithCache};
 
 use std::fs;
 use pretty_assertions::{assert_eq, assert_ne};
 use uuid::Uuid;
-
-use crate::prelude::*;
-use crate::dao::{ChatHistoryDao, UserCacheForDataset, WithCache};
-
-use super::*;
 
 #[test]
 fn merge_users() -> EmptyRes {

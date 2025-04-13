@@ -13,7 +13,7 @@ pub mod prelude {
     pub use num_derive::*;
 
     #[cfg(test)]
-    pub use crate::test_utils::*;
+    pub use crate::utils::test_utils::*;
     pub use crate::utils::*;
     pub use crate::*;
 
@@ -61,4 +61,17 @@ pub trait UserInputBlockingRequester: Send + Sync {
     fn choose_myself(&self, users: &[User]) -> Result<usize>;
 
     fn ask_for_text(&self, prompt: &str) -> Result<String>;
+}
+
+#[derive(Clone, Copy)]
+pub struct NoChooser;
+
+impl UserInputBlockingRequester for NoChooser {
+    fn choose_myself(&self, _users: &[User]) -> Result<usize> {
+        err!("No way to choose myself!")
+    }
+
+    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
+        err!("No way to ask user!")
+    }
 }

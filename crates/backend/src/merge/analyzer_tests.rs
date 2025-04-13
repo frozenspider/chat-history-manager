@@ -1,17 +1,17 @@
 #![allow(unused_imports)]
+use super::*;
+
+use super::MergeAnalysisSection::*;
+
+use crate::prelude::*;
+use crate::utils::test_utils::*;
+use chat_history_manager_core::coerce_enum;
 
 use std::fmt::format;
 use chrono::Duration;
 use chrono::prelude::*;
 use lazy_static::lazy_static;
 use pretty_assertions::{assert_eq, assert_ne};
-
-use super::MergeAnalysisSection::*;
-
-use crate::prelude::*;
-use crate::dao::ChatHistoryDao;
-
-use super::*;
 
 const MAX_MSG_ID: MessageSourceId = src_id((BATCH_SIZE as i64) * 3 + 1);
 const MAX_USER_ID: usize = 3;
