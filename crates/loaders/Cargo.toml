@@ -12,46 +12,27 @@ itertools = { workspace = true }
 simd-json = { workspace = true }
 chrono = { workspace = true }
 lazy_static = { workspace = true }
-rand = { version = "0.9.0", features = ["small_rng"] }
-derive_deref = { workspace = true }
 anyhow = { workspace = true }
 ical = "0.11.0"
 const_format = { workspace = true }
 reqwest = { version = "0.12.7", features = ["blocking"] }
-deepsize = { workspace = true }
 uuid = { workspace = true }
 paste = { workspace = true }
-mime2ext = { workspace = true }
-indexmap = "2.4.0"
 hex = "0.4.3"
-path-dedot = { workspace = true }
 
 # Text processing
 regex = { workspace = true }
-unicode-segmentation = "1.11.0"
 utf16string = "0.2.0"
 rtf-grimoire = "0.2.1"
 encoding_rs = "0.8.34"
 base64 = "0.22.1"
 
 # Enum derivation
-num-traits = "0.2.19"
-num-derive = "0.4.2"
+num-traits = { workspace = true }
+num-derive = { workspace = true }
 
 # Database
-rusqlite = { version = "0.33.0", features = ["bundled-sqlcipher", "backup"] }
-diesel = { version = "2.2.3", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
-diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
-
-# Protobuf and web service
-prost = { workspace = true }
-tonic = { workspace = true }
-tonic-web = { workspace = true }
-tonic-reflection = { workspace = true }
-
-# Async processing
-futures = { workspace = true }
-tokio = { workspace = true }
+rusqlite = { workspace = true }
 
 # Cryptography
 hmac = "0.12.1"
@@ -66,15 +47,4 @@ log = { workspace = true }
 
 # Testing
 pretty_assertions = { workspace = true }
-fs_extra = { workspace = true }
-
-[build-dependencies]
-anyhow = { workspace = true }
-prost = { workspace = true }
-prost-build = { workspace = true }
-prost-types = { workspace = true }
-tonic-build = { workspace = true }
-
-log = { workspace = true }
-env_logger = { workspace = true }
 
