@@ -1,6 +1,5 @@
 /// For strings, this format uses UTF-8 and UTF-16 LE.
 /// Note that when both new and old DBs are present, new DB might have some messages missing!
-
 use std::fmt::Formatter;
 use std::fs;
 use itertools::Itertools;

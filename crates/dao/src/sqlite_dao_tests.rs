@@ -910,6 +910,7 @@ fn backups() -> EmptyRes {
 
 struct TestDaos {
     src_dao: Box<InMemoryDao>,
+    #[allow(unused)]
     src_dir: PathBuf,
     dst_dao: SqliteDao,
     // Temp dirs are held to prevent destruction

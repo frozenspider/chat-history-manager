@@ -77,7 +77,7 @@ pub fn random_alphanumeric(length: usize) -> String {
 
 pub fn create_named_file(path: &Path, content: &[u8]) {
     let mut file = fs::File::create(path).unwrap();
-    file.write(content).unwrap();
+    file.write_all(content).unwrap();
 }
 
 pub fn create_random_named_file(path: &Path) {
@@ -85,7 +85,7 @@ pub fn create_random_named_file(path: &Path) {
 }
 
 pub fn create_random_file(parent: &Path) -> PathBuf {
-    let path = parent.join(&format!("{}.bin", random_alphanumeric(30)));
+    let path = parent.join(format!("{}.bin", random_alphanumeric(30)));
     create_random_named_file(&path);
     path
 }
