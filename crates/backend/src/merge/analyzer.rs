@@ -1,8 +1,6 @@
 use std::cmp::Ordering;
 
 use itertools::Itertools;
-
-use crate::dao::ChatHistoryDao;
 use crate::prelude::*;
 
 #[cfg(test)]

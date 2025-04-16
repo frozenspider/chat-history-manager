@@ -4,7 +4,6 @@ use std::sync::Mutex;
 use itertools::Itertools;
 use tonic::Request;
 
-use crate::dao::sqlite_dao::SqliteDao;
 use crate::protobuf::history::history_dao_service_server::HistoryDaoService;
 
 use super::*;

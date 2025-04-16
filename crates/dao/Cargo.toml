@@ -1,0 +1,35 @@
+[package]
+name = "chat-history-manager-dao"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chat-history-manager-core = { workspace = true }
+
+itertools = { workspace = true }
+lazy_static = { workspace = true }
+const_format = { workspace = true }
+mime2ext = { workspace = true }
+anyhow = { workspace = true }
+deepsize = { workspace = true }
+uuid = { workspace = true }
+paste = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+zip = "2.2.0"
+
+# Text processing
+regex = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+diesel = { version = "2.2.3", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
+diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
+
+# Logging
+log = { workspace = true }
+
+# Testing
+pretty_assertions = { workspace = true }
+fs_extra = { workspace = true }

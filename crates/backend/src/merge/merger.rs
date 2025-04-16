@@ -1,15 +1,12 @@
-use std::io;
-use itertools::Itertools;
-
-use crate::dao::ChatHistoryDao;
-use crate::dao::MutableChatHistoryDao;
-use crate::dao::sqlite_dao::SqliteDao;
-use crate::merge::analyzer::*;
-use crate::prelude::*;
-
 #[cfg(test)]
 #[path = "merger_tests.rs"]
 mod tests;
+
+use std::io;
+use itertools::Itertools;
+
+use crate::merge::analyzer::*;
+use crate::prelude::*;
 
 const BATCH_SIZE: usize = 1000;
 

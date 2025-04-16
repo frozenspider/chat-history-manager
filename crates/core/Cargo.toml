@@ -4,9 +4,6 @@ authors.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[features]
-test-utils = []
-
 [dependencies]
 itertools = { workspace = true }
 lazy_static = { workspace = true }
@@ -15,13 +12,16 @@ anyhow = { workspace = true }
 deepsize = { workspace = true }
 uuid = { workspace = true }
 paste = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+hashers = "1.0.1"
 
 # Serde
 serde = { workspace = true }
-serde_json = { workspace = true }
 
 # Text processing
 regex = { workspace = true }
+unicode-segmentation = { workspace = true }
 
 # Protobuf
 prost = { workspace = true }

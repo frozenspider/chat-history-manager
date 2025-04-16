@@ -1,13 +1,14 @@
-use std::future::Future;
+use super::*;
+use crate::prelude::*;
+use crate::history_dao_service_client::HistoryDaoServiceClient;
+use crate::history_loader_service_client::HistoryLoaderServiceClient;
+use crate::merge_service_client::MergeServiceClient;
+
 use itertools::Itertools;
+use std::fmt::Debug;
+use std::future::Future;
 use tokio::runtime::Handle;
 use tonic::transport::{Channel, Endpoint};
-
-use crate::prelude::*;
-use crate::prelude::history_dao_service_client::HistoryDaoServiceClient;
-use crate::prelude::history_loader_service_client::HistoryLoaderServiceClient;
-use crate::prelude::merge_service_client::MergeServiceClient;
-use super::*;
 
 mod user_input_grpc_requester;
 
@@ -55,19 +56,6 @@ pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcCl
     let dao = HistoryDaoServiceClient::new(channel.clone());
     let merger = MergeServiceClient::new(channel);
     Ok(ChatHistoryManagerGrpcClients { loader, dao, merger })
-}
-
-#[derive(Clone, Copy)]
-pub struct NoChooser;
-
-impl UserInputBlockingRequester for NoChooser {
-    fn choose_myself(&self, _users: &[User]) -> Result<usize> {
-        err!("No way to choose myself!")
-    }
-
-    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
-        err!("No way to ask user!")
-    }
 }
 
 #[derive(Clone)]
@@ -128,4 +116,50 @@ pub async fn debug_request_myself(port: u16) -> Result<usize> {
         },
     ])?;
     Ok(chosen)
+}
+
+
+pub fn wrap_async_user_input_requester<R>(handle: Handle, requester: R) -> impl UserInputBlockingRequester
+where
+    R: UserInputRequester + Clone + Send + Sync + 'static,
+{
+    struct Wrapper<R> {
+        handle: Handle,
+        requester: R,
+    }
+
+    impl<R: UserInputRequester> Wrapper<R> {
+        fn ask_for_user_input<F, Out>(&self, logic: F) -> Result<Out>
+        where
+            F: Future<Output = Result<Out>> + Send + 'static,
+            Out: Send + Debug + 'static,
+        {
+            let handle = self.handle.clone();
+            // We cannot use the current thread since when called via RPC, current thread is already used for async tasks.
+            std::thread::spawn(move || {
+                let spawned = handle.spawn(logic);
+                handle.block_on(spawned)?
+            }).join().unwrap() // We're unwrapping join() to propagate panic.
+        }
+    }
+
+    impl<R: UserInputRequester + Clone + Send + Sync + 'static> UserInputBlockingRequester for Wrapper<R> {
+        fn choose_myself(&self, users: &[User]) -> Result<usize> {
+            let requester = self.requester.clone();
+            let users = users.to_vec();
+            self.ask_for_user_input(async move {
+                requester.choose_myself(&users).await
+            })
+        }
+
+        fn ask_for_text(&self, prompt: &str) -> Result<String> {
+            let requester = self.requester.clone();
+            let prompt = prompt.to_owned();
+            self.ask_for_user_input(async move {
+                requester.ask_for_text(&prompt).await
+            })
+        }
+    }
+
+    Wrapper { handle, requester }
 }

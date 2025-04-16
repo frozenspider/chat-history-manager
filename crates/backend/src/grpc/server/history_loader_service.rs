@@ -1,7 +1,7 @@
 use std::fs;
 
 use tonic::Request;
-
+use chat_history_manager_dao::{DatasetDiff, DatasetDiffValues};
 use crate::protobuf::history::history_loader_service_server::*;
 
 use super::*;
@@ -58,11 +58,23 @@ impl HistoryLoaderService for Arc<ChatHistoryManagerServer> {
             let loaded_daos = read_or_status(&self_clone.loaded_daos)?;
             let master_dao = read_or_status(&loaded_daos[&req.master_dao_key])?;
             let slave_dao = read_or_status(&loaded_daos[&req.slave_dao_key])?;
-            let diffs = dao::get_datasets_diff(
+            let diffs = chat_history_manager_dao::get_datasets_diff(
                 (*master_dao).as_ref(), &req.master_ds_uuid,
                 (*slave_dao).as_ref(), &req.slave_ds_uuid,
                 MAX_DIFFS)?;
-            Ok(EnsureSameResponse { diffs })
+            Ok(EnsureSameResponse { diffs: diffs.into_iter().map(|v| v.into()).collect() })
         }).await
+    }
+}
+
+impl From<DatasetDiff> for Difference {
+    fn from(value: DatasetDiff) -> Self {
+        Difference { message: value.message, values: value.values.map(|v| v.into()) }
+    }
+}
+
+impl From<DatasetDiffValues> for DifferenceValues {
+    fn from(value: DatasetDiffValues) -> Self {
+        DifferenceValues { old: value.old, new: value.new }
     }
 }

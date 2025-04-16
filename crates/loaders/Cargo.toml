@@ -1,0 +1,50 @@
+[package]
+name = "chat-history-manager-loaders"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chat-history-manager-core = { workspace = true }
+chat-history-manager-dao = { workspace = true }
+
+itertools = { workspace = true }
+simd-json = { workspace = true }
+chrono = { workspace = true }
+lazy_static = { workspace = true }
+anyhow = { workspace = true }
+ical = "0.11.0"
+const_format = { workspace = true }
+reqwest = { version = "0.12.7", features = ["blocking"] }
+uuid = { workspace = true }
+paste = { workspace = true }
+hex = "0.4.3"
+
+# Text processing
+regex = { workspace = true }
+utf16string = "0.2.0"
+rtf-grimoire = "0.2.1"
+encoding_rs = "0.8.34"
+base64 = "0.22.1"
+
+# Enum derivation
+num-traits = { workspace = true }
+num-derive = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+
+# Cryptography
+hmac = "0.12.1"
+sha1 = "0.10.6"
+sha2 = "0.10.8"
+cbc = "0.1.2"
+aes = "0.8.4"
+pbkdf2 = "0.12.2"
+
+# Logging
+log = { workspace = true }
+
+# Testing
+pretty_assertions = { workspace = true }
+

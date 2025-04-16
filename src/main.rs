@@ -7,6 +7,7 @@ use mimalloc::MiMalloc;
 use tokio::runtime::Handle;
 
 use chat_history_manager_backend::prelude::*;
+use chat_history_manager_backend::{debug_request_myself, parse_file, start_server, start_user_input_server};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -88,7 +89,7 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
                             text: None,
                         })
                     } else {
-                        Box::new(client::NoChooser)
+                        Box::new(NoChooser)
                     };
                 parse_file(&path, chooser.as_ref()).with_context(|| format!("Failed to parse {path}"))
             });
