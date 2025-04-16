@@ -12,7 +12,6 @@ use std::time::Instant;
 use chrono::NaiveDate;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use regex::Regex;
 use simd_json::borrowed::Object;
 use simd_json::BorrowedValue;
 use simd_json::prelude::*;
@@ -1152,7 +1151,6 @@ fn parse_rich_text_object(json_path: &str,
             Some(RichText::make_link(
                 str_to_option!(text.as_str()),
                 get_field_string!(rte_json, json_path, "href"),
-                is_whitespace_or_invisible(&text),
             ))
         }
         "link" => {
@@ -1161,7 +1159,6 @@ fn parse_rich_text_object(json_path: &str,
             Some(RichText::make_link(
                 get_field_string_option!(rte_json, json_path, "text"),
                 get_field_string!(rte_json, json_path, "text"),
-                false,
             ))
         }
         "mention_name" => {
@@ -1255,8 +1252,7 @@ fn parse_inline_bot_buttons(json_path: &str, json: &BorrowedValue) -> Result<Vec
                 "url" => {
                     check_keys!(["type", "text", "data"]);
                     Some(RichText::make_link(Some(get_field_string!(el, json_path, "text")),
-                                             get_field_string!(el, json_path, "data"),
-                                             false))
+                                             get_field_string!(el, json_path, "data")))
                 }
                 "auth" | "callback" | "switch_inline_same" => {
                     // Not interesting to preserve
@@ -1354,12 +1350,4 @@ fn parse_datetime(s: &str) -> Result<Timestamp> {
             .single()
             .with_context(|| format!("Failed to parse date {}: ambiguous?", s))?;
     Ok(Timestamp(date.timestamp()))
-}
-
-// Accounts for invisible formatting indicator, e.g. zero-width space \u200B
-fn is_whitespace_or_invisible(s: &str) -> bool {
-    lazy_static! {
-        static ref IS_WHITESPACE_OR_INVISIBLE: Regex = Regex::new(r"^[\s\p{Cf}]*$").unwrap();
-    }
-    IS_WHITESPACE_OR_INVISIBLE.is_match(s)
 }

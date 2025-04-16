@@ -860,9 +860,18 @@ pub mod message {
             "italic" => RichText::make_italic(text_or_bail!()),
             "underline" => RichText::make_underline(text_or_bail!()),
             "strikethrough" => RichText::make_strikethrough(text_or_bail!()),
-            "link" => RichText::make_link(raw.text,
-                                          raw.href.context("Link has no href!")?,
-                                          raw.hidden.map(deserialize_bool).unwrap_or_default()),
+            "link" => {
+                // TODO: Remove hidden parameter! It should be calculated dynamically.
+                let hidden = raw.hidden.map(deserialize_bool).unwrap_or_default();
+                let mut link = RichText::make_link(raw.text, raw.href.context("Link has no href!")?);
+                match link.val {
+                    Some(rich_text_element::Val::Link(ref mut l)) => {
+                        l.hidden = hidden;
+                    }
+                    _ => unreachable!()
+                }
+                link
+            },
             "prefmt_inline" => RichText::make_prefmt_inline(text_or_bail!()),
             "prefmt_block" => RichText::make_prefmt_block(text_or_bail!(), raw.language),
             "blockquote" => RichText::make_blockquote(text_or_bail!()),

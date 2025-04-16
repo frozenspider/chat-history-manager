@@ -1170,16 +1170,16 @@ fn inline_bot_buttons() -> EmptyRes {
     assert_eq!(msgs.len() as i32, 5);
 
     let button_link_1 =
-        RichText::make_link(Some("Button link 1".to_owned()), "https://www.example.com/".to_owned(), false);
+        RichText::make_link(Some("Button link 1".to_owned()), "https://www.example.com/".to_owned());
 
     assert_eq!(msgs[0].text, vec![
         RichText::make_bold("Some initial bold text".to_owned()),
         RichText::make_plain("\n".to_owned()),
         button_link_1.clone(),
         RichText::make_plain("\n".to_owned()),
-        RichText::make_link(Some("Button link 2".to_owned()), "https://t.me/".to_owned(), false),
+        RichText::make_link(Some("Button link 2".to_owned()), "https://t.me/".to_owned()),
         RichText::make_plain("\n".to_owned()),
-        RichText::make_link(Some("Button Link 3 at second row".to_owned()), "http://localhost:80/".to_owned(), false),
+        RichText::make_link(Some("Button Link 3 at second row".to_owned()), "http://localhost:80/".to_owned()),
     ]);
 
     assert_eq!(msgs[1].text, vec![

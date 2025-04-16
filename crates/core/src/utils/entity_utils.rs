@@ -460,7 +460,7 @@ impl RichText {
         }
     }
 
-    pub fn make_link(text_option: Option<String>, href: String, hidden: bool) -> RichTextElement {
+    pub fn make_link(text_option: Option<String>, href: String) -> RichTextElement {
         let text = text_option.as_deref().unwrap_or("");
         let searchable_string =
             if text == href.as_str() {
@@ -469,6 +469,7 @@ impl RichText {
                 format!("{} {}", text, href).trim().to_owned()
             };
         let searchable_string = normalize_seachable_string(searchable_string.as_str());
+        let hidden = is_whitespace_or_invisible(text);
 
         RichTextElement {
             val: Some(rich_text_element::Val::Link(RteLink {
@@ -493,6 +494,14 @@ impl RichText {
             val: Some(rich_text_element::Val::PrefmtBlock(RtePrefmtBlock { text, language_option })),
         }
     }
+}
+
+/// Accounts for invisible formatting indicator, e.g. zero-width space \u200B
+fn is_whitespace_or_invisible(s: &str) -> bool {
+    lazy_static! {
+        static ref IS_WHITESPACE_OR_INVISIBLE: Regex = Regex::new(r"^[\s\p{Cf}]*$").unwrap();
+    }
+    IS_WHITESPACE_OR_INVISIBLE.is_match(s)
 }
 
 // There seems to be no way to write a function generic over &T and &mut T

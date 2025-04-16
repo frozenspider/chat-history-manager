@@ -1205,7 +1205,7 @@ fn init() -> TestDaos {
                 myself.id(),
                 vec![
                     RichText::make_plain("before-text".to_owned()),
-                    RichText::make_link(Some("http://my.link.com/my-image.jpg".to_owned()), "http://my.link.com/my-image.jpg".to_owned(), false),
+                    RichText::make_link(Some("http://my.link.com/my-image.jpg".to_owned()), "http://my.link.com/my-image.jpg".to_owned()),
                     RichText::make_plain("after-text".to_owned()),
                 ],
                 MESSAGE_REGULAR_NO_CONTENT.clone(),
@@ -1241,7 +1241,7 @@ fn init() -> TestDaos {
                 member555.id(),
                 vec![
                     RichText::make_plain("Plaintext".to_owned()),
-                    RichText::make_link(Some("https://t.me/joinchat/mylink".to_owned()), "https://t.me/joinchat/mylink".to_owned(), false),
+                    RichText::make_link(Some("https://t.me/joinchat/mylink".to_owned()), "https://t.me/joinchat/mylink".to_owned()),
                 ],
                 message_regular!(
                     edit_timestamp_option: None,
@@ -1343,7 +1343,7 @@ fn init() -> TestDaos {
                 dt("2018-10-01 16:54:30", None).timestamp(),
                 member222.id(),
                 vec![
-                    RichText::make_link(Some("\u{200B}".to_owned()), "https://telegra.ph/file/hidden.jpg".to_owned(), true),
+                    RichText::make_link(Some("\u{200B}".to_owned()), "https://telegra.ph/file/hidden.jpg".to_owned()),
                     RichText::make_bold("bold text and then empty plaintext".to_owned()),
                     RichText::make_plain("".to_owned())
                 ],

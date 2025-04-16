@@ -9,6 +9,9 @@
 .project
 .settings/
 
+# VS Code
+.vscode
+
 # Rust/Cargo
 /target
 

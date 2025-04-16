@@ -1,4 +1,5 @@
 mod telegram;
+mod tg_keeper;
 mod tinder_android;
 mod whatsapp_android;
 mod whatsapp_text;
@@ -18,6 +19,7 @@ pub use crate::loader::badoo_android::BadooAndroidDataLoader;
 pub use crate::loader::mra::MailRuAgentDataLoader;
 pub use crate::loader::signal::SignalDataLoader;
 pub use crate::loader::telegram::TelegramDataLoader;
+pub use crate::loader::tg_keeper::TgKeeperDataLoader;
 pub use crate::loader::tinder_android::TinderAndroidDataLoader;
 pub use crate::loader::whatsapp_android::WhatsAppAndroidDataLoader;
 pub use crate::loader::whatsapp_text::WhatsAppTextDataLoader;
@@ -37,6 +39,8 @@ pub trait DataLoader: Send + Sync {
         self.looks_about_right_inner(path)
     }
 
+    /// Check if the file looks like it could be loaded by this loader.
+    /// Returns an error if the file is not supported.
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
     fn load(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {

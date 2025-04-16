@@ -12,6 +12,7 @@ impl Loader {
         Loader {
             loaders: vec![
                 Box::new(TelegramDataLoader),
+                Box::new(TgKeeperDataLoader),
                 Box::new(WhatsAppAndroidDataLoader),
                 Box::new(WhatsAppTextDataLoader),
                 Box::new(SignalDataLoader),
