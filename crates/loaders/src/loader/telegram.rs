@@ -1162,7 +1162,7 @@ fn parse_rich_text_object(json_path: &str,
             ))
         }
         "mention_name" => {
-            // No special treatment for mention_name, but prepent @
+            // No special treatment for mention_name, but prepend @
             check_keys!(["type", "text", "user_id"]);
             Some(RichText::make_plain(format!("@{}", get_field_str!(rte_json, json_path, "text"))))
         }

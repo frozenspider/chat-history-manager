@@ -36,7 +36,7 @@ macro_rules! coerce_enum {
     }};
 }
 
-/// Since std::assert_matches::assert_matches is unstable...
+/// Since [[std::assert_matches::assert_matches]] is unstable...
 #[macro_export]
 macro_rules! assert_matches {
     ($expr:expr, $pat:pat) => {{

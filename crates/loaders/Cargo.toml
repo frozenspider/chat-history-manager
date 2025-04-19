@@ -43,6 +43,7 @@ aes = "0.8.4"
 pbkdf2 = "0.12.2"
 
 # Grammers
+# (using exact same commit as in tg-keeper)
 grammers-client = { git = "https://github.com/Lonami/grammers", rev = "550ab88" }
 grammers-session = { git = "https://github.com/Lonami/grammers", rev = "550ab88" }
 grammers-mtsender = { git = "https://github.com/Lonami/grammers", rev = "550ab88" }

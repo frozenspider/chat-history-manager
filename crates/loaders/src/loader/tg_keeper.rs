@@ -6,8 +6,11 @@ use std::collections::BTreeMap;
 
 use grammers_client::grammers_tl_types::Deserializable;
 use grammers_client::{grammers_tl_types as tl, types};
+use itertools::Itertools;
+use utf16string::{BE, WString};
 
 /// Loader for [tg-keeper](https://github.com/frozenspider/tg-keeper/) database.
+/// This should follow closely what [[TelegramDataLoader]] does.
 pub struct TgKeeperDataLoader;
 
 const NAME: &str = "TgKeeper";
@@ -111,7 +114,8 @@ fn load_everything(
             let Some(inner_msg) = raw_msg.inner else {
                 bail!("Message #{} is missing serialized payload", raw_msg.id.0)
             };
-            if let Some(msg) = parse_message(inner_msg, raw_msg.media_rel_path)? {
+            if let Some(msg) = parse_message(inner_msg, raw_msg.media_rel_path, &users, myself_id)?
+            {
                 cwm_builder.add_message(msg);
             }
         }
@@ -249,11 +253,13 @@ fn mark_message_deleted(
 fn parse_message(
     raw_message: tl::enums::Message,
     media_rel_path: Option<String>,
+    users: &HashMap<UserId, User>,
+    myself_id: UserId,
 ) -> Result<Option<Message>> {
     let id = raw_message.id() as i64;
-    let (tg_date, from_id, text, typed) = match raw_message {
+    let from_id = raw_message.author_id(myself_id);
+    let (tg_date, text, typed) = match raw_message {
         tl::enums::Message::Message(inner) => {
-            let from_id = inner.from_id.map(|peer| peer.id());
             let forward_from_name_option = inner
                 .fwd_from
                 .and_then(|tl::enums::MessageFwdHeader::Header(fwd)| fwd.from_name);
@@ -276,12 +282,11 @@ fn parse_message(
                 reply_to_message_id_option,
                 contents,
             );
-            (inner.date, from_id, text, typed)
+            (inner.date, text, typed)
         }
         tl::enums::Message::Service(inner) => {
-            if let Some((service, text)) = parse_service_message(&inner)? {
-                let from_id = inner.from_id.map(|peer| peer.id());
-                (inner.date, from_id, text, message::Typed::Service(service))
+            if let Some((service, text)) = parse_service_message(&inner, media_rel_path, users)? {
+                (inner.date, text, message::Typed::Service(service))
             } else {
                 return Ok(None);
             }
@@ -291,9 +296,6 @@ fn parse_message(
         }
     };
     let timestamp = tg_date as i64;
-    let Some(from_id) = from_id else {
-        bail!("Message #{} has no sender", id);
-    };
 
     Ok(Some(Message::new(
         id,
@@ -305,32 +307,42 @@ fn parse_message(
     )))
 }
 
-fn parse_service_message(
-    raw_service_msg: &tl::types::MessageService,
-) -> Result<Option<(MessageService, Vec<RichTextElement>)>> {
-    todo!()
-}
-
 fn parse_text(
     message: &str,
     entities: &[tl::enums::MessageEntity],
 ) -> Result<Vec<RichTextElement>> {
+    if entities.is_empty() {
+        // Quick path that avoids all UTF-16 hustle
+        return Ok(vec![RichText::make_plain(message.to_owned())]);
+    }
+
     let mut result = vec![];
     let mut curr_offset = 0_usize;
     let mut entities_iter = entities.iter();
 
+    // Message entities offset/length are given in UTF-16 code units, so do the conversion
+    let message = WString::<BE>::from(message);
+
     while curr_offset < message.len() {
         if let Some(entity) = entities_iter.next() {
             let entity_offset = entity.offset() as usize;
-            assert!(entity_offset >= curr_offset, "Incorrect offset");
+            let entity_length = entity.length() as usize;
+            // The offset is given in UTF-16 code units, so we need to convert it to bytes
+
+            let entity_offset = entity_offset * 2;
+            let entity_length = entity_length * 2;
+
+            assert!(
+                entity_offset >= curr_offset,
+                "Incorrect offset, or double formatting"
+            );
 
             if entity_offset > curr_offset {
-                let plaintext = &message[curr_offset..entity_offset];
-                result.push(RichText::make_plain(plaintext.to_owned()));
+                let plaintext = message[curr_offset..entity_offset].to_utf8();
+                result.push(RichText::make_plain(plaintext));
             }
 
-            let entity_text =
-                message[entity_offset..(entity_offset + entity.length() as usize)].to_owned();
+            let entity_text = message[entity_offset..(entity_offset + entity_length)].to_utf8();
 
             match entity {
                 tl::enums::MessageEntity::Bold(_) => {
@@ -355,10 +367,13 @@ fn parse_text(
                     result.push(RichText::make_prefmt_inline(entity_text));
                 }
                 tl::enums::MessageEntity::Pre(inner) => {
-                    println!("=== Pre: {:?}", inner); // FIXME
                     result.push(RichText::make_prefmt_block(
                         entity_text,
-                        Some(inner.language.clone()),
+                        if inner.language.is_empty() {
+                            None
+                        } else {
+                            Some(inner.language.clone())
+                        },
                     ));
                 }
                 tl::enums::MessageEntity::TextUrl(inner) => {
@@ -367,7 +382,7 @@ fn parse_text(
                 tl::enums::MessageEntity::Url(_) => {
                     result.push(RichText::make_link(Some(entity_text.clone()), entity_text));
                 }
-                tl::enums::MessageEntity::Mention(_)
+                tl::enums::MessageEntity::Mention(_) // @ is already prepended
                 | tl::enums::MessageEntity::Hashtag(_)
                 | tl::enums::MessageEntity::BotCommand(_)
                 | tl::enums::MessageEntity::Email(_)
@@ -383,10 +398,15 @@ fn parse_text(
                 }
             }
 
-            curr_offset = entity_offset;
+            curr_offset = entity_offset + entity_length;
         } else {
             break;
         }
+    }
+
+    let plaintext = message[curr_offset..].to_utf8();
+    if !plaintext.is_empty() {
+        result.push(RichText::make_plain(plaintext));
     }
 
     Ok(result)
@@ -397,6 +417,255 @@ fn parse_media(
     media_rel_path: Option<String>,
 ) -> Result<Option<Content>> {
     Ok(todo!())
+}
+
+fn parse_service_message(
+    raw_service_msg: &tl::types::MessageService,
+    media_rel_path: Option<String>,
+    users: &HashMap<UserId, User>,
+) -> Result<Option<(MessageService, Vec<RichTextElement>)>> {
+    use message_service::SealedValueOptional;
+    use tl::enums::MessageAction;
+
+    let resolve_user_name = |user_id: i64| -> String {
+        if let Some(user) = users.get(&UserId(user_id)) {
+            user.pretty_name()
+        } else {
+            format!("Unknown user {}", user_id)
+        }
+    };
+
+    let (sealed_value, rich_text): (SealedValueOptional, Option<String>) =
+        match &raw_service_msg.action {
+            MessageAction::PhoneCall(action) => {
+                let discard_reason_option = action.reason.as_ref().map(|reason| {
+                    match reason {
+                        tl::enums::PhoneCallDiscardReason::Missed => "missed",
+                        tl::enums::PhoneCallDiscardReason::Busy => "busy",
+                        tl::enums::PhoneCallDiscardReason::Hangup => "hangup",
+                        tl::enums::PhoneCallDiscardReason::Disconnect => "disconnect",
+                        tl::enums::PhoneCallDiscardReason::AllowGroupCall(_) => {
+                            unreachable!("This is not in the docs! {:?}", reason)
+                        }
+                    }
+                    .to_owned()
+                });
+                (
+                    SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                        duration_sec_option: action.duration,
+                        discard_reason_option,
+                        members: vec![],
+                    }),
+                    None,
+                )
+            }
+            MessageAction::GroupCall(action) => (
+                SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                    duration_sec_option: action.duration,
+                    discard_reason_option: None,
+                    members: vec![],
+                }),
+                None,
+            ),
+            MessageAction::PinMessage => {
+                (
+                    SealedValueOptional::PinMessage(MessageServicePinMessage {
+                        message_source_id: raw_service_msg.id as i64, // FIXME
+                    }),
+                    None,
+                )
+            }
+            MessageAction::ChatCreate(action) => (
+                SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+                    title: action.title.clone(),
+                    members: action.users.iter().map(|u| u.to_string()).collect(),
+                }),
+                None,
+            ),
+            MessageAction::ChatEditTitle(action) => (
+                SealedValueOptional::GroupEditTitle(MessageServiceGroupEditTitle {
+                    title: action.title.clone(),
+                }),
+                None,
+            ),
+            MessageAction::ChatEditPhoto(action) => {
+                let (width, height) = action.photo.size().unwrap_or((0, 0));
+                (
+                    SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
+                        photo: ContentPhoto {
+                            path_option: media_rel_path,
+                            width,
+                            height,
+                            mime_type_option: None,
+                            is_one_time: false,
+                        },
+                    }),
+                    None,
+                )
+            }
+            MessageAction::ChatDeletePhoto => (
+                SealedValueOptional::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}),
+                None,
+            ),
+            MessageAction::ChatAddUser(action) => (
+                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                    members: action.users.iter().map(|u| u.to_string()).collect(),
+                }),
+                None,
+            ),
+            MessageAction::ChatDeleteUser(action) => (
+                SealedValueOptional::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
+                    members: vec![action.user_id.to_string()],
+                }),
+                None,
+            ),
+            MessageAction::ChatJoinedByLink(action) => (
+                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                    members: vec![resolve_user_name(action.inviter_id)],
+                }),
+                None,
+            ),
+            MessageAction::ChatJoinedByRequest => (
+                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                    members: raw_service_msg
+                        .from_id
+                        .as_ref()
+                        .map(|m| resolve_user_name(m.id()))
+                        .into_iter()
+                        .collect_vec(),
+                }),
+                None,
+            ),
+            MessageAction::ChannelCreate(action) => (
+                SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+                    title: action.title.clone(),
+                    members: vec![],
+                }),
+                None,
+            ),
+            MessageAction::ChatMigrateTo(_action) => (
+                SealedValueOptional::GroupMigrateTo(MessageServiceGroupMigrateTo {}),
+                None,
+            ),
+            MessageAction::ChannelMigrateFrom(action) => (
+                SealedValueOptional::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
+                    title: action.title.clone(),
+                }),
+                None,
+            ),
+            MessageAction::HistoryClear => (
+                SealedValueOptional::ClearHistory(MessageServiceClearHistory {}),
+                None,
+            ),
+            MessageAction::InviteToGroupCall(action) => (
+                SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                    duration_sec_option: None,
+                    discard_reason_option: None,
+                    members: action
+                        .users
+                        .iter()
+                        .map(|id| resolve_user_name(*id))
+                        .collect(),
+                }),
+                None,
+            ),
+            MessageAction::SetMessagesTtl(action) => {
+                let mut period = action.period as i64;
+                let mut period_str = "second(s)";
+                let div_list = [(60, "minute(s)"), (60, "hour(s)"), (24, "day(s)")];
+                for (divisor, new_period_str) in div_list.iter() {
+                    if period % divisor != 0 {
+                        break;
+                    }
+                    period /= divisor;
+                    period_str = new_period_str;
+                }
+                (
+                    SealedValueOptional::Notice(MessageServiceNotice {}),
+                    Some(format!(
+                        "Messages will be auto-deleted in {period} {period_str}"
+                    )),
+                )
+            }
+            MessageAction::ContactSignUp => (
+                SealedValueOptional::Notice(MessageServiceNotice {}),
+                Some("Joined Telegram".to_owned()),
+            ),
+            MessageAction::ScreenshotTaken => {
+                return Ok(None);
+            }
+            MessageAction::GameScore(_) => {
+                return Ok(None);
+            }
+            MessageAction::PaymentSentMe(_) | MessageAction::PaymentSent(_) => {
+                return Ok(None);
+            }
+            MessageAction::SecureValuesSentMe(_) | MessageAction::SecureValuesSent(_) => {
+                // Telegram Passport stuff
+                return Ok(None);
+            }
+            MessageAction::GeoProximityReached(_) => {
+                return Ok(None);
+            }
+            MessageAction::GroupCallScheduled(_) => {
+                return Ok(None);
+            }
+            MessageAction::SetChatTheme(_) => {
+                return Ok(None);
+            }
+            MessageAction::BotAllowed(_)
+            | MessageAction::CustomAction(_)
+            | MessageAction::WebViewDataSentMe(_)
+            | MessageAction::WebViewDataSent(_)
+            | MessageAction::RequestedPeer(_)
+            | MessageAction::PaymentRefunded(_)
+            | MessageAction::RequestedPeerSentMe(_) => {
+                // Bot-specific stuff
+                return Ok(None);
+            }
+            MessageAction::GiftPremium(_) | MessageAction::GiftCode(_) => {
+                return Ok(None);
+            }
+            MessageAction::TopicCreate(_) | MessageAction::TopicEdit(_) => {
+                // Topics aren't handled
+                return Ok(None);
+            }
+            MessageAction::SuggestProfilePhoto(_) => {
+                // Suggest profile photo (not handled)
+                return Ok(None);
+            }
+            MessageAction::SetChatWallPaper(_) => {
+                // Set chat wallpaper (not handled)
+                return Ok(None);
+            }
+            MessageAction::GiveawayLaunch(_)
+            | MessageAction::GiveawayResults(_)
+            | MessageAction::BoostApply(_) => {
+                // Boost apply (not handled)
+                return Ok(None);
+            }
+            MessageAction::GiftStars(_)
+            | MessageAction::PrizeStars(_)
+            | MessageAction::StarGift(_)
+            | MessageAction::StarGiftUnique(_) => {
+                // Stars
+                return Ok(None);
+            }
+            MessageAction::Empty => {
+                // Empty action?
+                return Ok(None);
+            }
+        };
+
+    Ok(Some((
+        MessageService {
+            sealed_value_optional: Some(sealed_value),
+        },
+        rich_text
+            .into_iter()
+            .map(RichText::make_plain)
+            .collect_vec(),
+    )))
 }
 
 // Copy-paste from tg-keeper
@@ -447,6 +716,61 @@ impl WithId for tl::enums::Peer {
             tl::enums::Peer::User(user) => user.user_id,
             tl::enums::Peer::Chat(chat) => chat.chat_id,
             tl::enums::Peer::Channel(channel) => channel.channel_id,
+        }
+    }
+}
+
+trait WithAuthorId {
+    fn author_id(&self, myself_id: UserId) -> i64;
+}
+
+impl WithAuthorId for tl::enums::Message {
+    fn author_id(&self, myself_id: UserId) -> i64 {
+        let (from_id, peer_id, out) = match self {
+            tl::enums::Message::Message(msg) => (
+                msg.from_id.as_ref().map(|peer| peer.id()),
+                msg.peer_id.id(),
+                msg.out,
+            ),
+            tl::enums::Message::Service(msg) => (
+                msg.from_id.as_ref().map(|peer| peer.id()),
+                msg.peer_id.id(),
+                msg.out,
+            ),
+            tl::enums::Message::Empty(_) => panic!("Empty message!"),
+        };
+        from_id.unwrap_or_else(|| if out { *myself_id } else { peer_id })
+    }
+}
+
+trait WithSize {
+    fn size(&self) -> Option<(i32, i32)>;
+}
+
+impl WithSize for tl::enums::PhotoSize {
+    fn size(&self) -> Option<(i32, i32)> {
+        match self {
+            tl::enums::PhotoSize::Empty(_) => None,
+            tl::enums::PhotoSize::Size(size) => Some((size.w, size.h)),
+            tl::enums::PhotoSize::PhotoCachedSize(size) => Some((size.w, size.h)),
+            tl::enums::PhotoSize::PhotoStrippedSize(_) => None,
+            tl::enums::PhotoSize::Progressive(size) => Some((size.w, size.h)),
+            tl::enums::PhotoSize::PhotoPathSize(_) => None,
+        }
+    }
+}
+
+impl WithSize for tl::types::Photo {
+    fn size(&self) -> Option<(i32, i32)> {
+        self.sizes.iter().filter_map(|s| s.size()).next()
+    }
+}
+
+impl WithSize for tl::enums::Photo {
+    fn size(&self) -> Option<(i32, i32)> {
+        match self {
+            tl::enums::Photo::Empty(_) => None,
+            tl::enums::Photo::Photo(photo) => photo.size(),
         }
     }
 }
