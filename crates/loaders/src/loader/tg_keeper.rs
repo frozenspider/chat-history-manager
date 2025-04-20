@@ -10,11 +10,14 @@ use itertools::Itertools;
 use utf16string::{BE, WString};
 
 /// Loader for [tg-keeper](https://github.com/frozenspider/tg-keeper/) database.
-/// This should follow closely what [[TelegramDataLoader]] does.
+/// This should follow closely what [[TelegramDataLoader]] does, conflicts are to be treated
+/// as bugs in this loader.
 pub struct TgKeeperDataLoader;
 
 const NAME: &str = "TgKeeper";
 const FILENAME: &str = "tg-keeper.sqlite";
+
+const MEDIA_DIR: &str = "media";
 
 impl DataLoader for TgKeeperDataLoader {
     fn name(&self) -> String {
@@ -114,8 +117,8 @@ fn load_everything(
             let Some(inner_msg) = raw_msg.inner else {
                 bail!("Message #{} is missing serialized payload", raw_msg.id.0)
             };
-            if let Some(msg) = parse_message(inner_msg, raw_msg.media_rel_path, &users, myself_id)?
-            {
+            let media_rel_path = raw_msg.media_rel_path.map(|p| format!("{MEDIA_DIR}/{p}"));
+            if let Some(msg) = parse_message(inner_msg, media_rel_path, &users, myself_id)? {
                 cwm_builder.add_message(msg);
             }
         }
@@ -413,10 +416,193 @@ fn parse_text(
 }
 
 fn parse_media(
-    media: tl::enums::MessageMedia,
+    raw_media: tl::enums::MessageMedia,
     media_rel_path: Option<String>,
 ) -> Result<Option<Content>> {
-    Ok(todo!())
+    use types::media::*;
+
+    let Some(media) = Media::from_raw(raw_media.clone()) else {
+        return Ok(None);
+    };
+
+    fn geo_to_lat_lon(geo: &Geo) -> (String, String) {
+        (geo.latitue().to_string(), geo.longitude().to_string())
+    }
+
+    let content = match media {
+        Media::Photo(inner) => {
+            // Use provided path; fallback to None if missing
+            let (width, height) = inner
+                .raw
+                .photo
+                .as_ref()
+                .and_then(|p| p.size())
+                .unwrap_or((0, 0));
+            content!(Photo {
+                path_option: media_rel_path,
+                width,
+                height,
+                mime_type_option: None,
+                is_one_time: inner.ttl_seconds().is_some(),
+            })
+        }
+        Media::Document(inner) => {
+            // Try to distinguish sticker, audio, video, etc.
+            let mime_type_option = inner.mime_type().map(|s| s.to_owned());
+            let file_name_option = inner.name().to_owned().to_option();
+            let (width, height) = inner.resolution().unwrap_or((0, 0));
+            let duration_sec_option = inner.duration().map(|d| d as i32);
+            let is_one_time = inner.raw.ttl_seconds.is_some();
+
+            let doc_attrs = inner
+                .raw
+                .document
+                .as_ref()
+                .map(|d| match d {
+                    tl::enums::Document::Document(doc) => doc.attributes.as_slice(),
+                    tl::enums::Document::Empty(_) => &[],
+                })
+                .unwrap_or(&[]);
+
+            // There aren't separate documents for some reason
+            let mut is_audio = false;
+            let mut is_animation = false;
+            for dattr in doc_attrs {
+                if matches!(dattr, tl::enums::DocumentAttribute::Audio(_)) {
+                    is_audio = true;
+                    break;
+                }
+                if matches!(dattr, tl::enums::DocumentAttribute::Animated) {
+                    is_animation = true;
+                    break;
+                }
+            }
+
+            if inner.raw.round {
+                // Round video message
+                content!(VideoMsg {
+                    path_option: media_rel_path,
+                    file_name_option,
+                    width,
+                    height,
+                    mime_type: mime_type_option
+                        .context("Missing mime type for round video message")?,
+                    duration_sec_option,
+                    thumbnail_path_option: None,
+                    is_one_time,
+                })
+            } else if is_animation || inner.raw.video {
+                // Video
+                content!(Video {
+                    path_option: media_rel_path,
+                    file_name_option,
+                    title_option: None, // There's nowhere to store the title!
+                    performer_option: inner.performer().map(|s| s.to_string()),
+                    width,
+                    height,
+                    mime_type: mime_type_option.context("Missing mime type for video")?,
+                    duration_sec_option,
+                    thumbnail_path_option: None,
+                    is_one_time,
+                })
+            } else if inner.raw.voice {
+                // Voice message
+                content!(VoiceMsg {
+                    path_option: media_rel_path,
+                    file_name_option,
+                    mime_type: mime_type_option.context("Missing mime type for voice message")?,
+                    duration_sec_option,
+                })
+            } else if is_audio {
+                // Audio (non-voice)
+                content!(Audio {
+                    path_option: media_rel_path,
+                    file_name_option,
+                    title_option: inner.audio_title(),
+                    performer_option: inner.performer().map(|s| s.to_string()),
+                    mime_type: mime_type_option.context("Missing mime type for audio")?,
+                    duration_sec_option: inner.duration().map(|d| d as i32),
+                    thumbnail_path_option: None,
+                })
+            } else {
+                // Generic file
+                content!(File {
+                    path_option: media_rel_path,
+                    file_name_option,
+                    mime_type_option,
+                    thumbnail_path_option: None,
+                })
+            }
+        }
+        Media::Sticker(inner) => {
+            // Stickers are documents under the hood
+            let (width, height) = inner.document.resolution().unwrap_or((0, 0));
+            content!(Sticker {
+                path_option: media_rel_path.clone(),
+                file_name_option: inner.document.name().to_owned().to_option(),
+                width,
+                height,
+                mime_type_option: inner.document.mime_type().map(|s| s.to_owned()),
+                thumbnail_path_option: media_rel_path,
+                emoji_option: inner.emoji().to_owned().to_option(),
+            })
+        }
+        Media::Contact(inner) => {
+            content!(SharedContact {
+                first_name_option: Some(inner.first_name().to_owned()),
+                last_name_option: inner.last_name().to_owned().to_option(),
+                phone_number_option: Some(inner.phone_number().to_owned()),
+                vcard_path_option: media_rel_path,
+            })
+        }
+        Media::Poll(inner) => {
+            let tl::enums::TextWithEntities::Entities(question) = inner.raw.question;
+            let question = question.text;
+            content!(Poll { question })
+        }
+        Media::GeoLive(inner) => {
+            let Some((lat_str, lon_str)) = inner.geo.as_ref().map(geo_to_lat_lon) else {
+                bail!("GeoLive message without coordinates")
+            };
+            content!(Location {
+                title_option: None,
+                address_option: None,
+                lat_str,
+                lon_str,
+                duration_sec_option: Some(inner.raw_geolive.period), // It's in seconds, as far as I can tell
+            })
+        }
+        Media::Geo(inner) => {
+            let (lat_str, lon_str) = geo_to_lat_lon(&inner);
+            content!(Location {
+                title_option: None,
+                address_option: None,
+                lat_str,
+                lon_str,
+                duration_sec_option: None,
+            })
+        }
+        Media::Venue(inner) => {
+            let Some((lat_str, lon_str)) = inner.geo.as_ref().map(geo_to_lat_lon) else {
+                bail!("Venue message without coordinates")
+            };
+            content!(Location {
+                title_option: inner.title().to_owned().to_option(),
+                address_option: inner.address().to_owned().to_option(),
+                lat_str,
+                lon_str,
+                duration_sec_option: None,
+            })
+        }
+        Media::WebPage(_) | Media::Dice(_) => {
+            // Not handled
+            return Ok(None);
+        }
+        _ => {
+            bail!("Unsupported media type: {:?}", raw_media);
+        }
+    };
+    Ok(Some(content))
 }
 
 fn parse_service_message(

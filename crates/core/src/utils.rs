@@ -270,3 +270,30 @@ pub fn without_indices<T>(vec: Vec<T>, indices_to_remove: impl IntoIterator<Item
         .collect_vec()
 }
 
+pub trait ToOption {
+    type Output;
+
+    fn to_option(self) -> Option<Self::Output>;
+}
+
+impl ToOption for String {
+    type Output = String;
+    fn to_option(self) -> Option<Self::Output> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
+
+impl<'a> ToOption for &'a str {
+    type Output = &'a str;
+    fn to_option(self) -> Option<Self::Output> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+}
