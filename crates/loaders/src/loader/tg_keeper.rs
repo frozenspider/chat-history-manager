@@ -655,10 +655,21 @@ fn parse_service_message(
                 None,
             ),
             MessageAction::PinMessage => {
+                // Telegram Desktop seems to use reply_to_msg_id to indicate pinned message
+                let reply_header = raw_service_msg
+                    .reply_to
+                    .as_ref()
+                    .context("Pin message without reply_to")?;
+                let message_source_id = match reply_header {
+                    tl::enums::MessageReplyHeader::Header(h) => h.reply_to_msg_id,
+                    tl::enums::MessageReplyHeader::MessageReplyStoryHeader(_) => {
+                        bail!("Cannot pin a story reply!")
+                    }
+                };
+                let message_source_id =
+                    message_source_id.context("Pin message without reply_to_msg_id")? as i64;
                 (
-                    SealedValueOptional::PinMessage(MessageServicePinMessage {
-                        message_source_id: raw_service_msg.id as i64, // FIXME
-                    }),
+                    SealedValueOptional::PinMessage(MessageServicePinMessage { message_source_id }),
                     None,
                 )
             }
