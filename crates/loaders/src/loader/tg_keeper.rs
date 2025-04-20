@@ -279,7 +279,7 @@ fn parse_message(
                 .into_iter()
                 .collect();
             let typed = message_regular!(
-                edit_timestamp_option: inner.edit_date.map(|tg_date| tg_date as i64),
+                edit_timestamp_option: if inner.edit_hide { None } else { inner.edit_date.map(|tg_date| tg_date as i64) },
                 is_deleted: false,
                 forward_from_name_option,
                 reply_to_message_id_option,
@@ -294,8 +294,9 @@ fn parse_message(
                 return Ok(None);
             }
         }
-        tl::enums::Message::Empty(inner) => {
-            panic!("Empty message: {:?}", inner); // FIXME
+        tl::enums::Message::Empty(_inner) => {
+            // I have no idea what this is, haven't seen it in the wild yet
+            return Ok(None);
         }
     };
     let timestamp = tg_date as i64;
@@ -923,7 +924,17 @@ impl WithAuthorId for tl::enums::Message {
                 msg.peer_id.id(),
                 msg.out,
             ),
-            tl::enums::Message::Empty(_) => panic!("Empty message!"),
+            tl::enums::Message::Empty(msg) => {
+                // Result will be ignored anyway
+                (
+                    None,
+                    msg.peer_id
+                        .as_ref()
+                        .map(|peer| peer.id())
+                        .unwrap_or(*myself_id),
+                    false,
+                )
+            }
         };
         from_id.unwrap_or_else(|| if out { *myself_id } else { peer_id })
     }
