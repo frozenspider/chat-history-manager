@@ -1844,8 +1844,6 @@ dependencies = [
  "const_format",
  "encoding_rs",
  "grammers-client",
- "grammers-mtsender",
- "grammers-session",
  "hex",
  "hmac",
  "ical",
