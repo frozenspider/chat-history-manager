@@ -1,3 +1,5 @@
+use super::telegram::{GROUP_CHAT_ID_SHIFT, PERSONAL_CHAT_ID_SHIFT};
+
 use crate::loader::DataLoader;
 use crate::prelude::*;
 use chrono::Local;
@@ -7,7 +9,7 @@ use std::collections::BTreeMap;
 use grammers_client::grammers_tl_types::Deserializable;
 use grammers_client::{grammers_tl_types as tl, types};
 use itertools::Itertools;
-use utf16string::{BE, WString};
+use utf16string::{WString, BE};
 
 /// Loader for [tg-keeper](https://github.com/frozenspider/tg-keeper/) database.
 /// This should follow closely what [[TelegramDataLoader]] does, conflicts are to be treated
@@ -77,17 +79,18 @@ fn load_everything(
     let mut cwm_builders: HashMap<ChatId, CwmBuilder> = raw_chats
         .iter()
         .filter_map(|raw_chat| {
+            let tpe = match raw_chat {
+                types::Chat::User(_) => ChatType::Personal,
+                types::Chat::Group(_) => ChatType::PrivateGroup,
+                types::Chat::Channel(_) => return None, // Skip
+            };
             let id = raw_chat.id();
             let chat = Chat {
                 ds_uuid: ds_uuid.clone(),
                 id,
                 name_option: raw_chat.name().map(|s| s.to_owned()),
                 source_type: SourceType::Telegram as i32,
-                tpe: (match raw_chat {
-                    types::Chat::User(_) => ChatType::Personal,
-                    types::Chat::Group(_) => ChatType::PrivateGroup,
-                    types::Chat::Channel(_) => return None, // Skip
-                }) as i32,
+                tpe: tpe as i32,
                 img_path_option: None,
                 member_ids: vec![], // Will be filled in by builder
                 msg_count: 0,       // Will be set by builder
@@ -118,7 +121,16 @@ fn load_everything(
                 bail!("Message #{} is missing serialized payload", raw_msg.id.0)
             };
             let media_rel_path = raw_msg.media_rel_path.map(|p| format!("{MEDIA_DIR}/{p}"));
-            if let Some(msg) = parse_message(inner_msg, media_rel_path, &users, myself_id)? {
+            let thumbnail_rel_path = raw_msg
+                .thumbnail_rel_path
+                .map(|p| format!("{MEDIA_DIR}/{p}"));
+            if let Some(msg) = parse_message(
+                inner_msg,
+                media_rel_path,
+                thumbnail_rel_path,
+                &users,
+                myself_id,
+            )? {
                 cwm_builder.add_message(msg);
             }
         }
@@ -176,6 +188,7 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
             chat_id: chat_id.map(ChatId),
             inner: raw_message,
             media_rel_path: row.get("media_rel_path")?,
+            thumbnail_rel_path: None, // FIXME!
         };
         result.push(result_entry);
     }
@@ -256,6 +269,7 @@ fn mark_message_deleted(
 fn parse_message(
     raw_message: tl::enums::Message,
     media_rel_path: Option<String>,
+    thumbnail_rel_path: Option<String>,
     users: &HashMap<UserId, User>,
     myself_id: UserId,
 ) -> Result<Option<Message>> {
@@ -263,9 +277,14 @@ fn parse_message(
     let from_id = raw_message.author_id(myself_id);
     let (tg_date, text, typed) = match raw_message {
         tl::enums::Message::Message(inner) => {
-            let forward_from_name_option = inner
-                .fwd_from
-                .and_then(|tl::enums::MessageFwdHeader::Header(fwd)| fwd.from_name);
+            let forward_from_name_option =
+                inner
+                    .fwd_from
+                    .and_then(|tl::enums::MessageFwdHeader::Header(fwd)| {
+                        fwd.from_name.or_else(|| {
+                            fwd.from_id.map(|peer| users.resolve_pretty_name(peer.id()))
+                        })
+                    });
             let reply_to_message_id_option = inner.reply_to.and_then(|r| match r {
                 tl::enums::MessageReplyHeader::Header(h) => h.reply_to_msg_id.map(|id| id as i64),
                 _ => None,
@@ -273,7 +292,7 @@ fn parse_message(
             let text = parse_text(&inner.message, &inner.entities.unwrap_or(vec![]))?;
             let contents = inner
                 .media
-                .map(|m| parse_media(m, media_rel_path))
+                .map(|m| parse_media(m, media_rel_path, thumbnail_rel_path))
                 .transpose()?
                 .flatten()
                 .into_iter()
@@ -315,8 +334,12 @@ fn parse_text(
     message: &str,
     entities: &[tl::enums::MessageEntity],
 ) -> Result<Vec<RichTextElement>> {
+    if message.is_empty() {
+        return Ok(vec![]);
+    }
+
     if entities.is_empty() {
-        // Quick path that avoids all UTF-16 hustle
+        // Quick path that avoids UTF-16 hustle
         return Ok(vec![RichText::make_plain(message.to_owned())]);
     }
 
@@ -419,6 +442,7 @@ fn parse_text(
 fn parse_media(
     raw_media: tl::enums::MessageMedia,
     media_rel_path: Option<String>,
+    thumbnail_rel_path: Option<String>,
 ) -> Result<Option<Content>> {
     use types::media::*;
 
@@ -433,12 +457,7 @@ fn parse_media(
     let content = match media {
         Media::Photo(inner) => {
             // Use provided path; fallback to None if missing
-            let (width, height) = inner
-                .raw
-                .photo
-                .as_ref()
-                .and_then(|p| p.size())
-                .unwrap_or((0, 0));
+            let (width, height) = inner.resolution().unwrap_or((0, 0));
             content!(Photo {
                 path_option: media_rel_path,
                 width,
@@ -489,7 +508,7 @@ fn parse_media(
                     mime_type: mime_type_option
                         .context("Missing mime type for round video message")?,
                     duration_sec_option,
-                    thumbnail_path_option: None,
+                    thumbnail_path_option: thumbnail_rel_path,
                     is_one_time,
                 })
             } else if is_animation || inner.raw.video {
@@ -503,7 +522,7 @@ fn parse_media(
                     height,
                     mime_type: mime_type_option.context("Missing mime type for video")?,
                     duration_sec_option,
-                    thumbnail_path_option: None,
+                    thumbnail_path_option: thumbnail_rel_path,
                     is_one_time,
                 })
             } else if inner.raw.voice {
@@ -523,7 +542,7 @@ fn parse_media(
                     performer_option: inner.performer().map(|s| s.to_string()),
                     mime_type: mime_type_option.context("Missing mime type for audio")?,
                     duration_sec_option: inner.duration().map(|d| d as i32),
-                    thumbnail_path_option: None,
+                    thumbnail_path_option: thumbnail_rel_path,
                 })
             } else {
                 // Generic file
@@ -531,7 +550,7 @@ fn parse_media(
                     path_option: media_rel_path,
                     file_name_option,
                     mime_type_option,
-                    thumbnail_path_option: None,
+                    thumbnail_path_option: thumbnail_rel_path,
                 })
             }
         }
@@ -544,7 +563,7 @@ fn parse_media(
                 width,
                 height,
                 mime_type_option: inner.document.mime_type().map(|s| s.to_owned()),
-                thumbnail_path_option: media_rel_path,
+                thumbnail_path_option: thumbnail_rel_path,
                 emoji_option: inner.emoji().to_owned().to_option(),
             })
         }
@@ -614,14 +633,6 @@ fn parse_service_message(
     use message_service::SealedValueOptional;
     use tl::enums::MessageAction;
 
-    let resolve_user_name = |user_id: i64| -> String {
-        if let Some(user) = users.get(&UserId(user_id)) {
-            user.pretty_name()
-        } else {
-            format!("Unknown user {}", user_id)
-        }
-    };
-
     let (sealed_value, rich_text): (SealedValueOptional, Option<String>) =
         match &raw_service_msg.action {
             MessageAction::PhoneCall(action) => {
@@ -687,7 +698,7 @@ fn parse_service_message(
                 None,
             ),
             MessageAction::ChatEditPhoto(action) => {
-                let (width, height) = action.photo.size().unwrap_or((0, 0));
+                let (width, height) = action.photo.resolution().unwrap_or((0, 0));
                 (
                     SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
                         photo: ContentPhoto {
@@ -719,7 +730,7 @@ fn parse_service_message(
             ),
             MessageAction::ChatJoinedByLink(action) => (
                 SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
-                    members: vec![resolve_user_name(action.inviter_id)],
+                    members: vec![users.resolve_pretty_name(action.inviter_id)],
                 }),
                 None,
             ),
@@ -728,7 +739,7 @@ fn parse_service_message(
                     members: raw_service_msg
                         .from_id
                         .as_ref()
-                        .map(|m| resolve_user_name(m.id()))
+                        .map(|m| users.resolve_pretty_name(m.id()))
                         .into_iter()
                         .collect_vec(),
                 }),
@@ -762,7 +773,7 @@ fn parse_service_message(
                     members: action
                         .users
                         .iter()
-                        .map(|id| resolve_user_name(*id))
+                        .map(|id| users.resolve_pretty_name(*id))
                         .collect(),
                 }),
                 None,
@@ -902,6 +913,7 @@ struct RawMessage {
     chat_id: Option<ChatId>,
     inner: Option<tl::enums::Message>,
     media_rel_path: Option<String>,
+    thumbnail_rel_path: Option<String>,
 }
 
 trait WithId {
@@ -951,12 +963,12 @@ impl WithAuthorId for tl::enums::Message {
     }
 }
 
-trait WithSize {
-    fn size(&self) -> Option<(i32, i32)>;
+trait WithResolution {
+    fn resolution(&self) -> Option<(i32, i32)>;
 }
 
-impl WithSize for tl::enums::PhotoSize {
-    fn size(&self) -> Option<(i32, i32)> {
+impl WithResolution for tl::enums::PhotoSize {
+    fn resolution(&self) -> Option<(i32, i32)> {
         match self {
             tl::enums::PhotoSize::Empty(_) => None,
             tl::enums::PhotoSize::Size(size) => Some((size.w, size.h)),
@@ -968,17 +980,40 @@ impl WithSize for tl::enums::PhotoSize {
     }
 }
 
-impl WithSize for tl::types::Photo {
-    fn size(&self) -> Option<(i32, i32)> {
-        self.sizes.iter().filter_map(|s| s.size()).next()
+impl WithResolution for tl::types::Photo {
+    fn resolution(&self) -> Option<(i32, i32)> {
+        self.sizes
+            .iter()
+            .filter_map(|s| s.resolution())
+            .max_by_key(|&(w, _h)| w)
     }
 }
 
-impl WithSize for tl::enums::Photo {
-    fn size(&self) -> Option<(i32, i32)> {
+impl WithResolution for tl::enums::Photo {
+    fn resolution(&self) -> Option<(i32, i32)> {
         match self {
             tl::enums::Photo::Empty(_) => None,
-            tl::enums::Photo::Photo(photo) => photo.size(),
+            tl::enums::Photo::Photo(photo) => photo.resolution(),
+        }
+    }
+}
+
+impl WithResolution for types::media::Photo {
+    fn resolution(&self) -> Option<(i32, i32)> {
+        self.raw.photo.as_ref().and_then(|p| p.resolution())
+    }
+}
+
+trait WithResolvePrettyName {
+    fn resolve_pretty_name(&self, user_id: i64) -> String;
+}
+
+impl WithResolvePrettyName for HashMap<UserId, User> {
+    fn resolve_pretty_name(&self, user_id: i64) -> String {
+        if let Some(user) = self.get(&UserId(user_id)) {
+            user.pretty_name()
+        } else {
+            UNKNOWN.to_owned()
         }
     }
 }
@@ -1005,6 +1040,13 @@ impl CwmBuilder {
     }
 
     fn build(mut self, myself_id: UserId) -> ChatWithMessages {
+        // Shift chat IDs due to legacy compatibility reasons
+        if self.chat.tpe() == ChatType::Personal {
+            // (in reality, personal chat ID matches user ID)
+            self.chat.id += PERSONAL_CHAT_ID_SHIFT;
+        } else {
+            self.chat.id += GROUP_CHAT_ID_SHIFT;
+        }
         self.chat.member_ids = vec![myself_id.0];
         self.chat.member_ids.extend(
             self.member_ids

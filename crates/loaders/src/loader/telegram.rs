@@ -27,10 +27,11 @@ mod tests;
 const USER_ID_SHIFT: i64 = 0x100000000_i64;
 
 /// Starting with Telegram 2021-05, personal chat IDs are un-shifted by this value
-const PERSONAL_CHAT_ID_SHIFT: i64 = 0x100000000_i64;
+/// (also used in tg-keeper)
+pub const PERSONAL_CHAT_ID_SHIFT: i64 = 0x100000000_i64;
 
 /// Starting with Telegram 2021-05, personal chat IDs are un-shifted by this value
-const GROUP_CHAT_ID_SHIFT: i64 = PERSONAL_CHAT_ID_SHIFT * 2;
+pub const GROUP_CHAT_ID_SHIFT: i64 = PERSONAL_CHAT_ID_SHIFT * 2;
 
 const RESULT_JSON: &str = "result.json";
 
