@@ -1,11 +1,11 @@
 use tonic::Request;
 
-use crate::protobuf::history::user_input_service_server::*;
+use crate::protobuf::history::feedback_service_server::*;
 
 use super::*;
 
 #[tonic::async_trait]
-impl<R: UserInputRequester> UserInputService for Arc<UserInputServer<R>> {
+impl<R: FeedbackClientAsync> FeedbackService for Arc<UserInputServer<R>> {
     async fn choose_myself(
         &self,
         request: Request<ChooseMyselfRequest>,

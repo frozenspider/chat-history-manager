@@ -51,8 +51,8 @@ impl DataLoader for TelegramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
-        parse_telegram_file(path, ds, user_input_requester)
+    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+        parse_telegram_file(path, ds, feedback_client)
     }
 }
 
@@ -166,7 +166,7 @@ fn get_real_path(path: &Path) -> PathBuf {
     }
 }
 
-fn parse_telegram_file(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+fn parse_telegram_file(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
     let path = get_real_path(path);
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
@@ -191,7 +191,7 @@ fn parse_telegram_file(path: &Path, ds: Dataset, user_input_requester: &dyn User
     let keys = root_obj.keys().map(|s| s.deref()).collect::<HashSet<_>>();
     let (users, chats_with_messages) =
         if single_chat_keys.is_superset(&keys) {
-            parser_single::parse(root_obj, &ds.uuid, &mut myself, user_input_requester)?
+            parser_single::parse(root_obj, &ds.uuid, &mut myself, feedback_client)?
         } else {
             parser_full::parse(root_obj, &ds.uuid, &mut myself)?
         };

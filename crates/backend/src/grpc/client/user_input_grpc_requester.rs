@@ -2,7 +2,7 @@ use futures::future::BoxFuture;
 use std::fmt::Debug;
 use tonic::transport::Channel;
 
-use crate::user_input_service_client::UserInputServiceClient;
+use crate::feedback_service_client::FeedbackServiceClient;
 
 use super::*;
 
@@ -17,7 +17,7 @@ impl UserInputGrpcRequester {
     ) -> Result<Out>
     where
         FnCreateReq:
-            for<'a> FnOnce(&'a mut UserInputServiceClient<Channel>)
+            for<'a> FnOnce(&'a mut FeedbackServiceClient<Channel>)
             -> BoxFuture<'a, TonicResult<Response>> + Send + 'static,
         FnProcessRes: FnOnce(Response) -> Result<Out> + Send + 'static,
         Response: Send + Debug + 'static,
@@ -26,7 +26,7 @@ impl UserInputGrpcRequester {
         let channel = self.channel.clone();
 
         // We cannot use the current thread since when called via RPC, current thread is already used for async tasks.
-        let mut client = UserInputServiceClient::new(channel);
+        let mut client = FeedbackServiceClient::new(channel);
         log::info!("Sending ChooseMyselfRequest");
         let response = create_request(&mut client)
             .await
@@ -38,7 +38,7 @@ impl UserInputGrpcRequester {
     }
 }
 
-impl UserInputRequester for UserInputGrpcRequester {
+impl FeedbackClientAsync for UserInputGrpcRequester {
     async fn choose_myself(&self, users: &[User]) -> Result<usize> {
         let users = users.to_vec();
         let len = users.len();

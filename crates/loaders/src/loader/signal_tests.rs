@@ -30,7 +30,7 @@ fn loading_v7_27_macos_plaintext() -> EmptyRes {
     let _attachments_dir = TmpDir::new_at(root_dir.join(DECRYPTED_ATTACHMENTS_DIR_NAME));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &NoChooser)?;
+    let dao = loader.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

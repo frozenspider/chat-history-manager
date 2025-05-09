@@ -59,7 +59,7 @@ impl DataLoader for MailRuAgentDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, path: &Path, ds: Dataset, _feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
         // We're not using the supplied dataset, just the name of it
         load_mra_dbs(path, ds.alias)
     }

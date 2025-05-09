@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn parse(root_obj: &Object,
                     ds_uuid: &PbUuid,
                     myself: &mut User,
-                    user_input_requester: &dyn UserInputBlockingRequester) -> Result<(Users, Vec<ChatWithMessages>)> {
+                    feedback_client: &dyn FeedbackClientSync) -> Result<(Users, Vec<ChatWithMessages>)> {
     let mut users: Users = Default::default();
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
@@ -22,7 +22,7 @@ pub(super) fn parse(root_obj: &Object,
 
     // In single chat, self section is not present. As such, myself must be populated from users.
     let mut users_vec = users.id_to_user.values().cloned().collect_vec();
-    let myself_idx = user_input_requester.choose_myself(&users_vec)?;
+    let myself_idx = feedback_client.choose_myself(&users_vec)?;
     *myself = users_vec.swap_remove(myself_idx);
 
     Ok((users, chats_with_messages))

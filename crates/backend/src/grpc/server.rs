@@ -10,7 +10,7 @@ use tonic::{Code, Request, Response, Status, transport::Server};
 
 use crate::loader::Loader;
 use crate::prelude::*;
-use crate::protobuf::history::user_input_service_server::UserInputServiceServer;
+use crate::protobuf::history::feedback_service_server::FeedbackServiceServer;
 use crate::protobuf::history::history_dao_service_server::HistoryDaoServiceServer;
 use crate::protobuf::history::history_loader_service_server::HistoryLoaderServiceServer;
 use crate::protobuf::history::merge_service_server::MergeServiceServer;
@@ -85,7 +85,7 @@ where
 struct ChatHistoryManagerServer {
     tokio_handle: Handle,
     loader: Loader,
-    user_input_requester: Box<dyn UserInputBlockingRequester>,
+    feedback_client: Box<dyn FeedbackClientSync>,
     loaded_daos: RwLock<IndexMap<DaoKey, DaoRwLock>>,
 }
 
@@ -93,11 +93,11 @@ impl ChatHistoryManagerServer
 where
     Self: GeneralServerTrait,
 {
-    pub fn new_wrapped(tokio_handle: Handle, loader: Loader, user_input_requester: Box<dyn UserInputBlockingRequester>) -> Arc<Self> {
+    pub fn new_wrapped(tokio_handle: Handle, loader: Loader, feedback_client: Box<dyn FeedbackClientSync>) -> Arc<Self> {
         Arc::new(ChatHistoryManagerServer {
             tokio_handle,
             loader,
-            user_input_requester,
+            feedback_client,
             loaded_daos: RwLock::new(IndexMap::new()),
         })
     }
@@ -144,12 +144,12 @@ impl GeneralServerTrait for ChatHistoryManagerServer {
 }
 
 // Should be used wrapped as Arc<Self>
-pub struct UserInputServer<R: UserInputRequester> {
+pub struct UserInputServer<R: FeedbackClientAsync> {
     tokio_handle: Handle,
     async_requester: R
 }
 
-impl<R: UserInputRequester> UserInputServer<R> {
+impl<R: FeedbackClientAsync> UserInputServer<R> {
     pub fn new_wrapped(tokio_handle: Handle, async_requester: R) -> Arc<Self> {
         Arc::new(UserInputServer {
             tokio_handle,
@@ -158,7 +158,7 @@ impl<R: UserInputRequester> UserInputServer<R> {
     }
 }
 
-impl<R: UserInputRequester> GeneralServerTrait for UserInputServer<R> {
+impl<R: FeedbackClientAsync> GeneralServerTrait for UserInputServer<R> {
     fn get_tokio_handle(&self) -> &Handle {
         &self.tokio_handle
     }
@@ -169,8 +169,8 @@ pub async fn start_server(port: u16, remote_port: u16, loader: Loader) -> EmptyR
     let addr = format!("127.0.0.1:{port}").parse::<SocketAddr>().unwrap();
 
     let handle = Handle::current();
-    let user_input_requester = client::create_user_input_requester(remote_port).await?;
-    let chm_server = ChatHistoryManagerServer::new_wrapped(handle, loader, user_input_requester);
+    let feedback_client = client::create_feedback_client(remote_port).await?;
+    let chm_server = ChatHistoryManagerServer::new_wrapped(handle, loader, feedback_client);
 
     log::info!("Server listening on {}", addr);
 
@@ -194,7 +194,7 @@ pub async fn start_server(port: u16, remote_port: u16, loader: Loader) -> EmptyR
     Ok(())
 }
 
-pub async fn start_user_input_server<R: UserInputRequester>(remote_port: u16, async_requester: R) -> EmptyRes {
+pub async fn start_user_input_server<R: FeedbackClientAsync>(remote_port: u16, async_requester: R) -> EmptyRes {
     let addr = format!("127.0.0.1:{remote_port}").parse::<SocketAddr>().unwrap();
 
     let handle = Handle::current();
@@ -212,7 +212,7 @@ pub async fn start_user_input_server<R: UserInputRequester>(remote_port: u16, as
     // See https://github.com/hyperium/tonic/pull/1326
     Server::builder()
         .accept_http1(true)
-        .add_service(tonic_web::enable(UserInputServiceServer::new(Arc::clone(&server))))
+        .add_service(tonic_web::enable(FeedbackServiceServer::new(Arc::clone(&server))))
         .add_service(reflection_service)
         .serve(addr)
         .await?;

@@ -48,14 +48,14 @@ impl DataLoader for SignalDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
-        load_sqlite(path, ds, user_input_requester)
+    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+        load_sqlite(path, ds, feedback_client)
     }
 }
 
 type Users = HashMap<Uuid, User>;
 
-fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+fn load_sqlite(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
@@ -95,7 +95,7 @@ fn load_sqlite(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlo
             } else if config_json.contains_key("encryptedKey") {
                 // Config contains encrypted key, decrypt it
                 let encrypted_key_hex = get_field_string!(config_json, "<root>", "encryptedKey");
-                let secure_pwd = user_input_requester.ask_for_text("\
+                let secure_pwd = feedback_client.ask_for_text("\
                     Input secure password that encrypts database's key.\n\
                     Signal Desktop client stores password in Electron's safeStorage.\n\
                     (e.g. on macOS, it's in 'Signal Safe Storage' entry in Keychain)\n\
