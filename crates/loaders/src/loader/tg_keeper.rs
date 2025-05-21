@@ -182,13 +182,19 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
             .as_deref()
             .map(tl::enums::Message::from_bytes)
             .transpose()?;
+        let thumbnail_rel_path = match row.get("thumbnail_rel_path") {
+            Ok(path) => Some(path),
+            // tg-keeper pre-0.2 don't have this column
+            Err(rusqlite::Error::InvalidColumnName(_)) => None,
+            Err(e) => return Err(e).context("Failed to get thumbnail_rel_path"),
+        };
         let result_entry = RawMessage {
             id: MessageInternalId(internal_id),
             tpe,
             chat_id: chat_id.map(ChatId),
             inner: raw_message,
             media_rel_path: row.get("media_rel_path")?,
-            thumbnail_rel_path: None, // FIXME!
+            thumbnail_rel_path,
         };
         result.push(result_entry);
     }
