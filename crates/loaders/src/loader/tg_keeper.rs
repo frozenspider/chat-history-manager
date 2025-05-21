@@ -263,8 +263,9 @@ fn mark_message_deleted(
             Some(message::Typed::Regular(msg)) => {
                 msg.is_deleted = true;
             }
-            Some(etc) => {
-                bail!("Message #{} is deleted but it's {:?}", msg_id.0, etc);
+            Some(_etc) => {
+                // Ignore deleted service messages
+                // bail!("Message #{} is deleted but it's {:?}", msg_id.0, etc);
             }
             _ => unreachable!(),
         }
