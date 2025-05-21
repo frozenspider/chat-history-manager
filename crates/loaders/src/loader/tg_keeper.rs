@@ -358,6 +358,11 @@ fn parse_text(
 
     while curr_offset < message.len() {
         if let Some(entity) = entities_iter.next() {
+            if matches!(entity, tl::enums::MessageEntity::CustomEmoji(_)) {
+                // Note that this can overlap with other formatting entities.
+                // We don't care about it so we skip it entirely.
+                continue;
+            }
             let entity_offset = entity.offset() as usize;
             let entity_length = entity.length() as usize;
             // The offset is given in UTF-16 code units, so we need to convert it to bytes
@@ -422,12 +427,14 @@ fn parse_text(
                 | tl::enums::MessageEntity::Phone(_)
                 | tl::enums::MessageEntity::Cashtag(_)
                 | tl::enums::MessageEntity::BankCard(_)
-                | tl::enums::MessageEntity::CustomEmoji(_)
                 | tl::enums::MessageEntity::MentionName(_)
                 | tl::enums::MessageEntity::InputMessageEntityMentionName(_)
                 | tl::enums::MessageEntity::Unknown(_) => {
                     // These are just plain text with formatting
                     result.push(RichText::make_plain(entity_text));
+                }
+                tl::enums::MessageEntity::CustomEmoji(_) => {
+                    unreachable!()
                 }
             }
 
