@@ -1159,6 +1159,112 @@ fn loading_2025_03() -> EmptyRes {
 }
 
 #[test]
+fn loading_2025_12() -> EmptyRes {
+    let res = resource("telegram_2025-12");
+    LOADER.looks_about_right(&res)?;
+
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len(), 4);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499751,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Channel now accepts direct messages".to_owned())],
+        searchable_string: "Channel now accepts direct messages".to_owned(),
+        typed: Some(message_service!(Notice(MessageServiceNotice {}))),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499752,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Forward from self with id".to_owned())],
+        searchable_string: "Forward from self with id".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: Some("Dummy Private Group".to_owned()),
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499753,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "testing point 1 point 2 point 3".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499754),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(TodoList {
+                    title_option: Some("testing".to_owned()),
+                    items: vec![
+                        ContentTodoListItem {
+                            item_id: 1,
+                            text: "point 1".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                        ContentTodoListItem {
+                            item_id: 2,
+                            text: "point 2".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                        ContentTodoListItem {
+                            item_id: 3,
+                            text: "point 3".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                    ],
+                })
+            ],
+        }),
+    });
+
+    // Message 11114 is skipped
+
+    assert_eq!(msgs[3], Message {
+        internal_id: 3,
+        source_id_option: Some(11115),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(VideoMsg {
+                    path_option: None,
+                    file_name_option: None,
+                    width: 0,
+                    height: 0,
+                    mime_type_option: None,
+                    duration_sec_option: None,
+                    thumbnail_path_option: None,
+                    is_one_time: true,
+                })
+            ],
+        }),
+    });
+
+    Ok(())
+}
+
+#[test]
 fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;

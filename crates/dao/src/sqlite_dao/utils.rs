@@ -375,7 +375,7 @@ pub mod message {
                 ).transpose()?.flatten()
             };
         }
-        Ok(match mc {
+        let result = match mc {
             Sticker(v) => {
                 let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::STICKERS);
                 let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::STICKERS);
@@ -419,7 +419,7 @@ pub mod message {
                 }
             }
             VideoMsg(v) => {
-                let path = copy_path!(v.path_option, Some(&v.mime_type), None, &subpaths::VIDEO_MESSAGES);
+                let path = copy_path!(v.path_option, v.mime_type_option.as_deref(), None, &subpaths::VIDEO_MESSAGES);
                 let thumbnail_path = copy_path!(v.thumbnail_path_option, None, path.as_deref(), &subpaths::VIDEO_MESSAGES);
                 RawMessageContent {
                     element_type: "video_message".to_owned(),
@@ -427,7 +427,7 @@ pub mod message {
                     file_name: v.file_name_option.clone(),
                     width: Some(v.width),
                     height: Some(v.height),
-                    mime_type: Some(v.mime_type.clone()),
+                    mime_type: v.mime_type_option.clone(),
                     duration_sec: v.duration_sec_option,
                     thumbnail_path,
                     is_one_time: Some(serialize_bool(v.is_one_time)),
@@ -488,8 +488,23 @@ pub mod message {
                     phone_number: v.phone_number_option.clone(),
                     ..Default::default()
                 }
+            },
+            TodoList(v) => {
+                RawMessageContent {
+                    element_type: "todo_list".to_owned(),
+                    title: v.title_option.clone(),
+                    // We're exploiting raw.members to store serialized todolist members
+                    members: serialize_todo_items(&v.items)?,
+                    ..Default::default()
+                }
             }
-        })
+        };
+
+        // Since element_type can be defaulted, this check ensures we didn't forget to set it
+        assert!(!result.element_type.is_empty(),
+                "Message content type is empty! This is a bug, please report it. Message: {result:?}");
+
+        Ok(result)
     }
 
     fn serialize_photo_and_copy_files(photo: &ContentPhoto,
@@ -509,6 +524,15 @@ pub mod message {
             is_one_time: Some(serialize_bool(photo.is_one_time)),
             ..Default::default()
         })
+    }
+
+    fn serialize_todo_items(items: &[ContentTodoListItem]) -> Result<Option<String>> {
+        if items.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(serde_json::to_string(items).with_context(|| format!(
+            "Failed to serialize todo list items: {:?}", items
+        ))?))
     }
 
     fn serialize_service_and_copy_files(ms: &message_service::SealedValueOptional,
@@ -584,7 +608,6 @@ pub mod message {
 
         Ok((subtype, mc))
     }
-
 
     /// Ignores message internal ID.
     fn serialize_rte(rte: &RichTextElement) -> Result<RawRichTextElement> {
@@ -702,7 +725,7 @@ pub mod message {
                 file_name_option: raw.file_name,
                 width: get_or_bail!(raw.width),
                 height: get_or_bail!(raw.height),
-                mime_type: get_or_bail!(raw.mime_type),
+                mime_type_option: raw.mime_type,
                 duration_sec_option: raw.duration_sec,
                 thumbnail_path_option: raw.thumbnail_path,
                 is_one_time: deserialize_bool(get_or_bail!(raw.is_one_time)),
@@ -741,6 +764,13 @@ pub mod message {
                 phone_number_option: raw.phone_number,
                 vcard_path_option: raw.path,
             }),
+
+            "todo_list" => TodoList(ContentTodoList {
+                title_option: raw.title,
+                // We're exploiting raw.members to store serialized todolist members
+                items: deserialize_todo_items(raw.members.as_deref())?,
+            }),
+
             tpe => bail!("Unknown content type {}!", tpe)
         })
     }
@@ -757,6 +787,16 @@ pub mod message {
             mime_type_option: raw.mime_type,
             is_one_time: deserialize_bool(get_or_bail!(raw.is_one_time)),
         })
+    }
+
+    fn deserialize_todo_items(string_option: Option<&str>) -> Result<Vec<ContentTodoListItem>> {
+        match string_option {
+            None => Ok(vec![]),
+            Some(string) => {
+                Ok(serde_json::from_str(string)
+                    .with_context(|| format!("Failed to deserialize todo list items from {string}"))?)
+            }
+        }
     }
 
     fn deserialize_service(subtype: &str, raw: Option<RawMessageContent>)

@@ -11,9 +11,11 @@ import {
   ContentPoll,
   ContentSharedContact,
   ContentSticker,
+  ContentTodoList,
   ContentVideo,
   ContentVideoMsg,
   ContentVoiceMsg,
+  Selected,
   User
 } from "@/protobuf/core/protobuf/entities";
 
@@ -55,6 +57,8 @@ export default function MessageContent(args: {
       return <MessageContentPoll content={sealed.poll} dsRoot={dsRoot}/>
     case "sharedContact":
       return <MessageContentSharedContact content={sealed.sharedContact} chatMembers={args.chatState.cc.members}/>
+    case "todoList":
+      return <MessageContentTodoList content={sealed.todoList}/>
     default:
       AssertUnreachable(sealed)
   }
@@ -171,7 +175,7 @@ export function MessageContentVideoMsg(args: {
     args.dsRoot,
     content.width,
     content.height,
-    GetNonDefaultOrNull(content.mimeType)
+    GetNonDefaultOrNull(content.mimeTypeOption)
   )
 }
 
@@ -294,5 +298,28 @@ export function MessageContentSharedContact(args: {
       <ColoredName name={contactPrettyName} colorClass={colorClass}/>&nbsp;
       ({content.phoneNumberOption ? "phone: " + content.phoneNumberOption : "no phone number"})
     </blockquote>
+  )
+}
+
+export function MessageContentTodoList(args: {
+  content: ContentTodoList,
+}): React.JSX.Element {
+  let todoList = args.content
+
+  return (
+    <>
+      {todoList.titleOption ? <>{todoList.titleOption}</> : <></>}
+      <ul>
+        {todoList.items.map((item, index) => {
+          let type = item.state == Selected.UNSET ? "❓" : (item.state == Selected.YES ? "✅" : "❌")
+
+          return <li key={index} className="pl-2" style={{ listStyleType: `'${type}'`, listStylePosition: "inside" }}>
+            <span className="pl-2">
+              {item.state == Selected.YES ? <s>{item.text}</s> : item.text}
+            </span>
+          </li>
+        })}
+      </ul>
+    </>
   )
 }

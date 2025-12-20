@@ -219,6 +219,7 @@ impl PracticalEq for Tup<'_, Content> {
             (Some(Location(c1)),      Some(Location(c2)))      => self.with(c1).practically_equals(&other.with(c2)),
             (Some(Poll(c1)),          Some(Poll(c2)))          => self.with(c1).practically_equals(&other.with(c2)),
             (Some(SharedContact(c1)), Some(SharedContact(c2))) => self.with(c1).practically_equals(&other.with(c2)),
+            (Some(TodoList(c1)),      Some(TodoList(c2))) => self.with(c1).practically_equals(&other.with(c2)),
             _ => Ok(false)
         } // @formatter:on
     }
@@ -272,6 +273,14 @@ impl PracticalEq for Tup<'_, ContentLocation> {
         // lat/lon are strings, trailing zeros should be ignored,
         Ok(self.v.lat()? == other.v.lat()? && self.v.lon()? == other.v.lon()? &&
             cloned_equals_without!(self.v, other.v, ContentLocation, lat_str: "".to_owned(), lon_str: "".to_owned()))
+    }
+}
+
+impl PracticalEq for Tup<'_, ContentTodoList> {
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        Ok(self.v.title_option == other.v.title_option &&
+           self.v.items.len() == other.v.items.len() &&
+           self.v.items.iter().zip(other.v.items.iter()).all(|(item1, item2)| item1 == item2))
     }
 }
 

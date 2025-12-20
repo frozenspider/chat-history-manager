@@ -563,6 +563,6 @@ fn as_dyn_menu_items<'a, R: Runtime>(v: &'a [impl IsMenuItem<R> + 'a]) -> Vec<&'
 }
 
 // We cannot recover from a poisoned mutex, so we just panic
-fn lock_mutex<T, M>(m: &M) -> MutexGuard<T> where M: Deref<Target=Mutex<T>> {
+fn lock_mutex<T, M>(m: &M) -> MutexGuard<'_, T> where M: Deref<Target=Mutex<T>> {
     m.lock().expect("Mutex is poisoned")
 }

@@ -40,31 +40,32 @@ macro_rules! as_bool {
     ($v:expr, $path:expr, $path2:expr) => {as_bool!($v, format!("{}.{}", $path, $path2))};
 }
 
-#[macro_export]
-macro_rules! as_str_option_res {
-    ($v:expr, $path:expr) => {
-        $v.try_as_str().with_context(|| format!("'{}' field conversion error", $path)).map(|s|
+// Making this into a function to be typechecked
+pub fn as_str_option_res_inner<'a, T: ValueAsScalar + TypedValue + 'a>(v: &'a T, path: &str) -> Result<Option<&'a str>> {
+    if v.is_null() {
+        Ok(None)
+    } else {
+        v.try_as_str().map(|s|
             match s {
                 "" => None,
-                s  => Some(s),
+                s => Some(s),
             }
-        )
-    };
+        ).with_context(|| format!("'{}' field conversion error", path))
+    }
+}
+
+#[macro_export]
+macro_rules! as_str_option_res {
+    ($v:expr, $path:expr) => {$crate::utils::json_utils::as_str_option_res_inner($v, &$path)};
     ($v:expr, $path:expr, $path2:expr) => {as_str_option_res!($v, format!("{}.{}", $path, $path2))};
 }
 
 #[macro_export]
 macro_rules! as_str_res {
     ($v:expr, $path:expr) => {
-        as_str_option_res!($v, $path)?.with_context(|| format!("'{}' is an empty string", $path))
+        as_str_option_res!($v, $path).and_then(|s_opt| s_opt.with_context(|| format!("'{}' is an empty string", $path)))
     };
     ($v:expr, $path:expr, $path2:expr) => {as_str_res!($v, format!("{}.{}", $path, $path2))};
-}
-
-#[macro_export]
-macro_rules! as_string_res {
-    ($v:expr, $path:expr) => {as_str_res!($v, $path).map(|s| s.to_owned())};
-    ($v:expr, $path:expr, $path2:expr) => {as_string_res!($v, format!("{}.{}", $path, $path2))};
 }
 
 #[macro_export]
@@ -74,16 +75,30 @@ macro_rules! as_str {
 }
 
 #[macro_export]
-macro_rules! as_string {
-    ($v:expr, $path:expr) => {as_str!($v, $path).to_owned()};
-    ($v:expr, $path:expr, $path2:expr) => {as_string!($v, format!("{}.{}", $path, $path2))};
+macro_rules! as_string_option_res {
+    ($v:expr, $path:expr) => {as_str_option_res!($v, $path).map(|s| s.map(|s| s.to_owned()))};
+    ($v:expr, $path:expr, $path2:expr) => {as_string_option_res!($v, format!("{}.{}", $path, $path2))};
 }
 
 #[macro_export]
+macro_rules! as_string_res {
+    ($v:expr, $path:expr) => {
+        as_string_option_res!($v, $path).and_then(|s_opt| s_opt.with_context(|| format!("'{}' is an empty string", $path)))
+    };
+    ($v:expr, $path:expr, $path2:expr) => {as_string_res!($v, format!("{}.{}", $path, $path2))};
+}
+
 /// Empty string is None.
+#[macro_export]
 macro_rules! as_string_option {
-    ($v:expr, $path:expr) => {as_str_option_res!($v, $path)?.map(|s| s.to_owned())};
+    ($v:expr, $path:expr) => {as_string_option_res!($v, $path)?};
     ($v:expr, $path:expr, $path2:expr) => {as_string_option!($v, format!("{}.{}", $path, $path2))};
+}
+
+#[macro_export]
+macro_rules! as_string {
+    ($v:expr, $path:expr) => {as_string_res!($v, $path)?};
+    ($v:expr, $path:expr, $path2:expr) => {as_string!($v, format!("{}.{}", $path, $path2))};
 }
 
 #[macro_export]
@@ -115,34 +130,33 @@ macro_rules! get_field {
 
 #[macro_export]
 macro_rules! get_field_object {
-    ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_i64 {
-    ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_bool {
-    ($v:expr, $path:expr, $txt:expr) => {as_bool!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_bool!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
-
 
 #[macro_export]
 macro_rules! get_field_str {
-    ($v:expr, $path:expr, $txt:expr) => {as_str!(get_field!($v, $path, $txt)?, format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_str!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_string {
-    ($v:expr, $path:expr, $txt:expr) => {as_string!(get_field!($v, $path, $txt), format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_string!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
 
 /// Empty string is None.
 #[macro_export]
 macro_rules! get_field_string_option {
-    ($v:expr, $path:expr, $txt:expr) => {as_string_option!(get_field!($v, $path, $txt), format!("{}.{}", $path, $txt))};
+    ($v:expr, $path:expr, $txt:expr) => {as_string_option!(get_field!($v, $path, $txt)?, $path, $txt)};
 }
 
 //

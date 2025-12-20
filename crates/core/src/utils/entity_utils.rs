@@ -166,7 +166,7 @@ pub struct AbsoluteProfilePicture<'a> {
 }
 
 impl ProfilePicture {
-    pub fn to_absolute(&self, ds_root: &DatasetRoot) -> AbsoluteProfilePicture {
+    pub fn to_absolute(&self, ds_root: &DatasetRoot) -> AbsoluteProfilePicture<'_> {
         AbsoluteProfilePicture {
             absolute_path: ds_root.to_absolute(&self.path),
             frame_option: &self.frame_option,
@@ -279,6 +279,13 @@ macro_rules! content {
             }
         }
     };
+    ($tpe:ident($v:expr)) => {
+        paste::paste! {
+            $crate::protobuf::history::Content {
+                sealed_value_optional: Some($crate::protobuf::history::content::SealedValueOptional::$tpe($v))
+            }
+        }
+    };
 }
 
 impl Message {
@@ -331,6 +338,7 @@ impl Message {
                             Location(_) => vec![],
                             Poll(_) => vec![],
                             SharedContact(v) => vec![v.vcard_path_option.as_deref()],
+                            TodoList(_) => vec![],
                         }
                     })
                     .collect_vec()
@@ -671,6 +679,14 @@ pub fn make_searchable_string(components: &[RichTextElement], typed: &message::T
                             //     v.file_name_option.iter().cloned().collect_vec(),
                             // VideoMsg(v) =>
                             //     v.file_name_option.iter().cloned().collect_vec(),
+                        }
+                        TodoList(list) => {
+                            let mut result = vec![];
+                            if let Some(title) = &list.title_option {
+                                result.push(title.clone());
+                            }
+                            result.extend(list.items.iter().map(|i| i.text.clone()));
+                            result
                         }
                     }
                 })

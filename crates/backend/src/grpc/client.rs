@@ -4,7 +4,6 @@ use crate::history_dao_service_client::HistoryDaoServiceClient;
 use crate::history_loader_service_client::HistoryLoaderServiceClient;
 use crate::merge_service_client::MergeServiceClient;
 
-use itertools::Itertools;
 use std::fmt::Debug;
 use std::future::Future;
 use tokio::runtime::Handle;

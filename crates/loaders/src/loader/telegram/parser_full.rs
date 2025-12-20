@@ -12,6 +12,7 @@ pub(super) fn parse(root_obj: &Object,
         "frequent_contacts" => consume(),
         "other_data" => consume(),
         "stories" => consume(),
+        "profile_music" => consume(),
         "sessions" => consume(),
         "web_sessions" => consume(),
         "contacts" =>
@@ -66,13 +67,40 @@ pub(super) fn parse(root_obj: &Object,
 
             let json_path = "chats";
 
-            let chats_arr = as_object!(value, "chats")
+            let chats_arr: Vec<(&Object, String)> = as_object!(value, "chats")
                 .get("list").context("No chats list in dataset!")?
-                .as_array().with_context(|| format!("{json_path} list is not an array!"))?;
+                .as_array().with_context(|| format!("{json_path} list is not an array!"))?
+                .iter().map(|chat_json| {
+                    let chat_json = as_object!(chat_json, json_path, "chat");
+                    let json_path = format!("{json_path}.chat");
+                    // Name will not be present for saved messages
+                    let json_path = match get_field!(chat_json, json_path, "name") {
+                        Ok(name) => format!("{json_path}[{}]", name),
+                        Err(_) => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id")?)
+                    };
+                    ok((chat_json, json_path))
+                }).try_collect()?;
 
-            for v in chats_arr {
-                if let Some(mut cwm) = parse_chat(json_path, as_object!(v, json_path, "chat"),
-                                                  ds_uuid, Some(&myself.id()), &mut users)? {
+            // Pre-populate users with users chats.
+            for (chat_json, json_path) in chats_arr.iter() {
+                // Name will not be present for saved messages
+                if !chat_json.contains_key("name") {
+                    continue;
+                }
+                let short_user = ShortUser {
+                    id: parse_user_id(get_field!(chat_json, json_path, "id")?)?,
+                    full_name_option: get_field_string_option!(chat_json, json_path, "name"),
+                };
+                // Doesn't really make sense to pre-populate users without names.
+                if short_user.full_name_option.is_none() {
+                    continue;
+                }
+                let short_user = normalize_short_user(short_user)?;
+                append_user(short_user, &mut users, &ds_uuid)?;
+            }
+
+            for (chat_json, json_path) in chats_arr {
+                if let Some(mut cwm) = parse_chat(&json_path, chat_json, ds_uuid, Some(&myself.id()), &mut users)? {
                     cwm.chat.ds_uuid = ds_uuid.clone();
                     chats_with_messages.push(cwm);
                 }

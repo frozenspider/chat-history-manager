@@ -914,7 +914,7 @@ fn create_messages(max_id: MessageSourceId) -> Vec<Message> {
         .collect_vec()
 }
 
-fn analyzer(helper: &MergerHelper) -> DatasetDiffAnalyzer {
+fn analyzer(helper: &MergerHelper) -> DatasetDiffAnalyzer<'_> {
     DatasetDiffAnalyzer::create(
         helper.m.dao_holder.dao.as_ref(),
         &helper.m.ds,

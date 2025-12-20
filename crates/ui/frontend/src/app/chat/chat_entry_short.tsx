@@ -130,6 +130,8 @@ function GetMessageSimpleText(msg: Message): string {
           return "(poll)"
         case "sharedContact":
           return "(shared contact)"
+        case "todoList":
+          return "(to-do list)"
         default:
           AssertUnreachable(sealed)
       }

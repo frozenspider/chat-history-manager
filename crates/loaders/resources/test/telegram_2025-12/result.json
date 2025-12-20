@@ -1,0 +1,129 @@
+{
+ "about": "There are two chats in this export, one private group and one public channel. The public channel should be skipped entirely.",
+ "personal_information": {
+  "user_id": 11111111
+ },
+ "stories": [],
+ "profile_music": [],
+ "chats": {
+  "about": "This page lists all chats from this export.",
+  "list": [
+   {
+    "name": "Dummy Private Group",
+    "type": "private_group",
+    "id": 123123123,
+    "messages": [
+     {
+      "id": 11111,
+      "type": "service",
+      "date": "2022-10-11T22:49:11",
+      "date_unixtime": "1665499751",
+      "actor": "This Should Not Matter",
+      "actor_id": "channel123123123",
+      "action": "paid_messages_price_change",
+      "price_stars": 0,
+      "is_broadcast_messages_allowed": true,
+      "text": "",
+      "text_entities": []
+     },
+     {
+      "id": 11112,
+      "type": "message",
+      "date": "2022-10-11T22:49:12",
+      "date_unixtime": "1665499752",
+      "from": "Dummy Private Group",
+      "from_id": "channel123123123",
+      "forwarded_from": "This Should Not Matter",
+      "forwarded_from_id": "channel123123123",
+      "text": "Forward from self with id",
+      "text_entities": [
+       {
+        "type": "plain",
+        "text": "Forward from self with id"
+       }
+      ]
+     },
+     {
+      "id": 11113,
+      "type": "message",
+      "date": "2022-10-11T22:49:13",
+      "date_unixtime": "1665499753",
+      "edited": "2022-10-11T22:49:14",
+      "edited_unixtime": "1665499754",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "todo_list": {
+       "title": "testing",
+       "others_can_append": true,
+       "others_can_complete": true,
+       "answers": [
+        {
+         "text": "point 1",
+         "id": 1
+        },
+        {
+         "text": "point 2",
+         "id": 2
+        },
+        {
+         "text": "point 3",
+         "id": 3
+        }
+       ]
+      },
+      "text": "",
+      "text_entities": []
+     },
+     {
+      "id": 11114,
+      "type": "service",
+      "date": "2022-10-11T22:49:14",
+      "date_unixtime": "1665499754",
+      "actor": "Aaaaa Aaaaaaaaaaa",
+      "actor_id": "user11111111",
+      "action": "todo_completions",
+      "completed": [],
+      "incompleted": [2],
+      "text": "",
+      "text_entities": []
+     },
+     {
+      "id": 11115,
+      "type": "message",
+      "date": "2022-10-11T22:49:15",
+      "date_unixtime": "1665499755",
+      "from": "Aaaaa Aaaaaaaaaaa",
+      "from_id": "user11111111",
+      "file": "(File unavailable, please try again later)",
+      "file_size": 0,
+      "self_destruct_period_seconds": 2147483647,
+      "text": "",
+      "text_entities": []
+     }
+    ]
+   },
+   {
+    "name": "Dummy Public Channel",
+    "type": "public_channel",
+    "id": 123456789,
+    "messages": [
+     {
+      "id": 11111000,
+      "type": "message",
+      "date": "2022-10-11T22:49:10",
+      "date_unixtime": "1665499750",
+      "from": "Dummy Public Channel",
+      "from_id": "channel1123456789",
+      "text": "This entire channel should be skipped!",
+      "text_entities": [
+       {
+        "type": "plain",
+        "text": "This entire channel should be skipped!"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

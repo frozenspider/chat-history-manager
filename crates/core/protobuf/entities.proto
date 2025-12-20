@@ -93,6 +93,17 @@ enum ChatType {
 }
 
 /*
+ * Selected state of a todolist item.
+ *
+ * Warning: This is serialized to json in DAO, changing it will break the database!
+ */
+enum Selected {
+  SELECTED_UNSET = 0;
+  SELECTED_YES = 1;
+  SELECTED_NO = 2;
+}
+
+/*
  * Design goal for messages - try to reuse as many fields as possible to comfortably store
  * the whole Message hierarchy in one table.
  *
@@ -233,6 +244,7 @@ message Content {
     ContentLocation         location = 7;
     ContentPoll             poll = 8;
     ContentSharedContact    shared_contact = 9;
+    ContentTodoList         todo_list = 11;
   }
 }
 
@@ -302,7 +314,7 @@ message ContentVideoMsg {
   // 0 if unknown
   required int32 height = 3;
 
-  required string mime_type = 4;
+  optional string mime_type_option = 4;
   optional int32 duration_sec_option = 5;
 
   // Path relative to data root!
@@ -368,6 +380,19 @@ message ContentSharedContact {
   optional string phone_number_option = 3;
   // Path relative to data root!
   optional string vcard_path_option = 4;
+}
+
+message ContentTodoList {
+  optional string title_option = 1;
+  repeated ContentTodoListItem items = 2;
+}
+
+// Warning: This is serialized to json in DAO, changing it will break the database!
+message ContentTodoListItem {
+  // Used to uniquely identify the item in the list, should always be consistent between parses and not modified when saving.
+  required int64 item_id = 1;
+  required string text = 2;
+  required Selected state = 3;
 }
 
 //
