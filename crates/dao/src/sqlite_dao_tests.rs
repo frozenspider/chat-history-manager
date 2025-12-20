@@ -1282,7 +1282,7 @@ fn init() -> TestDaos {
                         sealed_value_optional: Some(VideoMsg(ContentVideoMsg {
                             width: 240,
                             height: 240,
-                            mime_type: "video/mp4".to_owned(),
+                            mime_type_option: Some("video/mp4".to_owned()),
                             duration_sec_option: Some(12),
                             ..Default::default()
                         })),

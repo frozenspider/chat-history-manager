@@ -219,6 +219,7 @@ impl PracticalEq for Tup<'_, Content> {
             (Some(Location(c1)),      Some(Location(c2)))      => self.with(c1).practically_equals(&other.with(c2)),
             (Some(Poll(c1)),          Some(Poll(c2)))          => self.with(c1).practically_equals(&other.with(c2)),
             (Some(SharedContact(c1)), Some(SharedContact(c2))) => self.with(c1).practically_equals(&other.with(c2)),
+            (Some(TodoList(c1)),      Some(TodoList(c2))) => self.with(c1).practically_equals(&other.with(c2)),
             _ => Ok(false)
         } // @formatter:on
     }
@@ -275,16 +276,37 @@ impl PracticalEq for Tup<'_, ContentLocation> {
     }
 }
 
+impl PracticalEq for Tup<'_, ContentTodoList> {
+    fn practically_equals(&self, other: &Self) -> Result<bool> {
+        Ok(self.v.title_option == other.v.title_option &&
+           self.v.items.len() == other.v.items.len() &&
+           self.v.items.iter().zip(other.v.items.iter()).all(|(item1, item2)| item1 == item2))
+    }
+}
+
 //
 // Helper functions
 //
 
 fn members_practically_equals((members1, cwd1): (&[String], &ChatWithDetails),
                               (members2, cwd2): (&[String], &ChatWithDetails)) -> Result<bool> {
+    // Short-circuit if both member slices have equal string representation
+    if members1 == members2 {
+        return Ok(true);
+    }
+    if members1.len() != members2.len() {
+        return Ok(false);
+    }
     fn resolve_ids_set(members: &[String], cwd: &ChatWithDetails) -> HashSet<Option<i64>> {
         HashSet::from_iter(cwd.resolve_members(members).iter().map(|o| o.map(|u| u.id)))
     }
     let members1 = resolve_ids_set(members1, cwd1);
     let members2 = resolve_ids_set(members2, cwd2);
-    Ok(members1 == members2)
+    if members1 == members2 {
+        return Ok(true);
+    }
+    // If some members have gone missing since last time, we still consider them equal
+    let disappeared = members1.difference(&members2).filter_map(|id| *id).collect_vec();
+    let appeared = members2.difference(&members1).filter_map(|id| *id).collect_vec();
+    Ok(!disappeared.is_empty() && appeared.is_empty())
 }

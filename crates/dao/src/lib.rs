@@ -29,7 +29,7 @@ pub trait WithCache {
     fn init_cache(&self, inner: &mut RwLockWriteGuard<DaoCacheInner>) -> EmptyRes;
 
     /// For internal use: lazily initialize the cache, and return a reference to immutable inner cache
-    fn get_cache(&self) -> Result<RwLockReadGuard<DaoCacheInner>> {
+    fn get_cache(&self) -> Result<RwLockReadGuard<'_, DaoCacheInner>> {
         let cache = self.get_cache_unchecked();
         let lock = cache.inner.read().map_err(|_| anyhow!("Dao cache mutex is poisoned!"))?;
         if lock.initialized {

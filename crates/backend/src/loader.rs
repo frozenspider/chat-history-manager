@@ -24,22 +24,22 @@ impl Loader {
     }
 
     /// If the given file is an internal Sqlite DB, open it, otherwise attempt to parse a file as a foreign history.
-    pub fn load(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<dyn ChatHistoryDao>> {
+    pub fn load(&self, path: &Path, feedback_client: &dyn FeedbackClientSync) -> Result<Box<dyn ChatHistoryDao>> {
         let filename = path_file_name(path)?;
         if filename == SqliteDao::FILENAME {
             Ok(Box::new(SqliteDao::load(path)?))
         } else {
-            Ok(self.parse(path, user_input_requester)?)
+            Ok(self.parse(path, feedback_client)?)
         }
     }
 
     /// Parses a history in a foreign format
-    pub fn parse(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+    pub fn parse(&self, path: &Path, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
         ensure!(path.exists(), "File not found");
         let (named_errors, loads): (Vec<_>, Vec<_>) =
             self.loaders.iter()
                 .partition_map(|loader| match loader.looks_about_right(path) {
-                    Ok(()) => Either::Right(|| loader.load(path, user_input_requester)),
+                    Ok(()) => Either::Right(|| loader.load(path, feedback_client)),
                     Err(why) => Either::Left((loader.name(), why)),
                 });
         match loads.first() {

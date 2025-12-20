@@ -4,7 +4,6 @@ use crate::history_dao_service_client::HistoryDaoServiceClient;
 use crate::history_loader_service_client::HistoryLoaderServiceClient;
 use crate::merge_service_client::MergeServiceClient;
 
-use itertools::Itertools;
 use std::fmt::Debug;
 use std::future::Future;
 use tokio::runtime::Handle;
@@ -12,10 +11,10 @@ use tonic::transport::{Channel, Endpoint};
 
 mod user_input_grpc_requester;
 
-pub async fn create_user_input_requester(remote_port: u16) -> Result<Box<dyn UserInputBlockingRequester>> {
+pub async fn create_feedback_client(remote_port: u16) -> Result<Box<dyn FeedbackClientSync>> {
     let runtime_handle = Handle::current();
     let lazy_channel = Endpoint::new(format!("http://localhost:{remote_port}"))?.connect_lazy();
-    Ok(Box::new(wrap_async_user_input_requester(
+    Ok(Box::new(wrap_async_feedback_client(
         runtime_handle,
         user_input_grpc_requester::UserInputGrpcRequester {
             channel: lazy_channel,
@@ -58,41 +57,9 @@ pub async fn create_clients(remote_port: u16) -> Result<ChatHistoryManagerGrpcCl
     Ok(ChatHistoryManagerGrpcClients { loader, dao, merger })
 }
 
-#[derive(Clone)]
-pub struct PredefinedInput {
-    pub myself_id: Option<i64>,
-    pub text: Option<String>,
-}
-
-impl UserInputBlockingRequester for PredefinedInput {
-    fn choose_myself(&self, users: &[User]) -> Result<usize> {
-        let myself_id = self
-            .myself_id
-            .ok_or_else(|| anyhow!("No user ID provided!"))?;
-        users
-            .iter()
-            .enumerate()
-            .find(|(_, u)| u.id == myself_id)
-            .map(|(idx, _)| idx)
-            .ok_or_else(|| {
-                anyhow!(
-                    "User with ID {} not found! User IDs: {}",
-                    myself_id,
-                    users.iter().map(|u| u.id).join(", ")
-                )
-            })
-    }
-
-    fn ask_for_text(&self, _prompt: &str) -> Result<String> {
-        self.text
-            .clone()
-            .ok_or_else(|| anyhow!("No text provided!"))
-    }
-}
-
 pub async fn debug_request_myself(port: u16) -> Result<usize> {
     let conn_port = port + 1;
-    let chooser = create_user_input_requester(conn_port).await?;
+    let chooser = create_feedback_client(conn_port).await?;
 
     let ds_uuid = PbUuid { value: "00000000-0000-0000-0000-000000000000".to_owned() };
     let chosen = chooser.choose_myself(&[
@@ -119,16 +86,16 @@ pub async fn debug_request_myself(port: u16) -> Result<usize> {
 }
 
 
-pub fn wrap_async_user_input_requester<R>(handle: Handle, requester: R) -> impl UserInputBlockingRequester
+pub fn wrap_async_feedback_client<R>(handle: Handle, requester: R) -> impl FeedbackClientSync
 where
-    R: UserInputRequester + Clone + Send + Sync + 'static,
+    R: FeedbackClientAsync + Clone + Send + Sync + 'static,
 {
     struct Wrapper<R> {
         handle: Handle,
         requester: R,
     }
 
-    impl<R: UserInputRequester> Wrapper<R> {
+    impl<R: FeedbackClientAsync> Wrapper<R> {
         fn ask_for_user_input<F, Out>(&self, logic: F) -> Result<Out>
         where
             F: Future<Output = Result<Out>> + Send + 'static,
@@ -143,7 +110,7 @@ where
         }
     }
 
-    impl<R: UserInputRequester + Clone + Send + Sync + 'static> UserInputBlockingRequester for Wrapper<R> {
+    impl<R: FeedbackClientAsync + Clone + Send + Sync + 'static> FeedbackClientSync for Wrapper<R> {
         fn choose_myself(&self, users: &[User]) -> Result<usize> {
             let requester = self.requester.clone();
             let users = users.to_vec();

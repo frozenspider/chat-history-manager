@@ -43,7 +43,7 @@ pub trait DataLoader: Send + Sync {
     /// Returns an error if the file is not supported.
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
-    fn load(&self, path: &Path, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+    fn load(&self, path: &Path, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
         let root_path_str = ensure_file_presence(path)?;
         measure(|| {
             let now_str = Local::now().format("%Y-%m-%d");
@@ -51,11 +51,11 @@ pub trait DataLoader: Send + Sync {
                 uuid: PbUuid::random(),
                 alias: format!("{}, loaded @ {now_str}", self.src_alias()),
             };
-            self.load_inner(path, ds, user_input_requester)
+            self.load_inner(path, ds, feedback_client)
         }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str))
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>>;
+    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>>;
 }
 
 fn ensure_file_presence(root_file: &Path) -> Result<&str> {
@@ -130,7 +130,7 @@ pub mod android {
             Ok(())
         }
 
-        fn load_inner(&self, path: &Path, ds: Dataset, _user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+        fn load_inner(&self, path: &Path, ds: Dataset, _feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
             parse_android_db(self, path, ds)
         }
     }

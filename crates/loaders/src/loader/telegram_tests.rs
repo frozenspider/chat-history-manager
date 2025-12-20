@@ -19,7 +19,7 @@ fn loading_2020_01() -> EmptyRes {
     let res = resource("telegram_2020-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -124,7 +124,7 @@ fn loading_2021_05() -> EmptyRes {
     let res = resource("telegram_2021-05");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -194,7 +194,7 @@ fn loading_2021_06_supergroup() -> EmptyRes {
     let res = resource("telegram_2021-06_supergroup");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -323,7 +323,7 @@ fn loading_2021_07() -> EmptyRes {
     let res = resource("telegram_2021-07");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -400,7 +400,7 @@ fn loading_2023_01() -> EmptyRes {
     let res = resource("telegram_2023-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     // Parsing as UTC+5.
     let offset = FixedOffset::east_opt(5 * 3600).unwrap();
@@ -558,7 +558,7 @@ fn loading_2023_08() -> EmptyRes {
     let res = resource("telegram_2023-08");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -643,7 +643,7 @@ fn loading_2023_10_audio_video() -> EmptyRes {
     let res = resource("telegram_2023-10_audio-video");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -800,7 +800,7 @@ fn loading_2023_11_diff() -> EmptyRes {
     let res = resource("telegram_2023-11");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -819,7 +819,7 @@ fn loading_2024_01() -> EmptyRes {
     let res = resource("telegram_2024-01");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -844,7 +844,7 @@ fn loading_2024_02() -> EmptyRes {
     let res = resource("telegram_2024-02_create-channel_saved-from");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -879,7 +879,7 @@ fn loading_2024_05() -> EmptyRes {
     let res = resource("telegram_2024-05_boosts_file-name_etc");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -953,7 +953,7 @@ fn loading_2024_06() -> EmptyRes {
     let res = resource("telegram_2024-06_blockquote-collapsed");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -983,7 +983,7 @@ fn loading_2024_08() -> EmptyRes {
     let res = resource("telegram_2024-08");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1065,7 +1065,7 @@ fn loading_2025_02() -> EmptyRes {
     let res = resource("telegram_2025-02_joined_file-size");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1113,7 +1113,7 @@ fn loading_2025_03() -> EmptyRes {
     let res = resource("telegram_2025-03_service-photo-size");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;
@@ -1159,11 +1159,117 @@ fn loading_2025_03() -> EmptyRes {
 }
 
 #[test]
+fn loading_2025_12() -> EmptyRes {
+    let res = resource("telegram_2025-12");
+    LOADER.looks_about_right(&res)?;
+
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
+
+    let cwm = &dao.cwms_single_ds()[0];
+    let msgs = &cwm.messages;
+    assert_eq!(msgs.len(), 4);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499751,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Channel now accepts direct messages".to_owned())],
+        searchable_string: "Channel now accepts direct messages".to_owned(),
+        typed: Some(message_service!(Notice(MessageServiceNotice {}))),
+    });
+
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499752,
+        from_id: 123123123,
+        text: vec![RichText::make_plain("Forward from self with id".to_owned())],
+        searchable_string: "Forward from self with id".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: Some("Dummy Private Group".to_owned()),
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499753,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "testing point 1 point 2 point 3".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: Some(1665499754),
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(TodoList {
+                    title_option: Some("testing".to_owned()),
+                    items: vec![
+                        ContentTodoListItem {
+                            item_id: 1,
+                            text: "point 1".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                        ContentTodoListItem {
+                            item_id: 2,
+                            text: "point 2".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                        ContentTodoListItem {
+                            item_id: 3,
+                            text: "point 3".to_owned(),
+                            state: Selected::Unset as i32,
+                        },
+                    ],
+                })
+            ],
+        }),
+    });
+
+    // Message 11114 is skipped
+
+    assert_eq!(msgs[3], Message {
+        internal_id: 3,
+        source_id_option: Some(11115),
+        timestamp: 1665499755,
+        from_id: 11111111,
+        text: vec![],
+        searchable_string: "".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![
+                content!(VideoMsg {
+                    path_option: None,
+                    file_name_option: None,
+                    width: 0,
+                    height: 0,
+                    mime_type_option: None,
+                    duration_sec_option: None,
+                    thumbnail_path_option: None,
+                    is_one_time: true,
+                })
+            ],
+        }),
+    });
+
+    Ok(())
+}
+
+#[test]
 fn inline_bot_buttons() -> EmptyRes {
     let res = resource("telegram_2024-01_inline-bot-buttons");
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoChooser)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
 
     let cwm = &dao.cwms_single_ds()[0];
     let msgs = &cwm.messages;

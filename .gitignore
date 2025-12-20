@@ -10,7 +10,7 @@
 .settings/
 
 # VS Code
-.vscode
+.vscode/
 
 # Rust/Cargo
 /target

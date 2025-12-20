@@ -739,7 +739,7 @@ fn parse_regular_message(
                 file_name_option,
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: mime_type_option.expect("MIME type missing"),
+                mime_type_option,
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: false,
@@ -751,7 +751,7 @@ fn parse_regular_message(
                 file_name_option: None, // TODO!
                 width: get_mandatory_width!(),
                 height: get_mandatory_height!(),
-                mime_type: mime_type_option.expect("MIME type missing"),
+                mime_type_option,
                 duration_sec_option: get_zero_as_null(row, columns::message_media::DURATION)?,
                 thumbnail_path_option: None,
                 is_one_time: true,

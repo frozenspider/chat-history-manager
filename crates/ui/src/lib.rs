@@ -197,7 +197,7 @@ impl TauriUiWrapper {
             .expect("error while running tauri application");
     }
 
-    pub fn listen_for_user_input(&self) -> impl Future<Output = Result<impl UserInputRequester>> + Send {
+    pub fn listen_for_user_input(&self) -> impl Future<Output = Result<impl FeedbackClientAsync>> + Send {
         let mut guarded_state = self.state.lock().expect("Tauri state lock");
         let mut moved_state = TauriInnerState::None;
         mem::swap(&mut *guarded_state, &mut moved_state);
@@ -208,7 +208,7 @@ impl TauriUiWrapper {
                 return err!("Tauri UI is not running")
             };
             let app_handle = app_handle_rx.await?;
-            Ok(TauriUserInputRequester { app_handle })
+            Ok(TauriFeedbackClientAsync { app_handle })
         }
     }
 }
@@ -217,11 +217,11 @@ impl TauriUiWrapper {
 // User input requester
 //
 
-struct TauriUserInputRequester {
+struct TauriFeedbackClientAsync {
     app_handle: AppHandle,
 }
 
-impl UserInputRequester for TauriUserInputRequester {
+impl FeedbackClientAsync for TauriFeedbackClientAsync {
     async fn choose_myself(&self, users: &[User]) -> Result<usize> {
         self.app_handle.emit(EVENT_CHOOSE_MYSELF, users)?;
         let (selection_tx, selection_rx) = oneshot::channel::<i32>();
@@ -563,6 +563,6 @@ fn as_dyn_menu_items<'a, R: Runtime>(v: &'a [impl IsMenuItem<R> + 'a]) -> Vec<&'
 }
 
 // We cannot recover from a poisoned mutex, so we just panic
-fn lock_mutex<T, M>(m: &M) -> MutexGuard<T> where M: Deref<Target=Mutex<T>> {
+fn lock_mutex<T, M>(m: &M) -> MutexGuard<'_, T> where M: Deref<Target=Mutex<T>> {
     m.lock().expect("Mutex is poisoned")
 }

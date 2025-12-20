@@ -27,12 +27,12 @@ pub mod prelude {
 // Entry points
 //
 
-pub fn parse_file(path: &str, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+pub fn parse_file(path: &str, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
     thread_local! {
         static LOADER: Loader = Loader::new(&ReqwestHttpClient);
     }
     LOADER.with(|loader| {
-        loader.parse(Path::new(path), user_input_requester)
+        loader.parse(Path::new(path), feedback_client)
     })
 }
 

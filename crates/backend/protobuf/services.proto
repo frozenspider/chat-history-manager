@@ -16,7 +16,8 @@ option (scalapb.options) = {
 
 message Empty {}
 
-service UserInputService {
+// Service for the backend to communicate with the frontend
+service FeedbackService {
   rpc ChooseMyself(ChooseMyselfRequest) returns (ChooseMyselfResponse) {}
 
   rpc AskForText(TextInputRequest) returns (TextInputResponse) {}

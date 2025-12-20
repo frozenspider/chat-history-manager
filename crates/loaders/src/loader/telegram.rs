@@ -51,8 +51,8 @@ impl DataLoader for TelegramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
-        parse_telegram_file(path, ds, user_input_requester)
+    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+        parse_telegram_file(path, ds, feedback_client)
     }
 }
 
@@ -152,6 +152,10 @@ enum ParsedMessage {
     SkipChat,
 }
 
+/// Users whose ID has been normalized according to this parser's rules (see [USER_ID_SHIFT])
+#[derive(Debug, Clone, PartialEq)]
+pub struct NormalizedShortUser(ShortUser);
+
 #[derive(Clone)]
 struct ExpectedMessageField<'lt> {
     required_fields: HashSet<&'lt str, Hasher>,
@@ -166,7 +170,7 @@ fn get_real_path(path: &Path) -> PathBuf {
     }
 }
 
-fn parse_telegram_file(path: &Path, ds: Dataset, user_input_requester: &dyn UserInputBlockingRequester) -> Result<Box<InMemoryDao>> {
+fn parse_telegram_file(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
     let path = get_real_path(path);
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
@@ -191,7 +195,7 @@ fn parse_telegram_file(path: &Path, ds: Dataset, user_input_requester: &dyn User
     let keys = root_obj.keys().map(|s| s.deref()).collect::<HashSet<_>>();
     let (users, chats_with_messages) =
         if single_chat_keys.is_superset(&keys) {
-            parser_single::parse(root_obj, &ds.uuid, &mut myself, user_input_requester)?
+            parser_single::parse(root_obj, &ds.uuid, &mut myself, feedback_client)?
         } else {
             parser_full::parse(root_obj, &ds.uuid, &mut myself)?
         };
@@ -273,6 +277,8 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
     Ok(user)
 }
 
+/// `json_path` includes the chat itself.
+///
 /// Returns None if the chat is skipped (e.g. is saved_messages).
 fn parse_chat(json_path: &str,
               chat_json: &Object,
@@ -287,13 +293,6 @@ fn parse_chat(json_path: &str,
 
     let mut member_ids: HashSet<UserId, Hasher> =
         HashSet::with_capacity_and_hasher(100, hasher());
-
-    let json_path = format!("{json_path}.chat");
-    // Name will not be present for saved messages
-    let json_path = match get_field!(chat_json, json_path, "name") {
-        Ok(name) => format!("{json_path}[{}]", name),
-        Err(_) => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id")?)
-    };
 
     let mut chat_name: Option<String> = None;
     let mut skip_processing = false;
@@ -310,7 +309,7 @@ fn parse_chat(json_path: &str,
                 "personal_chat" => Ok(ChatType::Personal),
                 "private_group" => Ok(ChatType::PrivateGroup),
                 "private_supergroup" => Ok(ChatType::PrivateGroup),
-                "saved_messages" | "private_channel" => {
+                "saved_messages" | "private_channel" | "public_channel" => {
                     skip_processing = true;
                     Ok(ChatType::Personal) // Doesn't matter
                 }
@@ -413,14 +412,26 @@ impl<'lt> MessageJson<'lt> {
         self.expected_fields.as_mut().map(|ef| ef.optional_fields.insert(name));
     }
 
-    fn field_opt(&mut self, name: &'lt str) -> Result<Option<&BorrowedValue>> {
+    fn field_opt(&mut self, name: &'lt str) -> Result<Option<&BorrowedValue<'_>>> {
         self.add_optional(name);
         Ok(self.val.get(name))
     }
 
-    fn field(&mut self, name: &'lt str) -> Result<&BorrowedValue> {
+    fn field(&mut self, name: &'lt str) -> Result<&BorrowedValue<'_>> {
         self.add_required(name);
         Self::unopt(Ok(self.val.get(name)), name, self.val)
+    }
+
+    fn field_opt_bool(&mut self, name: &'lt str) -> Result<Option<bool>> {
+        match self.field_opt(name)? {
+            None => Ok(None),
+            Some(v) => Ok(Some(as_bool!(v, self.json_path, name)))
+        }
+    }
+
+    #[allow(dead_code)]
+    fn field_bool(&mut self, name: &'lt str) -> Result<bool> {
+        Self::unopt(self.field_opt_bool(name), name, self.val)
     }
 
     fn field_opt_i32(&mut self, name: &'lt str) -> Result<Option<i32>> {
@@ -492,9 +503,10 @@ fn parse_message(json_path: &str,
             required_fields: hash_set(["id", "type", "date", "text", "from", "from_id"]),
             // forwarded_from: the original source message
             // saved_from:     where the message was last forwarded from, could match forwarded_from (ignored)
-            optional_fields: hash_set(["date_unixtime", "text_entities", "forwarded_from", "saved_from", "via_bot",
+            optional_fields: hash_set(["date_unixtime", "text_entities",
+                                       "forwarded_from", "forwarded_from_id", "saved_from", "via_bot",
                                        "reply_to_peer_id", "reply_to_message_id", "inline_bot_buttons",
-                                       "author", "reactions"]),
+                                       "author", "reactions", "todo_list"]),
         };
 
         static ref SERVICE_MSG_FIELDS: ExpectedMessageField<'static> = ExpectedMessageField {
@@ -519,7 +531,7 @@ fn parse_message(json_path: &str,
             message_json.expected_fields = Some(REGULAR_MSG_FIELDS.clone());
 
             let mut regular: MessageRegular = Default::default();
-            parse_regular_message(&mut message_json, &mut regular)?;
+            parse_regular_message(&mut message_json, &mut regular, users)?;
             typed = Typed::Regular(regular);
 
             short_user.id = parse_user_id(message_json.field("from_id")?)?;
@@ -550,14 +562,11 @@ fn parse_message(json_path: &str,
         etc => bail!("Unknown message type: {}", etc),
     }
 
-    // Normalize user ID.
-    if *short_user.id >= USER_ID_SHIFT {
-        short_user.id = UserId(*short_user.id - USER_ID_SHIFT);
-    }
+    let short_user = normalize_short_user(short_user)?;
 
-    let from_id = short_user.id;
+    let from_id = short_user.0.id;
 
-    member_ids.insert(short_user.id);
+    member_ids.insert(short_user.0.id);
 
     // Associate it with a real user, or create one if none found.
     append_user(short_user, users, ds_uuid)?;
@@ -633,7 +642,8 @@ fn parse_message(json_path: &str,
 }
 
 fn parse_regular_message(message_json: &mut MessageJson,
-                         regular_msg: &mut MessageRegular) -> EmptyRes {
+                         regular_msg: &mut MessageRegular,
+                         users: &Users) -> EmptyRes {
     let json_path = message_json.json_path.clone();
 
     // TODO: Reactions
@@ -649,10 +659,17 @@ fn parse_regular_message(message_json: &mut MessageJson,
             regular_msg.edit_timestamp_option = Some(edit_timestamp);
         }
     }
-    regular_msg.forward_from_name_option = match message_json.field_opt("forwarded_from")? {
-        None => None,
-        Some(forwarded_from) if forwarded_from.is_null() => Some(UNKNOWN.to_owned()),
-        Some(forwarded_from) => Some(as_string!(forwarded_from, json_path, "forwarded_from")),
+
+    let forwarding_user = if let Some(id) = message_json.field_opt("forwarded_from_id")? {
+        users.id_to_user.get(&parse_user_id(id)?)
+    } else {
+        None
+    };
+    regular_msg.forward_from_name_option = match (forwarding_user, message_json.field_opt("forwarded_from")?) {
+        (None, None) => None,
+        (Some(forwarding_user), _) => Some(forwarding_user.pretty_name()),
+        (_, Some(forwarded_from)) if forwarded_from.is_null() => Some(UNKNOWN.to_owned()),
+        (_, Some(forwarded_from)) => Some(as_string!(forwarded_from, json_path, "forwarded_from")),
     };
     if message_json.field_opt("reply_to_peer_id")?.is_none() {
         // Otherwise reply_to_message_id is pointless
@@ -669,6 +686,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         Some(poll) => as_object!(poll, json_path, "poll").get("question").is_some(),
     };
     let contact_info_present = message_json.field_opt("contact_information")?.is_some();
+    let todo_list_option = message_json.field_opt("todo_list")?;
 
     // Helpers to reduce boilerplate, since we can't have match guards for separate pattern arms.
     let make_content_audio = |message_json: &mut MessageJson| -> Result<Option<_>> {
@@ -701,15 +719,32 @@ fn parse_regular_message(message_json: &mut MessageJson,
             is_one_time: false,
         })))
     };
+    let make_todo_list = |todo_list: &BorrowedValue| -> Result<ContentTodoList> {
+        let todo_list = as_object!(todo_list, json_path, "todo_list");
+        let json_path = format!("{}.members", json_path);
+        let title = get_field_string!(todo_list, json_path, "title");
+        let items = get_field!(todo_list, json_path, "answers")?;
+        let json_path = format!("{}.answers", json_path);
+        let items = as_array!(items, json_path);
+        let items = items.iter().enumerate().map(|(idx, item)| {
+            let json_path = format!("{json_path}[{idx}]");
+            let item = as_object!(item, json_path);
+            let item_id = get_field_i64!(item, json_path, "id");
+            let text = get_field_string!(item, json_path, "text");
+            Ok(ContentTodoListItem { item_id, text, state: Selected::Unset as i32 })
+        }).collect::<Result<Vec<_>>>()?;
+        Ok(ContentTodoList { title_option: Some(title), items })
+    };
 
     let content_val: Option<Content> = match (media_type_option.as_deref(),
                                               photo_option.as_deref(),
                                               file_present,
                                               loc_present,
                                               poll_question_present,
-                                              contact_info_present) {
-        (None, None, false, false, false, false) => None,
-        (Some("sticker"), None, true, false, false, false) => {
+                                              contact_info_present,
+                                              todo_list_option) {
+        (None, None, false, false, false, false, None) => None,
+        (Some("sticker"), None, true, false, false, false, None) => {
             // Ignoring animated sticker duration
             message_json.add_optional("duration_seconds");
             message_json.add_optional("file_size");
@@ -724,7 +759,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 emoji_option: message_json.field_opt_str("sticker_emoji")?,
             }))
         }
-        (Some("voice_message"), None, true, false, false, false) => {
+        (Some("voice_message"), None, true, false, false, false, None) => {
             message_json.add_optional("file_size");
             Some(content!(VoiceMsg {
                 path_option: message_json.field_opt_path("file")?,
@@ -733,11 +768,11 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
             }))
         }
-        (Some("audio_file"), None, true, false, false, false) =>
+        (Some("audio_file"), None, true, false, false, false, None) =>
             make_content_audio(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("audio/")) =>
             make_content_audio(message_json)?,
-        (Some("video_message"), None, true, false, false, false) => {
+        (Some("video_message"), None, true, false, false, false, None) => {
             message_json.add_optional("file_size");
             message_json.add_optional("thumbnail_file_size");
             Some(content!(VideoMsg {
@@ -745,13 +780,13 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 file_name_option: message_json.field_opt_str("file_name")?,
                 width: message_json.field_i32("width")?,
                 height: message_json.field_i32("height")?,
-                mime_type: mime_type_option.unwrap(),
+                mime_type_option,
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
                 is_one_time: false,
             }))
         }
-        (Some("animation"), None, true, false, false, false) => {
+        (Some("animation"), None, true, false, false, false, None) => {
             message_json.add_optional("media_spoiler");
             message_json.add_optional("file_size");
             message_json.add_optional("thumbnail_file_size");
@@ -768,24 +803,46 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 is_one_time: false,
             }))
         }
-        (Some("video_file"), None, true, false, false, false) =>
+        (Some("video_file"), None, true, false, false, false, None) =>
             make_content_video(message_json)?,
         _ if mime_type_option.iter().any(|mt| mt.starts_with("video/")) =>
             make_content_video(message_json)?,
-        (None, None, true, false, false, false) => {
+        (None, None, true, false, false, false, None) => {
             // Ignoring dimensions of downloadable image
             message_json.add_optional("width");
             message_json.add_optional("height");
             message_json.add_optional("file_size");
             message_json.add_optional("thumbnail_file_size");
-            Some(content!(File {
-                path_option: message_json.field_opt_path("file")?,
-                file_name_option: message_json.field_opt_str("file_name")?,
-                mime_type_option,
-                thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
-            }))
+
+            let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
+            match self_destruct {
+                None => {
+                    Some(content!(File {
+                        path_option: message_json.field_opt_path("file")?,
+                        file_name_option: message_json.field_opt_str("file_name")?,
+                        mime_type_option,
+                        thumbnail_path_option: message_json.field_opt_path("thumbnail")?,
+                    }))
+                }
+                Some(_) => {
+                    // In Telegram (at least at 2025-12), this means that the "file" is actually a round message.
+                    // Path is necessarily None
+                    ensure!(message_json.field_opt_path("file")?.is_none(),
+                            "File path was present for self-destructing file");
+                    Some(content!(VideoMsg {
+                        path_option: None,
+                        file_name_option: None,
+                        width: 0,
+                        height: 0,
+                        mime_type_option,
+                        duration_sec_option: None,
+                        thumbnail_path_option: None,
+                        is_one_time: true,
+                    }))
+                }
+            }
         }
-        (None, Some(_), false, false, false, false) => {
+        (None, Some(_), false, false, false, false, None) => {
             message_json.add_optional("media_spoiler");
             message_json.add_optional("photo_file_size");
             let self_destruct = message_json.field_opt_i32("self_destruct_period_seconds")?;
@@ -813,7 +870,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 }
             }
         }
-        (None, None, false, true, false, false) => {
+        (None, None, false, true, false, false, None) => {
             let (lat_str, lon_str) = {
                 let loc_info =
                     as_object!(message_json.field("location_information")?, json_path, "location_information");
@@ -828,14 +885,14 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 duration_sec_option: message_json.field_opt_i32("live_location_period_seconds")?,
             }))
         }
-        (None, None, false, false, true, false) => {
+        (None, None, false, false, true, false, None) => {
             let question = {
                 let poll_info = as_object!(message_json.field("poll")?, json_path, "poll");
                 get_field_string!(poll_info, json_path, "question")
             };
             Some(content!(Poll { question }))
         }
-        (None, None, false, false, false, true) => {
+        (None, None, false, false, false, true, None) => {
             message_json.add_optional("contact_vcard_file_size");
             let (
                 first_name_option,
@@ -862,6 +919,9 @@ fn parse_regular_message(message_json: &mut MessageJson,
                 phone_number_option,
                 vcard_path_option,
             }))
+        }
+        (None, None, false, false, false, false, Some(todo_list)) => {
+            Some(content!(TodoList(make_todo_list(todo_list)?)))
         }
         _ => bail!("Couldn't determine content type for '{:?}'", message_json.val)
     };
@@ -1019,6 +1079,22 @@ fn parse_service_message(message_json: &mut MessageJson,
             // Topic-level division is implemented via repies to "topic_created" messages.
             // This is a questionable approach that I don't want to track at the moment.
             return Ok(ShouldProceed::SkipChat);
+        }
+        "paid_messages_price_change" => {
+            // "Paid messages price changed to X", we expect X to be zero
+            let price = message_json.field_i32("price_stars")?;
+            let broadcast_allowed = message_json.field_opt_bool("is_broadcast_messages_allowed")?;
+            let text = if price == 0 && broadcast_allowed.is_none_or(|b| b) {
+                "Channel now accepts direct messages".to_owned()
+            } else {
+                bail!("Don't know how to phrase DM price {price} and broadcast_allowed={broadcast_allowed:?}");
+            };
+            (SealedValueOptional::Notice(MessageServiceNotice {}),
+             Some(text))
+        }
+        "todo_completions" => {
+            // todolist completions is non-functional because it contains no reference to the original message.
+            return Ok(ShouldProceed::SkipMessage);
         }
         etc =>
             bail!("Don't know how to parse service message for action '{etc}'"),
@@ -1218,18 +1294,18 @@ fn simplify_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
     let first_idx = (0..rtes.len()).find(|&idx| !is_whitespaces(&rtes[idx]));
     if first_idx.is_none() { return vec![]; }
     let first_idx = first_idx.unwrap();
-    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
-        if let Some(text) = rtes[first_idx].get_text_mut() {
-            *text = text.trim_start().to_owned();
-        }
+    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[first_idx].get_text_mut()
+    {
+        *text = text.trim_start().to_owned();
     }
 
     let last_idx = (0..rtes.len()).rfind(|&idx| !is_whitespaces(&rtes[idx]));
     let last_idx = last_idx.unwrap();
-    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
-        if let Some(text) = rtes[last_idx].get_text_mut() {
-            *text = text.trim_end().to_owned();
-        }
+    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[last_idx].get_text_mut()
+    {
+        *text = text.trim_end().to_owned();
     }
     rtes[first_idx..=last_idx].to_vec()
 }
@@ -1300,15 +1376,24 @@ fn deduplicate(messages: &mut Vec<Message>) -> EmptyRes {
     Ok(())
 }
 
-fn append_user(short_user: ShortUser,
+fn normalize_short_user(mut short_user: ShortUser) -> Result<NormalizedShortUser> {
+    // Normalize user ID.
+    if *short_user.id >= USER_ID_SHIFT {
+        short_user.id = UserId(*short_user.id - USER_ID_SHIFT);
+    }
+    Ok(NormalizedShortUser(short_user))
+}
+
+/// Appends a user to the users map if it doesn't exist yet.
+fn append_user(short_user: NormalizedShortUser,
                users: &mut Users,
                ds_uuid: &PbUuid) -> Result<UserId> {
-    if !short_user.id.is_valid() {
+    if !short_user.0.id.is_valid() {
         err!("Incorrect ID for a user!")
-    } else if let Some(user) = users.id_to_user.get(&short_user.id) {
+    } else if let Some(user) = users.id_to_user.get(&short_user.0.id) {
         Ok(user.id())
     } else {
-        let user = short_user.to_user(ds_uuid);
+        let user = short_user.0.to_user(ds_uuid);
         let id = user.id();
         users.insert(user);
         Ok(id)

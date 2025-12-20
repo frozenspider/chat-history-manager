@@ -29,7 +29,7 @@ fn loading_2023_11() -> EmptyRes {
     let _media_dir = TmpDir::new_at(db_dir.path.parent().unwrap().join(MEDIA_DIR));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &NoChooser)?;
+    let dao = loader.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -117,7 +117,7 @@ fn loading_2024_07_photos() -> EmptyRes {
     let _media_dir = TmpDir::new_at(db_dir.path.parent().unwrap().join(MEDIA_DIR));
 
     loader.looks_about_right(&res)?;
-    let dao = loader.load(&res, &NoChooser)?;
+    let dao = loader.load(&res, &NoFeedbackClient)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

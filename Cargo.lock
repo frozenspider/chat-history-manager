@@ -1826,6 +1826,8 @@ dependencies = [
  "rand 0.9.0",
  "regex",
  "rusqlite",
+ "serde",
+ "serde_json",
  "uuid",
  "zip 2.2.2",
 ]

@@ -82,16 +82,16 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
         Some(Command::Parse { path, myself_id }) => {
             let handle = Handle::current();
             let join_handle = handle.spawn_blocking(move || {
-                let chooser: Box<dyn UserInputBlockingRequester> =
+                let feedback_client: Box<dyn FeedbackClientSync> =
                     if let Some(myself_id) = myself_id {
-                        Box::new(client::PredefinedInput {
+                        Box::new(PredefinedInputFeedbackClient {
                             myself_id: Some(myself_id),
                             text: None,
                         })
                     } else {
-                        Box::new(NoChooser)
+                        Box::new(NoFeedbackClient)
                     };
-                parse_file(&path, chooser.as_ref()).with_context(|| format!("Failed to parse {path}"))
+                parse_file(&path, feedback_client.as_ref()).with_context(|| format!("Failed to parse {path}"))
             });
             let parsed = join_handle.await??;
             let size: usize = parsed.deep_size_of();
