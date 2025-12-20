@@ -96,7 +96,7 @@ pub(super) fn parse(root_obj: &Object,
                     continue;
                 }
                 let short_user = normalize_short_user(short_user)?;
-                append_user(short_user, &mut users, &ds_uuid)?;
+                append_user(short_user, &mut users, ds_uuid)?;
             }
 
             for (chat_json, json_path) in chats_arr {

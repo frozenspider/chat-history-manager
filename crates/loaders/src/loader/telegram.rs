@@ -1296,18 +1296,18 @@ fn simplify_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
     let first_idx = (0..rtes.len()).find(|&idx| !is_whitespaces(&rtes[idx]));
     if first_idx.is_none() { return vec![]; }
     let first_idx = first_idx.unwrap();
-    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
-        if let Some(text) = rtes[first_idx].get_text_mut() {
-            *text = text.trim_start().to_owned();
-        }
+    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[first_idx].get_text_mut()
+    {
+        *text = text.trim_start().to_owned();
     }
 
     let last_idx = (0..rtes.len()).rfind(|&idx| !is_whitespaces(&rtes[idx]));
     let last_idx = last_idx.unwrap();
-    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_))) {
-        if let Some(text) = rtes[last_idx].get_text_mut() {
-            *text = text.trim_end().to_owned();
-        }
+    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[last_idx].get_text_mut()
+    {
+        *text = text.trim_end().to_owned();
     }
     rtes[first_idx..=last_idx].to_vec()
 }
