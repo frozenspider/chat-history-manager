@@ -39,7 +39,7 @@ impl DataLoader for TgKeeperDataLoader {
         &self,
         path: &Path,
         ds: Dataset,
-        _user_input_requester: &dyn UserInputBlockingRequester,
+        _feedback_client: &dyn FeedbackClientSync,
     ) -> Result<Box<InMemoryDao>> {
         load_tg_keeper_db(path, ds)
     }
@@ -519,8 +519,7 @@ fn parse_media(
                     file_name_option,
                     width,
                     height,
-                    mime_type: mime_type_option
-                        .context("Missing mime type for round video message")?,
+                    mime_type_option,
                     duration_sec_option,
                     thumbnail_path_option: thumbnail_rel_path,
                     is_one_time,
