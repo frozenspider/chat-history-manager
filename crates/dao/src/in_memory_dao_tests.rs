@@ -5,6 +5,7 @@ use super::*;
 use crate::utils::test_utils::*;
 
 use pretty_assertions::{assert_eq, assert_ne};
+use rand::prelude::*;
 
 #[test]
 fn basics() -> EmptyRes {
@@ -231,5 +232,5 @@ pub fn create_specific_dao() -> InMemoryDaoHolder {
         }
     }];
 
-    create_dao("One", users, cwms, |_, _| ())
+    create_dao("One", users, cwms, |_, _| (), rng().random())
 }

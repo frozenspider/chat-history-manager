@@ -333,8 +333,8 @@ pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                         )));
             for (i, (master_user, mut slave_user)) in master_users.iter().zip(slave_users.into_iter()).enumerate() {
                 slave_user.ds_uuid = master_ds_uuid.clone();
-                check_diff!(PracticalEqTuple::new_without_cwd(master_user, &master_ds_root).practically_equals(
-                                &PracticalEqTuple::new_without_cwd(&slave_user, &slave_ds_root))?, false,
+                check_diff!(EntityCmpTuple::new_without_cwd(master_user, &master_ds_root).compare(
+                                &EntityCmpTuple::new_without_cwd(&slave_user, &slave_ds_root))?.is_eq(), false,
                             format!("User #{i} differs"), Some((format!("{master_user:?}"), format!("{slave_user:?}"))));
             }
             Ok(vec![])
@@ -352,8 +352,8 @@ pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                     let mut slave_cwd = slave_cwd.clone();
                     slave_cwd.chat.ds_uuid = master_ds_uuid.clone();
 
-                    check_diff!(PracticalEqTuple::new(&master_cwd.chat, &master_ds_root, master_cwd).practically_equals(
-                                    &PracticalEqTuple::new(&slave_cwd.chat, &slave_ds_root, &slave_cwd))?, false,
+                    check_diff!(EntityCmpTuple::new(&master_cwd.chat, &master_ds_root, master_cwd).compare(
+                                    &EntityCmpTuple::new(&slave_cwd.chat, &slave_ds_root, &slave_cwd))?.is_eq(), false,
                                 format!("Chat #{i} differs"),
                                 Some((format!("{:?}", master_cwd.chat), format!("{:?}", slave_cwd.chat))));
                 }
@@ -371,9 +371,9 @@ pub fn get_datasets_diff(master_dao: &dyn ChatHistoryDao,
                                 Some((master_chats.len(), slave_chats.len())));
 
                     for (j, (master_msg, slave_msg)) in master_messages.iter().zip(slave_messages.iter()).enumerate() {
-                        let master_pet = PracticalEqTuple::new(master_msg, &master_ds_root, master_cwd);
-                        let slave_pet = PracticalEqTuple::new(slave_msg, &slave_ds_root, slave_cwd);
-                        check_diff!(master_pet.practically_equals(&slave_pet)?, false,
+                        let master_pet = EntityCmpTuple::new(master_msg, &master_ds_root, master_cwd);
+                        let slave_pet = EntityCmpTuple::new(slave_msg, &slave_ds_root, slave_cwd);
+                        check_diff!(master_pet.compare(&slave_pet)?.is_eq(), false,
                                     format!("Message #{j} for chat {} differs", master_cwd.chat.qualified_name()),
                                     Some((format!("{:?}", master_msg), format!("{:?}", slave_msg))));
                     }

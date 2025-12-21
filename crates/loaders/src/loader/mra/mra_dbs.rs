@@ -10,8 +10,6 @@
 /// Following references were helpful in reverse engineering the format (in Russian):
 /// * https://xakep.ru/2012/11/30/mailru-agent-hack/
 /// * https://c0dedgarik.blogspot.com/2010/08/mradbs.html
-use itertools::Itertools;
-
 use crate::loader;
 
 use super::*;

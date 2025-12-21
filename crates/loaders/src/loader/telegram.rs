@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use chrono::NaiveDate;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use simd_json::borrowed::Object;
 use simd_json::BorrowedValue;

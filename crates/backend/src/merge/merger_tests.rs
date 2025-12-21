@@ -8,6 +8,7 @@ use chat_history_manager_dao::{UserCacheForDataset, WithCache};
 
 use std::fs;
 use pretty_assertions::{assert_eq, assert_ne};
+use rand::prelude::*;
 use uuid::Uuid;
 
 #[test]
@@ -28,8 +29,8 @@ fn merge_users() -> EmptyRes {
     };
 
     let helper = MergerHelper::new_from_daos(
-        create_dao("One", users_a.clone(), vec![cwm_a], |_, _| {}),
-        create_dao("Two", users_b.clone(), vec![cwm_b], |_, _| {}),
+        create_dao("One", users_a.clone(), vec![cwm_a], |_, _| {}, rng().random()),
+        create_dao("Two", users_b.clone(), vec![cwm_b], |_, _| {}, rng().random()),
     );
 
     let (new_dao, new_ds, _tmpdir) = merge(
@@ -91,8 +92,8 @@ fn merge_users_updating_chat_name() -> EmptyRes {
         },
     ];
     let helper = MergerHelper::new_from_daos(
-        create_dao("One", users_a.clone(), cwms.clone(), |_, _| {}),
-        create_dao("Two", users_b.clone(), cwms.clone(), |_, _| {}),
+        create_dao("One", users_a.clone(), cwms.clone(), |_, _| {}, rng().random()),
+        create_dao("Two", users_b.clone(), cwms.clone(), |_, _| {}, rng().random()),
     );
 
     let (new_dao, new_ds, _tmpdir) = merge(
@@ -185,14 +186,14 @@ fn merge_multiple_datasets() -> EmptyRes {
     for (old_cwd, new_cwd) in helper.m.dao_holder.dao.chats(&other_ds.uuid)?.iter()
         .zip(new_dao.chats(&other_ds.uuid)?.iter())
     {
-        assert!(PracticalEqTuple::new(&old_cwd.chat, &other_ds_root, old_cwd)
-            .practically_equals(&PracticalEqTuple::new(&new_cwd.chat, &new_other_ds_root, new_cwd))?);
+        assert!(EntityCmpTuple::new(&old_cwd.chat, &other_ds_root, old_cwd)
+            .compare(&EntityCmpTuple::new(&new_cwd.chat, &new_other_ds_root, new_cwd))?.is_eq());
 
         let new_msgs = new_dao.first_messages(&other_chat, usize::MAX)?;
         assert_eq!(new_msgs.len(), other_chat_msgs.len());
         for (old_m, new_m) in other_chat_msgs.iter().zip(new_msgs.iter()) {
-            assert_practically_equals(old_m, &other_ds_root, old_cwd,
-                                      new_m, &new_other_ds_root, new_cwd);
+            assert_cmp_equals(old_m, &other_ds_root, old_cwd,
+                              new_m, &new_other_ds_root, new_cwd);
         }
     }
 
@@ -201,8 +202,14 @@ fn merge_multiple_datasets() -> EmptyRes {
 
 #[test]
 fn merge_chats_match_single_message() -> EmptyRes {
-    let msgs_a = vec![create_regular_message(1, 1)];
-    let msgs_b = vec![create_regular_message(123, 2)];
+    let mut msg = create_regular_message(1, 1);
+    let msgs_a = vec![msg.clone()];
+
+    msg.internal_id = msg.internal_id().0 + 1000;
+    msg.source_id_option = Some(msg.source_id().0 + 1000);
+    msg.searchable_string = "Different searchable string".to_owned();
+    let msgs_b = vec![msg.clone()];
+
     let helper = MergerHelper::new_as_is(2, msgs_a.clone(), msgs_b.clone());
 
     let (new_dao, new_ds, _tmpdir) = merge(
@@ -274,8 +281,8 @@ fn merge_chats_keep_single_message() -> EmptyRes {
     let new_messages = new_dao.first_messages(new_chat, usize::MAX)?;
     assert_eq!(new_messages.len(), 1);
 
-    assert_practically_equals(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd(),
-                              &new_messages[0], &new_ds_root, &new_chats[0]);
+    assert_cmp_equals(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd(),
+                      &new_messages[0], &new_ds_root, &new_chats[0]);
 
     assert_eq!(new_messages[0], Message { internal_id: 1, ..helper.m.msgs[&src_id(1)].0.clone() });
 
@@ -288,7 +295,7 @@ fn merge_chats_keep_single_video() -> EmptyRes {
 
     merge_files_helper(NoSlaveChat, |helper| vec![
         ChatMergeDecision::Retain { master_chat_id: helper.m.cwd().id() }
-    ])?;
+    ], rng().random(), rng().random())?;
 
     merge_files_helper(NoSlaveMessages, |helper| vec![
         ChatMergeDecision::Merge {
@@ -300,7 +307,7 @@ fn merge_chats_keep_single_video() -> EmptyRes {
                 })
             ],
         }
-    ])?;
+    ], rng().random(), rng().random())?;
 
     merge_files_helper(AmendMasterMessagesOnly, |helper| vec![
         ChatMergeDecision::Merge {
@@ -314,7 +321,7 @@ fn merge_chats_keep_single_video() -> EmptyRes {
                 })
             ],
         }
-    ])?;
+    ], rng().random(), rng().random())?;
 
     merge_files_helper(AmendAllMessages, |helper| vec![
         ChatMergeDecision::Merge {
@@ -328,7 +335,7 @@ fn merge_chats_keep_single_video() -> EmptyRes {
                 })
             ],
         }
-    ])?;
+    ], rng().random(), rng().random())?;
 
     merge_files_helper(AmendMasterMessagesOnly, |helper| vec![
         ChatMergeDecision::Merge {
@@ -342,9 +349,9 @@ fn merge_chats_keep_single_video() -> EmptyRes {
                 })
             ],
         }
-    ])?;
+    ], rng().random(), rng().random())?;
 
-
+    let seed = rng().random();
     merge_files_helper(AmendAllMessages, |helper| vec![
         ChatMergeDecision::Merge {
             chat_id: helper.m.cwd().id(),
@@ -357,7 +364,21 @@ fn merge_chats_keep_single_video() -> EmptyRes {
                 })
             ],
         }
-    ])?;
+    ], seed, seed)?;
+
+    merge_files_helper(AmendAllMessages, |helper| vec![
+        ChatMergeDecision::Merge {
+            chat_id: helper.m.cwd().id(),
+            message_merges: vec![
+                MessagesMergeDecision::DontReplace(MergeAnalysisSectionConflict {
+                    first_master_msg_id: first_id(&helper.m.msgs),
+                    last_master_msg_id: last_id(&helper.m.msgs),
+                    first_slave_msg_id: first_id(&helper.s.msgs),
+                    last_slave_msg_id: last_id(&helper.s.msgs),
+                })
+            ],
+        }
+    ], rng().random(), rng().random())?;
 
     // With Replace command, content that was previously there will disappear.
 
@@ -372,7 +393,9 @@ enum MergeFileHelperTestMode {
 }
 
 fn merge_files_helper(mode: MergeFileHelperTestMode,
-                      make_chat_merges: impl Fn(&MergerHelper) -> Vec<ChatMergeDecision>) -> EmptyRes {
+                      make_chat_merges: impl Fn(&MergerHelper) -> Vec<ChatMergeDecision>,
+                      m_seed: u64,
+                      s_seed: u64) -> EmptyRes {
     use MergeFileHelperTestMode::*;
 
     let should_amend_all = matches!(mode, AmendAllMessages);
@@ -383,12 +406,14 @@ fn merge_files_helper(mode: MergeFileHelperTestMode,
         vec![msg.clone()], if matches!(mode, NoSlaveMessages) { vec![] } else { vec![msg] },
         &|is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
             let content_mode = if is_master || should_amend_all { ContentMode::Full } else { ContentMode::None };
-            amend_with_content(content_mode, ds_root, msg)
+            amend_with_content(msg, content_mode, ds_root, if is_master { m_seed } else { s_seed })
         },
+        m_seed,
+        s_seed
     );
     if matches!(mode, NoSlaveChat) {
         let dao_holder = create_dao(
-            "Two", helper.m.users.clone(), vec![], |_, _| {});
+            "Two", helper.m.users.clone(), vec![], |_, _| {}, s_seed);
         helper.s = get_simple_dao_entities(dao_holder, SlaveMessage);
     }
 
@@ -422,8 +447,8 @@ fn merge_files_helper(mode: MergeFileHelperTestMode,
     };
     assert_files(&expected_files, &new_files);
 
-    assert_practically_equals(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd(),
-                              &new_messages[0], &new_ds_root, &new_chats[0]);
+    assert_cmp_equals(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd(),
+                      &new_messages[0], &new_ds_root, &new_chats[0]);
 
     Ok(())
 }
@@ -438,11 +463,11 @@ fn merge_chats_replace_single_message() -> EmptyRes {
     let helper = {
         let chat = create_personal_chat(&ZERO_PB_UUID, 1, &users_a[1], vec![1, 2], msgs_a.len());
         let cwms = vec![ChatWithMessages { chat, messages: msgs_a }];
-        let m_dao = create_dao("One", users_a.clone(), cwms, |_, _| {});
+        let m_dao = create_dao("One", users_a.clone(), cwms, |_, _| {}, rng().random());
 
         let chat = create_personal_chat(&ZERO_PB_UUID, 1, &users_b[1], vec![1, 2], msgs_b.len());
         let cwms = vec![ChatWithMessages { chat, messages: msgs_b }];
-        let s_dao = create_dao("Two", users_b, cwms, |_, _| {});
+        let s_dao = create_dao("Two", users_b, cwms, |_, _| {}, rng().random());
 
         MergerHelper::new_from_daos(m_dao, s_dao)
     };
@@ -473,8 +498,8 @@ fn merge_chats_replace_single_message() -> EmptyRes {
     let new_messages = new_dao.first_messages(new_chat, usize::MAX)?;
     assert_eq!(new_messages.len(), 1);
 
-    assert_practically_equals(&helper.s.msgs[&src_id(1)].0, &helper.s.ds_root, helper.s.cwd(),
-                              &new_messages[0], &new_ds_root, &new_chats[0]);
+    assert_cmp_equals(&helper.s.msgs[&src_id(1)].0, &helper.s.ds_root, helper.s.cwd(),
+                      &new_messages[0], &new_ds_root, &new_chats[0]);
 
     Ok(())
 }
@@ -511,8 +536,8 @@ fn merge_chats_keep_two_messages() -> EmptyRes {
     assert_eq!(new_chat.msg_count, helper.m.msgs.len() as i32);
 
     for (MasterMessage(m_msg), new_msg) in helper.m.msgs.values().zip(new_messages.iter()) {
-        assert_practically_equals(m_msg, &helper.m.ds_root, helper.m.cwd(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(m_msg, &helper.m.ds_root, helper.m.cwd(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -550,8 +575,8 @@ fn merge_chats_replace_two_messages() -> EmptyRes {
     assert_eq!(new_chat.msg_count, helper.s.msgs.len() as i32);
 
     for (SlaveMessage(s_msg), new_msg) in helper.s.msgs.values().zip(new_messages.iter()) {
-        assert_practically_equals(s_msg, &helper.s.ds_root, helper.s.cwd(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(s_msg, &helper.s.ds_root, helper.s.cwd(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -574,8 +599,14 @@ fn merge_chats_match_replace_keep() -> EmptyRes {
     ].into_iter().concat();
     let helper = MergerHelper::new(2, msgs_a, msgs_b,
                                    &|_is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
-                                       amend_with_content(ContentMode::Full, ds_root, msg)
-                                   });
+                                       // Make content the same for messages 1 and 2 to allow matching
+                                       let seed = if msg.source_id().0 <= 2 {
+                                           msg.source_id().0 as u64
+                                       } else {
+                                           rng().random()
+                                       };
+                                       amend_with_content(msg, ContentMode::Full, ds_root, seed)
+                                   }, rng().random(), rng().random());
 
     let chat_merges = vec![
         ChatMergeDecision::Merge {
@@ -615,17 +646,17 @@ fn merge_chats_match_replace_keep() -> EmptyRes {
     assert_eq!(new_chat.msg_count, 6);
 
     let expected = vec![
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(2)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.s.msgs[&src_id(3)].0, &helper.s.ds_root, helper.s.cwd()),
-        PracticalEqTuple::new(&helper.s.msgs[&src_id(4)].0, &helper.s.ds_root, helper.s.cwd()),
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(5)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(6)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(2)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.s.msgs[&src_id(3)].0, &helper.s.ds_root, helper.s.cwd()),
+        EntityCmpTuple::new(&helper.s.msgs[&src_id(4)].0, &helper.s.ds_root, helper.s.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(5)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(6)].0, &helper.m.ds_root, helper.m.cwd()),
     ];
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -651,8 +682,16 @@ fn merge_chats_merge_all_modes() -> EmptyRes {
     let helper = MergerHelper::new(
         2, msgs_a, msgs_b,
         &|_is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
-            amend_with_content(ContentMode::Full, ds_root, msg)
+            // Make content the same for messages 1 and 2 to allow matching
+            let seed = if msg.source_id().0 == 4 {
+                msg.source_id().0 as u64
+            } else {
+                rng().random()
+            };
+            amend_with_content(msg, ContentMode::Full, ds_root, seed)
         },
+        rng().random(),
+        rng().random()
     );
 
     let chat_merges = vec![
@@ -705,16 +744,16 @@ fn merge_chats_merge_all_modes() -> EmptyRes {
     assert_eq!(new_chat.msg_count, 5);
 
     let expected = vec![
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.s.msgs[&src_id(2)].0, &helper.s.ds_root, helper.s.cwd()),
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(4)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.m.msgs[&src_id(5)].0, &helper.m.ds_root, helper.m.cwd()),
-        PracticalEqTuple::new(&helper.s.msgs[&src_id(6)].0, &helper.s.ds_root, helper.s.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(1)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.s.msgs[&src_id(2)].0, &helper.s.ds_root, helper.s.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(4)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.m.msgs[&src_id(5)].0, &helper.m.ds_root, helper.m.cwd()),
+        EntityCmpTuple::new(&helper.s.msgs[&src_id(6)].0, &helper.s.ds_root, helper.s.cwd()),
     ];
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -764,16 +803,16 @@ fn merge_chats_merge_a_lot_of_messages() -> EmptyRes {
 
     let expected = vec![
         (1..half)
-            .map(|i| PracticalEqTuple::new(&helper.s.msgs[&src_id(i)].0, &helper.s.ds_root, helper.s.cwd()))
+            .map(|i| EntityCmpTuple::new(&helper.s.msgs[&src_id(i)].0, &helper.s.ds_root, helper.s.cwd()))
             .collect_vec(),
         (half..=MAX_MSG_ID)
-            .map(|i| PracticalEqTuple::new(&helper.m.msgs[&src_id(i)].0, &helper.m.ds_root, helper.m.cwd()))
+            .map(|i| EntityCmpTuple::new(&helper.m.msgs[&src_id(i)].0, &helper.m.ds_root, helper.m.cwd()))
             .collect_vec(),
     ].into_iter().concat();
 
     for (old_pet, new_msg) in expected.into_iter().zip(new_messages.iter()) {
-        assert_practically_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(old_pet.v, old_pet.ds_root, old_pet.cwd.unwrap(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -980,10 +1019,10 @@ fn members_test_helper(clue: &str,
         };
 
         let cwms = create_cwms(create_master_chat, &master_users);
-        let m_dao = create_dao("Master", master_users, cwms, |_, _| {});
+        let m_dao = create_dao("Master", master_users, cwms, |_, _| {}, rng().random());
 
         let cwms = create_cwms(create_slave_chat, &slave_users);
-        let s_dao = create_dao("Slave", slave_users, cwms, |_, _| {});
+        let s_dao = create_dao("Slave", slave_users, cwms, |_, _| {}, rng().random());
 
         MergerHelper::new_from_daos(m_dao, s_dao)
     };
@@ -1036,14 +1075,17 @@ fn merge_chats_content_preserved_on_match_and_keep() -> EmptyRes {
     let helper = MergerHelper::new(
         2, msgs.clone(), msgs,
         &|is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
+            let seed = msg.source_id().0 as u64;
             if is_master {
-                amend_with_content(ContentMode::Full, ds_root, msg);
+                amend_with_content(msg, ContentMode::Full, ds_root, seed);
             } else if msg.source_id_option.unwrap() % 2 == 1 {
-                amend_with_content(ContentMode::NonePaths, ds_root, msg);
+                amend_with_content(msg, ContentMode::NonePaths, ds_root, seed);
             } else {
-                amend_with_content(ContentMode::DeletedPaths, ds_root, msg);
+                amend_with_content(msg, ContentMode::DeletedPaths, ds_root, seed);
             }
         },
+        rng().random(),
+        rng().random()
     );
 
     let chat_merges = vec![
@@ -1078,8 +1120,8 @@ fn merge_chats_content_preserved_on_match_and_keep() -> EmptyRes {
     assert_eq!(new_chat.msg_count, 4);
 
     for (MasterMessage(m_msg), new_msg) in helper.m.msgs.values().zip(new_messages.iter()) {
-        assert_practically_equals(m_msg, &helper.m.ds_root, helper.m.cwd(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(m_msg, &helper.m.ds_root, helper.m.cwd(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -1094,14 +1136,17 @@ fn merge_chats_content_appended_on_match() -> EmptyRes {
     let helper = MergerHelper::new(
         2, msgs.clone(), msgs,
         &|is_master: bool, ds_root: &DatasetRoot, msg: &mut Message| {
+            let seed = msg.source_id().0 as u64;
             if !is_master {
-                amend_with_content(ContentMode::Full, ds_root, msg);
+                amend_with_content(msg, ContentMode::Full, ds_root, seed);
             } else if msg.source_id_option.unwrap() % 2 == 1 {
-                amend_with_content(ContentMode::NonePaths, ds_root, msg);
+                amend_with_content(msg, ContentMode::NonePaths, ds_root, seed);
             } else {
-                amend_with_content(ContentMode::DeletedPaths, ds_root, msg);
+                amend_with_content(msg, ContentMode::DeletedPaths, ds_root, seed);
             }
         },
+        rng().random(),
+        rng().random()
     );
 
     let chat_merges = vec![
@@ -1130,8 +1175,8 @@ fn merge_chats_content_appended_on_match() -> EmptyRes {
     assert_eq!(new_chat.msg_count, 4);
 
     for (SlaveMessage(s_msg), new_msg) in helper.s.msgs.values().zip(new_messages.iter()) {
-        assert_practically_equals(s_msg, &helper.s.ds_root, helper.s.cwd(),
-                                  new_msg, &new_ds_root, &new_chats[0]);
+        assert_cmp_equals(s_msg, &helper.s.ds_root, helper.s.cwd(),
+                          new_msg, &new_ds_root, &new_chats[0]);
     }
 
     Ok(())
@@ -1173,6 +1218,8 @@ fn merge_chats_content_adopt_new_filename() -> EmptyRes {
                 }),
             ];
         },
+        rng().random(),
+        rng().random()
     );
 
     let chat_merges = vec![
@@ -1264,15 +1311,15 @@ fn merge(helper: &MergerHelper,
     (new_dao, new_ds, new_dao_tmpdir)
 }
 
-fn make_random_video_content(ds_root: &DatasetRoot, none_paths: bool) -> Content {
+fn make_random_video_content(ds_root: &DatasetRoot, none_paths: bool, seed: u64) -> Content {
     make_video_content(ds_root,
                        none_paths,
-                       random_alphanumeric(256).as_bytes(),
-                       random_alphanumeric(256).as_bytes())
+                       random_alphanumeric(256, seed).as_bytes(),
+                       random_alphanumeric(256, seed + 1).as_bytes())
 }
 
 fn make_video_content(ds_root: &DatasetRoot, none_paths: bool, f1_content: &[u8], f2_content: &[u8]) -> Content {
-    let rand_name = random_alphanumeric(30);
+    let rand_name = random_alphanumeric(30, rng().random());
     let path1 = ds_root.0.join(&format!("{rand_name}_1.bin"));
     let path2 = ds_root.0.join(&format!("{rand_name}_2.bin"));
     if !none_paths {
@@ -1302,16 +1349,16 @@ enum ContentMode {
     NonePaths,
 }
 
-fn assert_practically_equals(src: &Message, src_ds_root: &DatasetRoot, src_cwd: &ChatWithDetails,
-                             dst: &Message, dst_ds_root: &DatasetRoot, dst_cwd: &ChatWithDetails) {
-    let src_pet = PracticalEqTuple::new(src, src_ds_root, src_cwd);
-    let new_pet = PracticalEqTuple::new(dst, dst_ds_root, dst_cwd);
-    assert!(new_pet.practically_equals(&src_pet).unwrap(),
+fn assert_cmp_equals(src: &Message, src_ds_root: &DatasetRoot, src_cwd: &ChatWithDetails,
+                     dst: &Message, dst_ds_root: &DatasetRoot, dst_cwd: &ChatWithDetails) {
+    let src_pet = EntityCmpTuple::new(src, src_ds_root, src_cwd);
+    let new_pet = EntityCmpTuple::new(dst, dst_ds_root, dst_cwd);
+    assert!(new_pet.compare(&src_pet).unwrap().is_eq(),
             "Message differs:\nWas    {:?}\nBecame {:?}", src, dst);
     assert_files(&src_pet.v.files(src_ds_root), &new_pet.v.files(dst_ds_root));
 }
 
-fn amend_with_content(mode: ContentMode, ds_root: &DatasetRoot, msg: &mut Message) {
+fn amend_with_content(msg: &mut Message, mode: ContentMode, ds_root: &DatasetRoot, seed: u64) {
     let content_field =
         &mut coerce_enum!(msg.typed, Some(message::Typed::Regular(ref mut mr)) => mr).contents;
 
@@ -1320,16 +1367,16 @@ fn amend_with_content(mode: ContentMode, ds_root: &DatasetRoot, msg: &mut Messag
             *content_field = vec![];
         }
         ContentMode::Full => {
-            *content_field = vec![make_random_video_content(ds_root, false)];
+            *content_field = vec![make_random_video_content(ds_root, false, seed)];
         }
         ContentMode::DeletedPaths => {
-            *content_field = vec![make_random_video_content(ds_root, false)];
+            *content_field = vec![make_random_video_content(ds_root, false, seed)];
             for f in msg.files(ds_root) {
                 fs::remove_file(f).unwrap()
             }
         }
         ContentMode::NonePaths => {
-            *content_field = vec![make_random_video_content(ds_root, true)];
+            *content_field = vec![make_random_video_content(ds_root, true, seed)];
         }
     }
 }

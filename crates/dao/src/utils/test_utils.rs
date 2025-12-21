@@ -12,7 +12,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::*;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use rand::Rng;
 use rusqlite::{params, Connection};
@@ -169,12 +168,13 @@ pub fn create_simple_dao(
     messages: Vec<Message>,
     num_users: usize,
     amend_message: &impl Fn(bool, &DatasetRoot, &mut Message),
+    seed: u64,
 ) -> InMemoryDaoHolder {
     let users = (1..=num_users).map(|i| create_user(&ZERO_PB_UUID, i as i64)).collect_vec();
     let member_ids = users.iter().map(|u| u.id).collect_vec();
     let chat = create_group_chat(&ZERO_PB_UUID, 1, "One", member_ids, messages.len());
     let cwms = vec![ChatWithMessages { chat, messages }];
-    create_dao(name_suffix, users, cwms, |ds_root, m| amend_message(is_master, ds_root, m))
+    create_dao(name_suffix, users, cwms, |ds_root, m| amend_message(is_master, ds_root, m), seed)
 }
 
 pub fn create_dao(
@@ -182,6 +182,7 @@ pub fn create_dao(
     users: Vec<User> /* First one would be self. */,
     cwms: Vec<ChatWithMessages>,
     amend_messages: impl Fn(&DatasetRoot, &mut Message),
+    seed: u64,
 ) -> InMemoryDaoHolder {
     assert!({
         let user_ids = users.iter().map(|u| u.id).collect_vec();
@@ -204,7 +205,7 @@ pub fn create_dao(
     let mut cwms = cwms;
     for cwm in cwms.iter_mut() {
         cwm.chat.ds_uuid = ds.uuid.clone();
-        let img = create_random_file(&ds_root.0);
+        let img = create_random_file(&ds_root.0, seed);
         cwm.chat.img_path_option = Some(ds_root.to_relative(&img).unwrap());
         for m in cwm.messages.iter_mut() {
             amend_messages(&ds_root, m);
@@ -274,8 +275,8 @@ pub fn create_regular_message(idx: usize, user_id: usize) -> Message {
 
     let typed = message_regular! {
         edit_timestamp_option: Some(
-                (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
-            ).timestamp()),
+            (*BASE_DATE + Duration::try_minutes(idx as i64).unwrap() + Duration::try_seconds(5).unwrap()
+        ).timestamp()),
         is_deleted: false,
         reply_to_message_id_option: reply_to_message_id_option,
         forward_from_name_option: Some(format!("u{user_id}")),

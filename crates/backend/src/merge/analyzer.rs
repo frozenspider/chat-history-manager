@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-use itertools::Itertools;
 use crate::prelude::*;
 
 #[cfg(test)]
@@ -60,16 +59,16 @@ impl<'a> DatasetDiffAnalyzer<'a> {
         let mut state = NoState;
         let mut acc: Vec<MergeAnalysisSection> = vec![];
 
-        let matches = |mm: &MasterMessage, sm: &SlaveMessage|
-            equals_with_no_mismatching_content(PracticalEqTuple::new(mm, &self.m_root, cx.m_cwd),
-                                               PracticalEqTuple::new(sm, &self.s_root, cx.s_cwd));
+        let compare = |mm: &MasterMessage, sm: &SlaveMessage|
+            EntityCmpTuple::new(&mm.0, &self.m_root, cx.m_cwd).compare(&EntityCmpTuple::new(&sm.0, &self.s_root, cx.s_cwd));
+
         loop {
             match (cx.peek(), &state) {
                 //
                 // NoState
                 //
 
-                ((Some(mm), Some(sm)), NoState) if matches(mm, sm)? => {
+                ((Some(mm), Some(sm)), NoState) if !compare(mm, sm)?.is_conflict() => {
                     let (mm, sm) = cx.advance_both()?;
                     let mm_internal_id = mm.typed_id();
                     let sm_internal_id = sm.typed_id();
@@ -101,7 +100,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
                         let is_timestamp_diff = {
                             let mut mm = mm.clone();
                             mm.0.timestamp = sm.timestamp;
-                            matches(&mm, sm)?
+                            !compare(&mm, sm)?.is_conflict()
                         };
                         if is_timestamp_diff {
                             let (ahead_behind, diff_sec) = {
@@ -154,7 +153,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
                 // Match continues
                 //
 
-                ((Some(mm), Some(sm)), InProgress(Match { .. })) if matches(mm, sm)? => {
+                ((Some(mm), Some(sm)), InProgress(Match { .. })) if !compare(mm, sm)?.is_conflict() => {
                     cx.advance_both()?;
                 }
 
@@ -181,7 +180,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
                 // Conflict continues
                 //
 
-                ((Some(mm), Some(sm)), InProgress(Conflict { .. })) if !matches(mm, sm)? => {
+                ((Some(mm), Some(sm)), InProgress(Conflict { .. })) if compare(mm, sm)?.is_conflict() => {
                     cx.advance_both()?;
                 }
 
@@ -338,6 +337,7 @@ pub enum MergeAnalysisSection {
     Conflict(MergeAnalysisSectionConflict),
 }
 
+/// Means that messages are either the same, or the difference is trivially resolvable (e.g., some files are added)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MergeAnalysisSectionMatch {
     pub first_master_msg_id: MasterInternalId,
@@ -478,83 +478,5 @@ impl<T: WithTypedId> Iterator for BatchedMessageIterator<'_, T> {
         } // Otherwise iterator ended, no more elements.
         self.last_id_option = current.as_ref().map(|m| m.typed_id());
         current.map(|c| Ok(c))
-    }
-}
-
-/**
- * Equality test, but treats master and slave messages as equal if either of them has content - unless they both do
- * and it's mismatching.
- * Also ignores edit timestamp if nothing else is changed.
- */
-fn equals_with_no_mismatching_content(mm_eq: PracticalEqTuple<MasterMessage>,
-                                      sm_eq: PracticalEqTuple<SlaveMessage>) -> Result<bool> {
-    use message::Typed::*;
-    use message_service::SealedValueOptional::*;
-
-    // Special case: Telegram 2023-11 started exporting double styles (bold+X)
-    // as bold instead of an X. We want to ignore this change.
-    fn text_to_comparable(rte: &RichTextElement) -> RichTextElement {
-        use rich_text_element::Val::*;
-        match rte.val {
-            Some(Italic(ref v)) => RichText::make_bold(v.text.clone()),
-            Some(Underline(ref v)) => RichText::make_bold(v.text.clone()),
-            Some(Strikethrough(ref v)) => RichText::make_bold(v.text.clone()),
-            _ => rte.clone()
-        }
-    }
-    fn regular_msg_to_comparable(m: &Message, mr: &MessageRegular) -> Message {
-        Message {
-            typed: Some(message_regular! {
-                contents: vec![],
-                edit_timestamp_option: None,
-                reply_to_message_id_option: None,
-                ..mr.clone()
-            }),
-            text: m.text.iter().map(text_to_comparable).collect_vec(),
-            ..m.clone()
-        }
-    }
-    fn has_some_content(c: &[Content], root: &DatasetRoot) -> bool {
-        c.iter().flat_map(|c| c.path_file_option(root))
-            .any(|p| p.exists())
-    }
-    fn photo_has_content(photo: &ContentPhoto, root: &DatasetRoot) -> bool {
-        photo.path_option.as_ref()
-            .map(|path| root.to_absolute(path).exists())
-            .unwrap_or(false)
-    }
-    let mm_eq_sm = || mm_eq.apply(|m| &m.0).practically_equals(&sm_eq.apply(|m| &m.0));
-
-    match (mm_eq.v.0.typed(), sm_eq.v.0.typed()) {
-        (Regular(mm_regular), Regular(sm_regular)) => {
-            let mm_copy = regular_msg_to_comparable(&mm_eq.v.0, mm_regular);
-            let sm_copy = regular_msg_to_comparable(&sm_eq.v.0, sm_regular);
-
-            if !mm_eq.with(&mm_copy).practically_equals(&sm_eq.with(&sm_copy))? {
-                return Ok(false);
-            }
-
-            if !has_some_content(&mm_regular.contents, mm_eq.ds_root) ||
-                !has_some_content(&sm_regular.contents, sm_eq.ds_root) {
-                return Ok(true);
-            }
-
-            mm_eq.with(&mm_regular.contents).practically_equals(&sm_eq.with(&sm_regular.contents))
-        }
-        (message_service_pat!(GroupEditPhoto(MessageServiceGroupEditPhoto { photo: mm_photo })),
-            message_service_pat!(GroupEditPhoto(MessageServiceGroupEditPhoto { photo: sm_photo }))) => {
-            if !photo_has_content(mm_photo, mm_eq.ds_root) || !photo_has_content(sm_photo, sm_eq.ds_root) {
-                return Ok(true);
-            }
-            mm_eq_sm()
-        }
-        (message_service_pat!(SuggestProfilePhoto(MessageServiceSuggestProfilePhoto { photo: mm_photo })),
-            message_service_pat!(SuggestProfilePhoto(MessageServiceSuggestProfilePhoto { photo: sm_photo }))) => {
-            if !photo_has_content(mm_photo, mm_eq.ds_root) || !photo_has_content(sm_photo, sm_eq.ds_root) {
-                return Ok(true);
-            }
-            mm_eq_sm()
-        }
-        _ => mm_eq_sm()
     }
 }

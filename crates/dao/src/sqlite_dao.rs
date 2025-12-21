@@ -1292,7 +1292,7 @@ fn copy_file(src_file: &Path,
 
         if dst_file.exists() {
             // Assume hash collisions don't exist
-            ensure!(subpath.use_hashing || files_are_equal(src_file, &dst_file)?,
+            ensure!(subpath.use_hashing || files_are_equal(src_file, &dst_file)?.is_eq(),
                     "File already exists: {}, and it doesn't match source {}",
                     dst_file.display(), src_absolute_path)
         } else {

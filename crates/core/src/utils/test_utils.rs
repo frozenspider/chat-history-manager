@@ -9,8 +9,7 @@ use std::path::{Path, PathBuf};
 use chrono::*;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::prelude::*;
 use uuid::Uuid;
 
 lazy_static! {
@@ -67,8 +66,13 @@ pub fn dt(s: &str, offset: Option<&FixedOffset>) -> DateTime<FixedOffset> {
     offset.from_local_datetime(&NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()).unwrap()
 }
 
-pub fn random_alphanumeric(length: usize) -> String {
-    rng()
+pub fn random_alphanumeric(length: usize, seed: u64) -> String {
+    let seed = {
+        let mut bytes = [0u8; 32];
+        bytes[..8].copy_from_slice(&seed.to_le_bytes());
+        bytes
+    };
+    SmallRng::from_seed(seed)
         .sample_iter(&rand::distr::Alphanumeric)
         .take(length)
         .map(char::from)
@@ -80,13 +84,13 @@ pub fn create_named_file(path: &Path, content: &[u8]) {
     file.write_all(content).unwrap();
 }
 
-pub fn create_random_named_file(path: &Path) {
-    create_named_file(path, random_alphanumeric(256).as_bytes())
+pub fn create_random_named_file(path: &Path, seed: u64) {
+    create_named_file(path, random_alphanumeric(256, seed).as_bytes())
 }
 
-pub fn create_random_file(parent: &Path) -> PathBuf {
-    let path = parent.join(format!("{}.bin", random_alphanumeric(30)));
-    create_random_named_file(&path);
+pub fn create_random_file(parent: &Path, seed: u64) -> PathBuf {
+    let path = parent.join(format!("{}.bin", random_alphanumeric(30, seed)));
+    create_random_named_file(&path, seed);
     path
 }
 
@@ -120,7 +124,7 @@ impl Default for TmpDir {
 
 impl TmpDir {
     pub fn new() -> Self {
-        let dir_name = format!("chm-rust_{}", random_alphanumeric(10));
+        let dir_name = format!("chm-rust_{}", random_alphanumeric(10, rng().random()));
         let path = std::env::temp_dir().canonicalize().unwrap().join(dir_name);
         Self::new_at(path)
     }

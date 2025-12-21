@@ -6,7 +6,6 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use encoding_rs::Encoding;
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::{Captures, Regex};

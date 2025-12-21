@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 
 use grammers_client::grammers_tl_types::Deserializable;
 use grammers_client::{grammers_tl_types as tl, types};
-use itertools::Itertools;
 use utf16string::{WString, BE};
 
 /// Loader for [tg-keeper](https://github.com/frozenspider/tg-keeper/) database.

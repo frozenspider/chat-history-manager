@@ -3,7 +3,6 @@
 mod tests;
 
 use std::io;
-use itertools::Itertools;
 
 use crate::merge::analyzer::*;
 use crate::prelude::*;
@@ -237,14 +236,21 @@ fn merge_inner(
 
                             let grouped_total_msgs = master_msgs.into_iter().zip(slave_msgs)
                                 .map(|(mm, sm)| {
-                                    let mm_files = mm.files(&master_ds_root).into_iter().filter(|f| f.exists()).collect_vec();
-                                    let sm_files = sm.files(&slave_ds_root).into_iter().filter(|f| f.exists()).collect_vec();
-                                    if mm_files.len() >= sm_files.len() {
-                                        let mut mm = mm;
-                                        update_with_slave_data(&mut mm, &sm);
-                                        (mm, Source::Master)
-                                    } else {
-                                        (sm, Source::Slave)
+                                    let m_tup = EntityCmpTuple::new(&mm, &master_ds_root, &master_cwd);
+                                    let s_tup = EntityCmpTuple::new(&sm, &slave_ds_root, &slave_cwd);
+                                    match m_tup.compare(&s_tup).expect("Comparison should not fail during merge!") {
+                                        EntityCmpResult::Equal => {
+                                            let mut mm = mm;
+                                            // TODO: Do we still need this?
+                                            update_with_slave_data(&mut mm, &sm);
+                                            (mm, Source::Master)
+                                        }
+                                        EntityCmpResult::LeftHasMore =>
+                                            (mm, Source::Master),
+                                        EntityCmpResult::RightHasMore =>
+                                            (sm, Source::Slave),
+                                        EntityCmpResult::Conflict =>
+                                            unreachable!("Messages are supposed to be matching! {:?} vs {:?}", mm, sm)
                                     }
                                 })
                                 .chunk_by(|(_m, src)| *src);

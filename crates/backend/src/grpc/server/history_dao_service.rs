@@ -1,7 +1,6 @@
 use std::fs;
 use std::sync::Mutex;
 
-use itertools::Itertools;
 use tonic::Request;
 
 use crate::protobuf::history::history_dao_service_server::HistoryDaoService;

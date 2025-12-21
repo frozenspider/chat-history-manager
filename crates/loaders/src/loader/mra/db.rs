@@ -2,7 +2,6 @@
 /// Note that when both new and old DBs are present, new DB might have some messages missing!
 use std::fmt::Formatter;
 use std::fs;
-use itertools::Itertools;
 
 use super::*;
 

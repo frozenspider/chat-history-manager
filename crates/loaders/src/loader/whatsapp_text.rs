@@ -1,7 +1,6 @@
 use std::fs;
 
 use chrono::{NaiveDateTime, TimeZone};
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 
