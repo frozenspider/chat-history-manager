@@ -175,6 +175,8 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                     }
                 };
 
+                let text = normalize_rich_text(text);
+
                 messages.push(Message::new(
                     *NO_INTERNAL_ID,
                     Some(source_id),

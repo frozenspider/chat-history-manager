@@ -368,6 +368,8 @@ fn parse_cwms(conn: &Connection,
                 }
             };
 
+            text = super::normalize_rich_text(text);
+
             messages.push(Message::new(
                 *NO_INTERNAL_ID, // Will be set later
                 Some(source_id),

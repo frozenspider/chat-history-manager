@@ -450,6 +450,8 @@ fn parse_text(
         result.push(RichText::make_plain(plaintext));
     }
 
+    result = super::normalize_rich_text(result);
+
     Ok(result)
 }
 

@@ -81,6 +81,57 @@ fn first_line(path: &Path) -> Result<String> {
     Ok(buffered.lines().next().context("File is empty")??.trim().to_owned())
 }
 
+fn normalize_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
+    use rich_text_element::Val;
+
+    // Concatenate consecutive plaintext elements
+    let mut i = 0;
+    while (i + 1) < rtes.len() {
+        let el1 = &rtes[i];
+        let el2 = &rtes[i + 1];
+        if let (Some(Val::Plain(plain1)), Some(Val::Plain(plain2))) = (&el1.val, &el2.val) {
+            let mut new_text = String::new();
+            new_text.push_str(&plain1.text);
+            new_text.push_str(&plain2.text);
+            let new_plain = RichText::make_plain(new_text);
+            rtes.splice(i..=(i + 1), vec![new_plain]);
+        } else {
+            i += 1;
+        }
+    }
+
+    fn is_whitespaces(rte: &RichTextElement) -> bool {
+        match rte.val.as_ref().unwrap() {
+            Val::Plain(_) | Val::Bold(_) | Val::Italic(_) | Val::Underline(_) | Val::Strikethrough(_) |
+            Val::Blockquote(_) | Val::Spoiler(_) => {
+                rte.get_text().unwrap().chars().all(|c| c.is_whitespace())
+            }
+            Val::Link(_) | Val::PrefmtInline(_) | Val::PrefmtBlock(_) => {
+                false
+            }
+        }
+    }
+
+    // Trim
+    let first_idx = (0..rtes.len()).find(|&idx| !is_whitespaces(&rtes[idx]));
+    if first_idx.is_none() { return vec![]; }
+    let first_idx = first_idx.unwrap();
+    if !matches!(rtes[first_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[first_idx].get_text_mut()
+    {
+        *text = text.trim_start().to_owned();
+    }
+
+    let last_idx = (0..rtes.len()).rfind(|&idx| !is_whitespaces(&rtes[idx]));
+    let last_idx = last_idx.unwrap();
+    if !matches!(rtes[last_idx].val, Some(Val::PrefmtInline(_) | Val::PrefmtBlock(_)))
+        && let Some(text) = rtes[last_idx].get_text_mut()
+    {
+        *text = text.trim_end().to_owned();
+    }
+    rtes[first_idx..=last_idx].to_vec()
+}
+
 // Android-specific helpers.
 pub mod android {
     use const_format::concatcp;

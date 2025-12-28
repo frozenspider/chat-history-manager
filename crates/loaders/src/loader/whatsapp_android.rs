@@ -501,6 +501,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
                 Some(Ok(Some(text))) => vec![RichText::make_plain(text)],
                 Some(Err(e)) => return Err(e)?
             };
+            let text = normalize_rich_text(text);
 
             let key: MessageKey = row.get(columns::message::KEY)?;
             let source_id = hash_to_id(&key);

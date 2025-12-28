@@ -925,6 +925,7 @@ fn parse_rtf(rtf: &str) -> Result<Vec<RichTextElement>> {
         }
     }
     commit_section!();
+    result = super::normalize_rich_text(result);
     Ok(result)
 }
 
