@@ -377,9 +377,35 @@ impl EntityCmp for Tup<'_, ContentPoll> {
 impl EntityCmp for Tup<'_, ContentLocation> {
     fn compare(&self, other: &Self) -> Result<Cmp> {
         // lat/lon are strings, trailing zeros should be ignored,
-        Ok((self.v.lat()? == other.v.lat()? &&
-            self.v.lon()? == other.v.lon()? &&
-            cloned_equals_without!(self.v, other.v, ContentLocation, lat_str: "".to_owned(), lon_str: "".to_owned())).into())
+        // Longer lat/lon string should be considered more precise
+        fn compare_lat_lon(v1: &str, v2: &str) -> Cmp {
+            let v1 = v1.trim_end_matches('0').trim_end_matches('.');
+            let v2 = v2.trim_end_matches('0').trim_end_matches('.');
+            match (v1.len(), v2.len()) {
+                (0, 0) => Cmp::Equal,
+                (0, _) => Cmp::RightHasMore,
+                (_, 0) => Cmp::LeftHasMore,
+                (x, y) if x == y => Cmp::Equal,
+                _ => {
+                    // Drop the last digit and then compare substrings
+                    let v1 = &v1[..v1.len() - 1];
+                    let v2 = &v2[..v2.len() - 1];
+                    if v1.contains(v2) {
+                        Cmp::LeftHasMore
+                    } else if v2.contains(v1) {
+                        Cmp::RightHasMore
+                    } else {
+                        Cmp::Conflict
+                    }
+                }
+            }
+        }
+
+        Ok(Cmp::chain([
+            compare_lat_lon(&self.v.lat_str, &other.v.lat_str),
+            compare_lat_lon(&self.v.lon_str, &other.v.lon_str),
+            cloned_equals_without!(self.v, other.v, ContentLocation, lat_str: "".to_owned(), lon_str: "".to_owned()).into()
+        ]))
     }
 }
 
