@@ -42,7 +42,7 @@ fn vcards() -> EmptyRes {
         FN:Name (comment)
         TEL;type=Mobile;waid=112223456543:+11 222-3456-543
         END:VCARD
-    ")?, vc("Name (comment)", "+11 222-3456-543"));
+    ")?, vc("Name (comment)", "+112223456543"));
 
     assert_eq!(parse(r"
         BEGIN:VCARD
@@ -52,7 +52,7 @@ fn vcards() -> EmptyRes {
         TEL;type=Home:+12 345-6789-8765
         TEL;type=Mobile;waid=9876543212345:+98 765-4321-2345
         END:VCARD
-    ")?, vc("Name1 Name2 Name3", "+98 765-4321-2345"));
+    ")?, vc("Name1 Name2 Name3", "+9876543212345"));
 
     assert_eq!(parse(r"
         BEGIN:VCARD
@@ -63,7 +63,7 @@ fn vcards() -> EmptyRes {
         X-WA-BIZ-NAME:+11 222-3333-4444
         X-WA-BIZ-DESCRIPTION:My Fancy Description!
         END:VCARD
-    ")?, vc("+11 222-3333-4444", "+11 222-3333-4444"));
+    ")?, vc("+11 222-3333-4444", "+1122233334444"));
 
     assert_eq!(parse(r"
         BEGIN:VCARD
@@ -75,7 +75,7 @@ fn vcards() -> EmptyRes {
         X-WA-BIZ-DESCRIPTION:My Fancy Description!
         X-WA-BIZ-NAME:Full Name
         END:VCARD
-    ")?, vc("Full Name", "+11 222-3333-4444"));
+    ")?, vc("Full Name", "+1122233334444"));
 
     Ok(())
 }
@@ -97,7 +97,7 @@ fn loading_2023_10() -> EmptyRes {
         first_name_option: None,
         last_name_option: None,
         username_option: None,
-        phone_number_option: Some("+11111".to_owned()),
+        phone_number_option: Some("11111".to_owned()),
         profile_pictures: vec![],
     };
 
@@ -164,7 +164,7 @@ fn loading_2023_10() -> EmptyRes {
         assert_eq!(chat, Chat {
             ds_uuid: ds_uuid.clone(),
             id: member.id,
-            name_option: Some("+11111".to_owned()),
+            name_option: Some("11111".to_owned()),
             source_type: SourceType::WhatsappDb as i32,
             tpe: ChatType::Personal as i32,
             img_path_option: Some("files/Avatars/11111@s.whatsapp.net.j".to_owned()),

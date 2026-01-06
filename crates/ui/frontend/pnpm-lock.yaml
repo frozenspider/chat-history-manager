@@ -68,6 +68,9 @@ dependencies:
   date-fns:
     specifier: ^3.6.0
     version: 3.6.0
+  libphonenumber-js:
+    specifier: ^1.12.33
+    version: 1.12.33
   long:
     specifier: ^5.2.3
     version: 5.2.3
@@ -4224,6 +4227,10 @@ packages:
       prelude-ls: 1.2.1
       type-check: 0.4.0
     dev: true
+
+  /libphonenumber-js@1.12.33:
+    resolution: {integrity: sha512-r9kw4OA6oDO4dPXkOrXTkArQAafIKAU71hChInV4FxZ69dxCfbwQGDPzqR5/vea94wU705/3AZroEbSoeVWrQw==}
+    dev: false
 
   /lilconfig@2.1.0:
     resolution: {integrity: sha512-utWOt/GHzuUxnLKxB6dk81RoOeoNeHgbrXiuGk4yyF5qlRz+iIVWu56E2fqGHFrXz0QNUhLB/8nKqvRH66JKGQ==}

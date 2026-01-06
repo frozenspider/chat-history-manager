@@ -1,4 +1,4 @@
-use super::DataLoader;
+use super::{normalize_phone_number, DataLoader};
 use crate::prelude::*;
 
 use std::fs;
@@ -155,6 +155,7 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
         let first_name_option = row.get::<_, Option<String>>("profileName")?;
         let last_name_option = row.get::<_, Option<String>>("profileFamilyName")?;
         let phone_number_option = row.get::<_, Option<String>>("e164")?;
+        let phone_number_option = phone_number_option.map(|pn| normalize_phone_number(&pn).0);
 
         let user = User {
             ds_uuid: ds_uuid.clone(),

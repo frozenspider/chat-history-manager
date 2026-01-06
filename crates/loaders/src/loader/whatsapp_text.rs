@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use chat_history_manager_dao::in_memory_dao::InMemoryDao;
-use crate::loader::DataLoader;
+use crate::loader::{normalize_phone_number, DataLoader};
 use crate::prelude::*;
 
 #[cfg(test)]
@@ -106,10 +106,10 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
     }, User {
         ds_uuid: ds_uuid.clone(),
         id: super::hash_to_id(other_name),
-        first_name_option: if other_name.starts_with('+') { None } else { Some(other_name.to_owned()) },
+        first_name_option: Some(other_name.to_owned()), // We do not normalize phone number here
         last_name_option: None,
         username_option: None,
-        phone_number_option: if other_name.starts_with('+') { Some(other_name.to_owned()) } else { None },
+        phone_number_option: if other_name.starts_with('+') { Some(normalize_phone_number(other_name).0) } else { None },
         profile_pictures: vec![],
     }))
 }

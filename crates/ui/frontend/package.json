@@ -50,7 +50,8 @@
     "react-day-picker": "^8.10.1",
     "date-fns": "^3.6.0",
     "ogv": "^1.8.9",
-    "camelcase-keys-deep": "^0.1.0"
+    "camelcase-keys-deep": "^0.1.0",
+    "libphonenumber-js": "^1.12.33"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

@@ -7,6 +7,7 @@ mod signal;
 mod badoo_android;
 mod mra;
 
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -57,6 +58,9 @@ pub trait DataLoader: Send + Sync {
 
     fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>>;
 }
+
+/// A normalized phone number (digits only).
+struct PhoneNumber(String);
 
 fn ensure_file_presence(root_file: &Path) -> Result<&str> {
     let root_file_str = path_to_str(root_file)?;
@@ -130,6 +134,25 @@ fn normalize_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
         *text = text.trim_end().to_owned();
     }
     rtes[first_idx..=last_idx].to_vec()
+}
+
+/// Normalize phone number to E164 format if possible, otherwise strip all non-digit non-plus characters.
+fn normalize_phone_number(s: &str) -> PhoneNumber {
+    let mut pn = Cow::Borrowed(s);
+    if pn.starts_with("00") {
+        pn.to_mut().replace_range(0..2, "+");
+    }
+    match phonenumber::parse(None, &pn) {
+        Ok(parsed) => {
+            PhoneNumber(format!("{}", parsed.format().mode(phonenumber::Mode::E164)))
+        }
+        Err(_) => {
+            log::warn!("Failed to parse phone number: {}", s);
+            // Just strip all non-digit non-plus characters
+            // Keep in sync with UserUpdatedEvent listener in UI
+            PhoneNumber(pn.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect())
+        }
+    }
 }
 
 // Android-specific helpers.

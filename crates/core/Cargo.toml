@@ -22,6 +22,7 @@ serde = { workspace = true }
 # Text processing
 regex = { workspace = true }
 unicode-segmentation = { workspace = true }
+phonenumber = { workspace = true }
 
 # Protobuf
 prost = { workspace = true }

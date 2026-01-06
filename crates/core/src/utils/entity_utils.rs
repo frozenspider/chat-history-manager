@@ -149,7 +149,15 @@ impl User {
             (Some(first_name), Some(last_name), _, _) => Some(format!("{first_name} {last_name}")),
             (Some(first_name), None, _, _) => Some(first_name.clone()),
             (None, Some(last_name), _, _) => Some(last_name.clone()),
-            (None, None, Some(phone_number), _) => Some(phone_number.clone()),
+            (None, None, Some(pn), _) => {
+                match phonenumber::parse(None, pn) {
+                    Ok(parsed) => {
+                        Some(format!("{}", parsed.format().mode(phonenumber::Mode::International)))
+                    }
+                    Err(_) => Some(pn.clone())
+                }
+
+            }
             (None, None, None, Some(username)) => Some(username.clone()),
             (None, None, None, None) => None
         }
@@ -225,8 +233,11 @@ pub trait EnumResolve: Sized {
     fn resolve(tpe: i32) -> Result<Self>;
 }
 
-impl<T> EnumResolve for T where T: TryFrom<i32>,
-                                T::Error: StdError + Send + Sync + 'static {
+impl<T> EnumResolve for T
+where
+    T: TryFrom<i32>,
+    T::Error: StdError + Send + Sync + 'static,
+{
     fn resolve(tpe: i32) -> Result<Self> {
         Self::try_from(tpe).with_context(|| format!("{tpe} has no associated enum"))
     }

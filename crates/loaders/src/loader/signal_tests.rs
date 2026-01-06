@@ -41,7 +41,7 @@ fn loading_v7_27_macos_plaintext() -> EmptyRes {
         first_name_option: Some("Eeeee".to_owned()),
         last_name_option: Some("Eeeeeeeeee".to_owned()),
         username_option: None,
-        phone_number_option: Some("+7 999 333 44 55".to_owned()),
+        phone_number_option: Some("+79993334455".to_owned()),
         profile_pictures: vec![],
     };
 
@@ -197,7 +197,7 @@ fn expected_myself(ds_uuid: &PbUuid) -> User {
         first_name_option: Some("Aaaaa".to_owned()),
         last_name_option: Some("Aaaaaaaaaaa".to_owned()),
         username_option: None,
-        phone_number_option: Some("+998 91 1234567".to_owned()),
+        phone_number_option: Some("+998911234567".to_owned()),
         profile_pictures: vec![],
     }
 }

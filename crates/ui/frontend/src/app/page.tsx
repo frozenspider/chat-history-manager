@@ -482,6 +482,14 @@ function ShowManageUsersPopup(
         PromiseCatchReportError(async () => {
           let [newUserObj, dsStateObj] = JSON.parse(ev.payload)
           let newUser = User.fromJSON(newUserObj)
+
+          // Normalize phone number by removing all non-digit non-plus characters and replacing leading 00 with +
+          if (newUser.phoneNumberOption !== undefined) {
+            newUser.phoneNumberOption = newUser.phoneNumberOption
+              .replace(/^00/, "+")
+              .replace(/[^+\d]/g, "")
+          }
+
           let oldDsState = DatasetState.fromJSON(dsStateObj)
 
           let [_newDsState, _newOpenFile, newOpenFiles] =

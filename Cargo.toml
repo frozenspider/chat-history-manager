@@ -79,6 +79,7 @@ serde_json = "1.0.115"
 # Text processing
 regex = "1.10.6"
 unicode-segmentation = "1.11.0"
+phonenumber = "0.3.7"
 
 # Enum derivation
 num-traits = "0.2.19"

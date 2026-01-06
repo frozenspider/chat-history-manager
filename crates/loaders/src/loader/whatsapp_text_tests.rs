@@ -32,10 +32,10 @@ fn loading_2023_10() -> EmptyRes {
     let member = User {
         ds_uuid: ds_uuid.clone(),
         id: 2708866474201423075_i64,
-        first_name_option: None,
+        first_name_option: Some("+123 45 6789".to_owned()),
         last_name_option: None,
         username_option: None,
-        phone_number_option: Some("+123 45 6789".to_owned()),
+        phone_number_option: Some("+123456789".to_owned()),
         profile_pictures: vec![],
     };
 

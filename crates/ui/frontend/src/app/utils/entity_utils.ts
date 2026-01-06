@@ -5,6 +5,7 @@ import React from "react";
 import StaticPlaceholderImage from '../../../public/placeholder.svg'
 
 import { StaticImport } from "next/dist/shared/lib/get-img-props";
+import { parsePhoneNumberWithError } from "libphonenumber-js/max";
 
 import {
   Chat,
@@ -107,7 +108,7 @@ export function GetUserPrettyName(user: User | ContentSharedContact | null): str
   } else if (user.lastNameOption) {
     return user.lastNameOption
   } else if (user.phoneNumberOption) {
-    return user.phoneNumberOption
+    return GetPrettyPhoneNumber(user.phoneNumberOption)
   } else if ((user as User).usernameOption) {
     return (user as User).usernameOption!
   } else {
@@ -117,6 +118,18 @@ export function GetUserPrettyName(user: User | ContentSharedContact | null): str
 
 export function GetChatPrettyName(chat: Chat | null): string {
   return chat?.nameOption || Unnamed
+}
+
+export function GetPrettyPhoneNumber(pn: string): string {
+  if (pn.startsWith("00")) {
+    pn = "+" + pn.slice(2)
+  }
+  try {
+    return parsePhoneNumberWithError(pn).format("INTERNATIONAL")
+  } catch (error) {
+    // Not a phone number, non-existent country, etc.
+    return pn
+  }
 }
 
 export function GetChatQualifiedName(chat: Chat): string {

@@ -153,8 +153,9 @@ fn parse_users_from_stmt(stmt: &mut Statement, ds_uuid: &PbUuid, users: &mut Use
 
         // When phone number is not explicitly supplied, we can deduce it from certain JIDs
         let phone_number_option = row.get::<_, Option<String>>("number")?.or_else(|| {
-            PHONE_JID_REGEX.captures(&jid).map(|c| format!("+{}", c.get(1).unwrap().as_str()))
+            PHONE_JID_REGEX.captures(&jid).map(|c| c.get(1).unwrap().as_str().to_owned())
         });
+        let phone_number_option = phone_number_option.map(|pn| normalize_phone_number(&pn).0);
 
         let username_option = if phone_number_option.is_none() {
             // If phone number is left unknown, we're using JID as a username in order to not lose information
@@ -867,6 +868,8 @@ fn parse_vcard(vcard: &str) -> Result<ContentSharedContact> {
         .find(|p| p.params.as_ref().is_some_and(|params| params.iter().any(|(k, _)| k == "WAID")))
         .and_then(|p| p.value.clone())
         .expect("Phone number not found for vcard!");
+
+    let phone_number = normalize_phone_number(&phone_number).0;
 
     Ok(ContentSharedContact {
         first_name_option: Some(full_name),

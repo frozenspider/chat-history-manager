@@ -1,4 +1,4 @@
-use crate::loader::DataLoader;
+use crate::loader::{normalize_phone_number, DataLoader};
 use crate::prelude::*;
 // Reexporting JSON utils for simplicity.
 pub use crate::utils::json_utils::*;
@@ -263,7 +263,7 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
             Ok(())
         }
         "phone_number" => {
-            user.phone_number_option = as_string_option!(v, json_path, "phone_number");
+            user.phone_number_option = as_string_option!(v, json_path, "phone_number").map(|pn| normalize_phone_number(&pn).0);
             Ok(())
         }
         _ => wrong_key_action()
@@ -913,6 +913,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
             {
                 bail!("Shared contact had no information whatsoever!");
             }
+            let phone_number_option = phone_number_option.map(|pn| normalize_phone_number(&pn).0);
+
             Some(content!(SharedContact {
                 first_name_option,
                 last_name_option,
