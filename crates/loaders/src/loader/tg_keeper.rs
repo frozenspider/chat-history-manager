@@ -487,7 +487,7 @@ fn parse_media(
             let mime_type_option = inner.mime_type().map(|s| s.to_owned());
             let file_name_option = inner.name().to_owned().to_option();
             let (width, height) = inner.resolution().unwrap_or((0, 0));
-            let duration_sec_option = inner.duration().map(|d| d as i32);
+            let duration_sec_option = inner.duration().map(|d| d as i32).filter(|v| *v > 0);
             let is_one_time = inner.raw.ttl_seconds.is_some();
 
             let doc_attrs = inner
