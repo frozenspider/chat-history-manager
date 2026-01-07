@@ -49,7 +49,7 @@ pub(super) fn parse(root_obj: &Object,
                     Ok(())
                 }
                 "phone_number" => {
-                    myself.phone_number_option = Some(normalize_phone_number(as_str!(v, json_path, "phone_number")).0);
+                    myself.phone_number_option = Some(PhoneNumber::from_raw(as_str!(v, json_path, "phone_number")).0);
                     Ok(())
                 }
                 "bio" => consume(),

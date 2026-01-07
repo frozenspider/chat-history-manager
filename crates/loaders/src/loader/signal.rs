@@ -1,4 +1,4 @@
-use super::{normalize_phone_number, DataLoader};
+use super::DataLoader;
 use crate::prelude::*;
 
 use std::fs;
@@ -153,7 +153,7 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
         let first_name_option = row.get::<_, Option<String>>("profileName")?;
         let last_name_option = row.get::<_, Option<String>>("profileFamilyName")?;
         let phone_number_option = row.get::<_, Option<String>>("e164")?;
-        let phone_number_option = phone_number_option.map(|pn| normalize_phone_number(&pn).0);
+        let phone_number_option = phone_number_option.map(|pn| PhoneNumber::from_raw(&pn).0);
 
         let user = User {
             ds_uuid: ds_uuid.clone(),
@@ -614,8 +614,8 @@ struct LinkedFileInfo {
 mod cipher {
     use aes::{Aes128, Aes256};
     use anyhow::{anyhow, ensure};
-    use cbc::cipher::{Block, BlockDecryptMut, KeyIvInit};
     use cbc::cipher::block_padding::Pkcs7;
+    use cbc::cipher::{Block, BlockDecryptMut, KeyIvInit};
     use cbc::Decryptor;
     use hmac::Hmac;
     use pbkdf2::pbkdf2;

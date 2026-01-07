@@ -1,4 +1,4 @@
-use crate::loader::{normalize_phone_number, DataLoader};
+use crate::loader::DataLoader;
 use crate::prelude::*;
 // Reexporting JSON utils for simplicity.
 pub use crate::utils::json_utils::*;
@@ -9,12 +9,12 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use chat_history_manager_dao::in_memory_dao::InMemoryDao;
 use chrono::NaiveDate;
 use lazy_static::lazy_static;
 use simd_json::borrowed::Object;
-use simd_json::BorrowedValue;
 use simd_json::prelude::*;
-use chat_history_manager_dao::in_memory_dao::InMemoryDao;
+use simd_json::BorrowedValue;
 
 mod parser_full;
 mod parser_single;
@@ -262,7 +262,7 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
             Ok(())
         }
         "phone_number" => {
-            user.phone_number_option = as_string_option!(v, json_path, "phone_number").map(|pn| normalize_phone_number(&pn).0);
+            user.phone_number_option = as_string_option!(v, json_path, "phone_number").map(|pn| PhoneNumber::from_raw(&pn).0);
             Ok(())
         }
         _ => wrong_key_action()
@@ -912,7 +912,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
             {
                 bail!("Shared contact had no information whatsoever!");
             }
-            let phone_number_option = phone_number_option.map(|pn| normalize_phone_number(&pn).0);
+            let phone_number_option = phone_number_option.map(|pn| PhoneNumber::from_raw(&pn).0);
 
             Some(content!(SharedContact {
                 first_name_option,

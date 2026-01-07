@@ -4,6 +4,7 @@ pub use entity_comparison::*;
 
 use crate::protobuf::history::*;
 
+use std::borrow::Cow;
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
@@ -576,6 +577,30 @@ impl ContentLocation {
     pub fn lat(&self) -> Result<f64> { self.lat_str.parse::<f64>().map_err(|e| e.into()) }
 
     pub fn lon(&self) -> Result<f64> { self.lon_str.parse::<f64>().map_err(|e| e.into()) }
+}
+
+/// A normalized phone number (in E.164 format, if possible).
+pub struct PhoneNumber(pub String);
+
+impl PhoneNumber {
+    /// Normalize phone number to E.164 format if possible, otherwise strip all non-digit non-plus characters.
+    pub fn from_raw(s: &str) -> Self {
+        let mut pn = Cow::Borrowed(s);
+        if pn.starts_with("00") {
+            pn.to_mut().replace_range(0..2, "+");
+        }
+        match phonenumber::parse(None, &pn) {
+            Ok(parsed) => {
+                PhoneNumber(format!("{}", parsed.format().mode(phonenumber::Mode::E164)))
+            }
+            Err(_) => {
+                log::warn!("Failed to parse phone number: {}", s);
+                // Just strip all non-digit non-plus characters
+                // Keep in sync with UserUpdatedEvent listener in UI
+                PhoneNumber(pn.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect())
+            }
+        }
+    }
 }
 
 //

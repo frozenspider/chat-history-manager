@@ -23,6 +23,7 @@ use crate::utils::entity_utils::EntityCmpResult;
 //
 // Constants
 //
+
 lazy_static! {
     pub static ref LOCAL_TZ: Local = Local::now().timezone();
 }
@@ -61,6 +62,7 @@ impl<T> ToResult<T> for StdResult<T, Box<dyn StdError + Send + Sync>> {
         self.map_err(|e| anyhow!("{}", e.as_ref()))
     }
 }
+
 //
 // Smart slice
 //

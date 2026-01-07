@@ -4,9 +4,9 @@ use chrono::{NaiveDateTime, TimeZone};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use chat_history_manager_dao::in_memory_dao::InMemoryDao;
-use crate::loader::{normalize_phone_number, DataLoader};
+use crate::loader::DataLoader;
 use crate::prelude::*;
+use chat_history_manager_dao::in_memory_dao::InMemoryDao;
 
 #[cfg(test)]
 #[path = "whatsapp_text_tests.rs"]
@@ -108,7 +108,7 @@ fn parse_users(ds_uuid: &PbUuid, filename: &str, content: &str) -> Result<(User,
         first_name_option: Some(other_name.to_owned()), // We do not normalize phone number here
         last_name_option: None,
         username_option: None,
-        phone_number_option: if other_name.starts_with('+') { Some(normalize_phone_number(other_name).0) } else { None },
+        phone_number_option: if other_name.starts_with('+') { Some(PhoneNumber::from_raw(other_name).0) } else { None },
         profile_pictures: vec![],
     }))
 }

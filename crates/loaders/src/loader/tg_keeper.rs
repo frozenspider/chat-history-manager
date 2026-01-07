@@ -1,6 +1,6 @@
 use super::telegram::{GROUP_CHAT_ID_SHIFT, PERSONAL_CHAT_ID_SHIFT, USER_ID_SHIFT};
 
-use crate::loader::{normalize_phone_number, DataLoader};
+use crate::loader::DataLoader;
 use crate::prelude::*;
 use chrono::Local;
 use rusqlite::Connection;
@@ -256,7 +256,7 @@ fn get_users(
                                 // Assume it's an interational number, add plus
                                 pn.insert(0, '+');
                             }
-                            normalize_phone_number(&pn).0
+                            PhoneNumber::from_raw(&pn).0
                         }),
                         profile_pictures: vec![],
                     },
@@ -640,7 +640,7 @@ fn parse_media(
             content!(SharedContact {
                 first_name_option: Some(inner.first_name().to_owned()),
                 last_name_option: inner.last_name().to_owned().to_option(),
-                phone_number_option: Some(normalize_phone_number(inner.phone_number()).0),
+                phone_number_option: Some(PhoneNumber::from_raw(inner.phone_number()).0),
                 vcard_path_option: media_rel_path,
             })
         }

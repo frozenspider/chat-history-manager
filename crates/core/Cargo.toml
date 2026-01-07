@@ -27,6 +27,9 @@ phonenumber = { workspace = true }
 # Protobuf
 prost = { workspace = true }
 
+# Logging
+log = { workspace = true }
+
 [build-dependencies]
 anyhow = { workspace = true }
 prost = { workspace = true }
