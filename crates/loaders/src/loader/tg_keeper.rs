@@ -1,4 +1,4 @@
-use super::telegram::{GROUP_CHAT_ID_SHIFT, PERSONAL_CHAT_ID_SHIFT};
+use super::telegram::{GROUP_CHAT_ID_SHIFT, PERSONAL_CHAT_ID_SHIFT, USER_ID_SHIFT};
 
 use crate::loader::{normalize_phone_number, DataLoader};
 use crate::prelude::*;
@@ -20,6 +20,8 @@ const NAME: &str = "TgKeeper";
 const FILENAME: &str = "tg-keeper.sqlite";
 
 const MEDIA_DIR: &str = "media";
+
+type Users = HashMap<RawPeerId, User>;
 
 impl DataLoader for TgKeeperDataLoader {
     fn name(&self) -> String {
@@ -74,7 +76,7 @@ fn load_everything(
     // since edited messages are stored as separate entries.
     let raw_messages = load_raw_messages(conn)?;
 
-    let (users, myself_id) = get_users(&raw_chats, ds_uuid)?;
+    let (users, myself_raw_id) = get_users(&raw_chats, ds_uuid)?;
 
     let mut cwm_builders: HashMap<ChatId, CwmBuilder> = raw_chats
         .iter()
@@ -129,13 +131,14 @@ fn load_everything(
                 media_rel_path,
                 thumbnail_rel_path,
                 &users,
-                myself_id,
+                myself_raw_id,
             )? {
                 cwm_builder.add_message(msg);
             }
         }
     }
 
+    let myself_id = myself_raw_id.normalize_user_id();
     Ok((
         users.into_values().collect(),
         cwm_builders
@@ -205,17 +208,17 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
 fn get_users(
     raw_chats: &[types::Chat],
     ds_uuid: &PbUuid,
-) -> Result<(HashMap<UserId, User>, UserId)> {
-    let users: HashMap<UserId, User> = raw_chats
+) -> Result<(Users, RawPeerId)> {
+    let users: Users = raw_chats
         .iter()
         .filter_map(|raw_chat| match raw_chat {
             types::Chat::User(user) => {
-                let id = user.id();
+                let raw_peer_id = RawPeerId(user.id());
                 Some((
-                    UserId(id),
+                    raw_peer_id,
                     User {
                         ds_uuid: ds_uuid.clone(),
-                        id,
+                        id: raw_peer_id.normalize_user_id().0,
                         first_name_option: user.first_name().map(|s| s.to_owned()),
                         last_name_option: user.last_name().map(|s| s.to_owned()),
                         username_option: user.username().map(|s| s.to_owned()),
@@ -228,15 +231,15 @@ fn get_users(
         })
         .collect();
 
-    let myself_id = raw_chats
+    let myself_raw_id = raw_chats
         .iter()
         .find_map(|raw_chat| match raw_chat {
-            types::Chat::User(user) if user.is_self() => Some(UserId(user.id())),
+            types::Chat::User(user) if user.is_self() => Some(RawPeerId(user.id())),
             _ => None,
         })
         .ok_or_else(|| anyhow!("Myself ID not found"))?;
 
-    Ok((users, myself_id))
+    Ok((users, myself_raw_id))
 }
 
 fn mark_message_deleted(
@@ -277,11 +280,11 @@ fn parse_message(
     raw_message: tl::enums::Message,
     media_rel_path: Option<String>,
     thumbnail_rel_path: Option<String>,
-    users: &HashMap<UserId, User>,
-    myself_id: UserId,
+    users: &Users,
+    myself_raw_id: RawPeerId,
 ) -> Result<Option<Message>> {
     let id = raw_message.id() as i64;
-    let from_id = raw_message.author_id(myself_id);
+    let from_id = raw_message.author_raw_id(myself_raw_id);
     let (tg_date, text, typed) = match raw_message {
         tl::enums::Message::Message(inner) => {
             let forward_from_name_option =
@@ -289,7 +292,7 @@ fn parse_message(
                     .fwd_from
                     .and_then(|tl::enums::MessageFwdHeader::Header(fwd)| {
                         fwd.from_name.or_else(|| {
-                            fwd.from_id.map(|peer| users.resolve_pretty_name(peer.id()))
+                            fwd.from_id.map(|peer| users.resolve_pretty_name(peer.raw_id()))
                         })
                     });
             let reply_to_message_id_option = inner.reply_to.and_then(|r| match r {
@@ -331,7 +334,7 @@ fn parse_message(
         id,
         Some(id),
         timestamp,
-        UserId(from_id),
+        from_id.normalize_user_id(),
         text,
         typed,
     )))
@@ -643,7 +646,7 @@ fn parse_media(
 fn parse_service_message(
     raw_service_msg: &tl::types::MessageService,
     media_rel_path: Option<String>,
-    users: &HashMap<UserId, User>,
+    users: &Users,
 ) -> Result<Option<(MessageService, Vec<RichTextElement>)>> {
     use message_service::SealedValueOptional;
     use tl::enums::MessageAction;
@@ -745,7 +748,7 @@ fn parse_service_message(
             ),
             MessageAction::ChatJoinedByLink(action) => (
                 SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
-                    members: vec![users.resolve_pretty_name(action.inviter_id)],
+                    members: vec![users.resolve_pretty_name(RawPeerId(action.inviter_id))],
                 }),
                 None,
             ),
@@ -754,7 +757,7 @@ fn parse_service_message(
                     members: raw_service_msg
                         .from_id
                         .as_ref()
-                        .map(|m| users.resolve_pretty_name(m.id()))
+                        .map(|m| users.resolve_pretty_name(m.raw_id()))
                         .into_iter()
                         .collect_vec(),
                 }),
@@ -788,7 +791,7 @@ fn parse_service_message(
                     members: action
                         .users
                         .iter()
-                        .map(|id| users.resolve_pretty_name(*id))
+                        .map(|id| users.resolve_pretty_name(RawPeerId(*id)))
                         .collect(),
                 }),
                 None,
@@ -931,35 +934,49 @@ struct RawMessage {
     thumbnail_rel_path: Option<String>,
 }
 
-trait WithId {
-    fn id(&self) -> i64;
-}
+/// Raw (non-normalized) peer ID
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct RawPeerId(i64);
 
-impl WithId for tl::enums::Peer {
-    fn id(&self) -> i64 {
-        match self {
-            tl::enums::Peer::User(user) => user.user_id,
-            tl::enums::Peer::Chat(chat) => chat.chat_id,
-            tl::enums::Peer::Channel(channel) => channel.channel_id,
+impl RawPeerId {
+    fn normalize_user_id(&self) -> UserId {
+        if self.0 >= USER_ID_SHIFT {
+            UserId(self.0 - USER_ID_SHIFT)
+        } else {
+            UserId(self.0)
         }
     }
 }
 
-trait WithAuthorId {
-    fn author_id(&self, myself_id: UserId) -> i64;
+trait WithRawPeerId {
+    fn raw_id(&self) -> RawPeerId;
 }
 
-impl WithAuthorId for tl::enums::Message {
-    fn author_id(&self, myself_id: UserId) -> i64 {
+impl WithRawPeerId for tl::enums::Peer {
+    fn raw_id(&self) -> RawPeerId {
+        match self {
+            tl::enums::Peer::User(user) => RawPeerId(user.user_id),
+            tl::enums::Peer::Chat(chat) => RawPeerId(chat.chat_id),
+            tl::enums::Peer::Channel(channel) => RawPeerId(channel.channel_id),
+        }
+    }
+}
+
+trait WithAuthorRawId {
+    fn author_raw_id(&self, myself_raw_id: RawPeerId) -> RawPeerId;
+}
+
+impl WithAuthorRawId for tl::enums::Message {
+    fn author_raw_id(&self, myself_raw_id: RawPeerId) -> RawPeerId {
         let (from_id, peer_id, out) = match self {
             tl::enums::Message::Message(msg) => (
-                msg.from_id.as_ref().map(|peer| peer.id()),
-                msg.peer_id.id(),
+                msg.from_id.as_ref().map(|peer| peer.raw_id()),
+                msg.peer_id.raw_id(),
                 msg.out,
             ),
             tl::enums::Message::Service(msg) => (
-                msg.from_id.as_ref().map(|peer| peer.id()),
-                msg.peer_id.id(),
+                msg.from_id.as_ref().map(|peer| peer.raw_id()),
+                msg.peer_id.raw_id(),
                 msg.out,
             ),
             tl::enums::Message::Empty(msg) => {
@@ -968,13 +985,13 @@ impl WithAuthorId for tl::enums::Message {
                     None,
                     msg.peer_id
                         .as_ref()
-                        .map(|peer| peer.id())
-                        .unwrap_or(*myself_id),
+                        .map(|peer| peer.raw_id())
+                        .unwrap_or(myself_raw_id),
                     false,
                 )
             }
         };
-        from_id.unwrap_or_else(|| if out { *myself_id } else { peer_id })
+        from_id.unwrap_or_else(|| if out { myself_raw_id } else { peer_id })
     }
 }
 
@@ -1020,12 +1037,12 @@ impl WithResolution for types::media::Photo {
 }
 
 trait WithResolvePrettyName {
-    fn resolve_pretty_name(&self, user_id: i64) -> String;
+    fn resolve_pretty_name(&self, user_id: RawPeerId) -> String;
 }
 
-impl WithResolvePrettyName for HashMap<UserId, User> {
-    fn resolve_pretty_name(&self, user_id: i64) -> String {
-        if let Some(user) = self.get(&UserId(user_id)) {
+impl WithResolvePrettyName for Users {
+    fn resolve_pretty_name(&self, raw_user_id: RawPeerId) -> String {
+        if let Some(user) = self.get(&raw_user_id) {
             user.pretty_name()
         } else {
             UNKNOWN.to_owned()

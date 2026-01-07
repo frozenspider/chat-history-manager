@@ -24,7 +24,7 @@ mod parser_single;
 mod tests;
 
 /// Starting with Telegram 2020-10, user IDs are shifted by this value
-const USER_ID_SHIFT: i64 = 0x100000000_i64;
+pub const USER_ID_SHIFT: i64 = 0x100000000_i64;
 
 /// Starting with Telegram 2021-05, personal chat IDs are un-shifted by this value
 /// (also used in tg-keeper)
