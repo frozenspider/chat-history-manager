@@ -194,7 +194,7 @@ pub fn create_specific_dao() -> InMemoryDaoHolder {
             first_name_option: Some("Aaaaa".to_owned()),
             last_name_option: Some("Aaaaaaaaaaa".to_owned()),
             username_option: Some("myself".to_owned()),
-            phone_number_option: Some("+998 91 1234567".to_owned()),
+            phone_number_option: Some("+99891 1234567".to_owned()),
             profile_pictures: vec![
                 ProfilePicture {
                     path: "my-path-1".to_owned(),

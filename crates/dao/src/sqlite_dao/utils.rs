@@ -135,7 +135,7 @@ pub mod user {
             first_name: user.first_name_option.clone(),
             last_name: user.last_name_option.clone(),
             username: user.username_option.clone(),
-            phone_numbers: user.phone_number_option.clone(),
+            phone_numbers: user.phone_number_option.as_deref().map(|pn| PhoneNumber::from_raw(pn).0),
             is_myself: serialize_bool(is_myself),
         }
     }

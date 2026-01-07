@@ -232,7 +232,11 @@ pub fn create_user(ds_uuid: &PbUuid, id: i64) -> User {
         first_name_option: Some("User".to_owned()),
         last_name_option: Some(id.to_string()),
         username_option: Some(format!("user{id}")),
-        phone_number_option: Some("xxx xx xx".replace("x", &id.to_string())),
+        phone_number_option: Some({
+            let mut pn = "+999".to_owned() + &id.to_string().repeat(9);
+            pn.truncate(13);
+            pn
+        }),
         profile_pictures: vec![],
     }
 }
