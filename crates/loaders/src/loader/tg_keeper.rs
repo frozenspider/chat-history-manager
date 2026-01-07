@@ -22,6 +22,7 @@ const FILENAME: &str = "tg-keeper.sqlite";
 const MEDIA_DIR: &str = "media";
 
 type Users = HashMap<RawPeerId, User>;
+type CwmBuilders = HashMap<RawChatId, CwmBuilder>;
 
 impl DataLoader for TgKeeperDataLoader {
     fn name(&self) -> String {
@@ -78,7 +79,7 @@ fn load_everything(
 
     let (users, myself_raw_id) = get_users(&raw_chats, ds_uuid)?;
 
-    let mut cwm_builders: HashMap<ChatId, CwmBuilder> = raw_chats
+    let mut cwm_builders: CwmBuilders = raw_chats
         .iter()
         .filter_map(|raw_chat| {
             let tpe = match raw_chat {
@@ -86,7 +87,21 @@ fn load_everything(
                 types::Chat::Group(_) => ChatType::PrivateGroup,
                 types::Chat::Channel(_) => return None, // Skip
             };
-            let id = raw_chat.id();
+
+            let raw_id = RawChatId(raw_chat.id());
+
+            // Shift chat IDs due to legacy compatibility reasons
+            let id = match tpe {
+                ChatType::Personal if raw_id.0 < PERSONAL_CHAT_ID_SHIFT => {
+                    // (in reality, personal chat ID should match user ID)
+                    raw_id.0 + PERSONAL_CHAT_ID_SHIFT
+                }
+                ChatType::PrivateGroup if raw_id.0 < GROUP_CHAT_ID_SHIFT => {
+                    raw_id.0 + GROUP_CHAT_ID_SHIFT
+                }
+                _ => raw_id.0
+            };
+
             let chat = Chat {
                 ds_uuid: ds_uuid.clone(),
                 id,
@@ -98,7 +113,7 @@ fn load_everything(
                 msg_count: 0,       // Will be set by builder
                 main_chat_id: None,
             };
-            Some((ChatId(id), CwmBuilder::new(chat)))
+            Some((raw_id, CwmBuilder::new(chat)))
         })
         .collect();
 
@@ -179,7 +194,7 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
             "message_deleted" => RawMessageType::Deleted,
             etc => bail!("Unknown message type: {etc}"),
         };
-        let chat_id: Option<i64> = row.get("chat_id")?;
+        let chat_id: Option<RawChatId> = row.get::<_, Option<i64>>("chat_id")?.map(RawChatId);
         let serialized: Option<Vec<u8>> = row.get("serialized")?;
         let raw_message = serialized
             .as_deref()
@@ -194,7 +209,7 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
         let result_entry = RawMessage {
             id: MessageInternalId(internal_id),
             tpe,
-            chat_id: chat_id.map(ChatId),
+            chat_id,
             inner: raw_message,
             media_rel_path: row.get("media_rel_path")?,
             thumbnail_rel_path,
@@ -243,7 +258,7 @@ fn get_users(
 }
 
 fn mark_message_deleted(
-    cwm_builders: &mut HashMap<ChatId, CwmBuilder>,
+    cwm_builders: &mut CwmBuilders,
     msg_id: MessageInternalId,
 ) -> EmptyRes {
     // We don't know which chat has this message, let's make sure there's not more than one
@@ -928,7 +943,7 @@ enum RawMessageType {
 struct RawMessage {
     id: MessageInternalId,
     tpe: RawMessageType,
-    chat_id: Option<ChatId>,
+    chat_id: Option<RawChatId>,
     inner: Option<tl::enums::Message>,
     media_rel_path: Option<String>,
     thumbnail_rel_path: Option<String>,
@@ -947,6 +962,10 @@ impl RawPeerId {
         }
     }
 }
+
+/// Raw (non-normalized) chat ID
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct RawChatId(i64);
 
 trait WithRawPeerId {
     fn raw_id(&self) -> RawPeerId;
@@ -1072,13 +1091,6 @@ impl CwmBuilder {
     }
 
     fn build(mut self, myself_id: UserId) -> ChatWithMessages {
-        // Shift chat IDs due to legacy compatibility reasons
-        if self.chat.tpe() == ChatType::Personal {
-            // (in reality, personal chat ID matches user ID)
-            self.chat.id += PERSONAL_CHAT_ID_SHIFT;
-        } else {
-            self.chat.id += GROUP_CHAT_ID_SHIFT;
-        }
         self.chat.member_ids = vec![myself_id.0];
         self.chat.member_ids.extend(
             self.member_ids
