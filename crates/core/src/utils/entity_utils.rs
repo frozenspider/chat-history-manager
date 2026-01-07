@@ -19,7 +19,6 @@ use uuid::Uuid;
 
 pub const UNNAMED: &str = "[unnamed]";
 pub const UNKNOWN: &str = "[unknown]";
-pub const SOMEONE: &str = "[someone]";
 
 pub const NO_INTERNAL_ID: MessageInternalId = MessageInternalId(-1);
 

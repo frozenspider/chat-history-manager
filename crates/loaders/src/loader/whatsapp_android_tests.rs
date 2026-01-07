@@ -151,7 +151,7 @@ fn loading_2023_10() -> EmptyRes {
             typed: Some(message_regular! {
                 edit_timestamp_option: Some(1661417955),
                 is_deleted: false,
-                forward_from_name_option: Some(SOMEONE.to_owned()),
+                forward_from_name_option: Some(UNKNOWN.to_owned()),
                 reply_to_message_id_option: msgs[0].source_id_option,
                 contents: vec![],
             }),

@@ -827,7 +827,7 @@ fn parse_regular_message(
 
     // WhatsApp does not preserve real source
     let forward_from_name_option = row.get::<_, Option<i64>>("forward_score")?
-        .map(|_| SOMEONE.to_owned());
+        .map(|_| UNKNOWN.to_owned());
 
     // Note 1: We could *technically* restore deleted message content when replying to the original!
     //         Not doing that now though.
