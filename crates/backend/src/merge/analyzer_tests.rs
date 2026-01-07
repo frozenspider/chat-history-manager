@@ -7,11 +7,10 @@ use crate::prelude::*;
 use crate::utils::test_utils::*;
 use chat_history_manager_core::coerce_enum;
 
-use std::fmt::format;
-use chrono::Duration;
 use chrono::prelude::*;
-use lazy_static::lazy_static;
-use pretty_assertions::{assert_eq, assert_ne};
+use chrono::Duration;
+use pretty_assertions::assert_eq;
+use rand::prelude::*;
 
 const MAX_MSG_ID: MessageSourceId = src_id((BATCH_SIZE as i64) * 3 + 1);
 const MAX_USER_ID: usize = 3;
@@ -661,6 +660,8 @@ fn file_name_diff() -> EmptyRes {
                 }),
             ];
         },
+        rng().random(),
+        rng().random(),
     );
     let analysis = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false)?;
 
@@ -677,15 +678,16 @@ fn file_name_diff() -> EmptyRes {
     Ok(())
 }
 
-/// "not found" should NOT conflict with "not downloaded" and vice versa
+/// "not found" should NOT conflict with "not downloaded" and vice versa.
+/// Also, if content is found on either side, it should be a match (resolved at merge time).
 #[test]
 fn present_absent_not_downloaded() -> EmptyRes {
     let user_id = MergerHelper::random_user_id(MAX_USER_ID);
 
     let not_found = ContentPhoto {
         path_option: Some("non/existent/path.jpg".to_owned()),
-        width: 100500,
-        height: 100600,
+        width: 0,
+        height: 0,
         mime_type_option: None,
         is_one_time: false,
     };
@@ -694,8 +696,8 @@ fn present_absent_not_downloaded() -> EmptyRes {
 
     let placeholder1 = ContentPhoto {
         path_option: Some("placeholder-1".to_owned()),
-        width: -1,
-        height: -1,
+        width: 100500,
+        height: 100600,
         mime_type_option: Some("image/lol".to_owned()),
         is_one_time: false,
     };
@@ -705,8 +707,8 @@ fn present_absent_not_downloaded() -> EmptyRes {
         ..not_found.clone()
     };
 
-    let placeholder1_content = random_alphanumeric(256);
-    let placeholder2_content = random_alphanumeric(256);
+    let placeholder1_content = random_alphanumeric(256, rng().random());
+    let placeholder2_content = random_alphanumeric(256, rng().random());
 
     let make_msg_photo = |idx: i64, is_regular: bool, photo: &ContentPhoto| {
         let typed: message::Typed = if is_regular {
@@ -814,7 +816,10 @@ fn present_absent_not_downloaded() -> EmptyRes {
                 }
                 _ => unreachable!()
             };
-        });
+        },
+        rng().random(),
+        rng().random()
+    );
     let analysis = analyzer(&helper).analyze(helper.m.cwd(), helper.s.cwd(), "", false)?;
     assert_eq!(
         analysis, vec![

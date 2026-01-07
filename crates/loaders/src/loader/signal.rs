@@ -3,8 +3,6 @@ use crate::prelude::*;
 
 use std::fs;
 
-use itertools::Itertools;
-
 use message_service::SealedValueOptional as ServiceSvo;
 
 use base64::prelude::*;

@@ -3,7 +3,6 @@ mod utils;
 
 use prelude::*;
 
-use itertools::Itertools;
 use std::fmt::Debug;
 use std::future::Future;
 
@@ -12,6 +11,7 @@ pub mod prelude {
     pub use std::path::Path;
 
     pub use num_derive::*;
+    pub use itertools::Itertools;
 
     #[cfg(test)]
     pub use crate::utils::test_utils::*;

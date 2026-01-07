@@ -18,6 +18,7 @@ use hashers::fx_hash::FxHasher;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use unicode_segmentation::UnicodeSegmentation;
+use crate::utils::entity_utils::EntityCmpResult;
 
 //
 // Constants
@@ -169,23 +170,24 @@ pub fn list_all_files(p: &Path, recurse: bool) -> Result<Vec<PathBuf>> {
 }
 
 /// Files are equal if their sizes and hashes are equal, or if they both don't exist
-pub fn files_are_equal(f1: &Path, f2: &Path) -> Result<bool> {
+pub fn files_are_equal(f1: &Path, f2: &Path) -> Result<EntityCmpResult> {
     match (f1.metadata(), f2.metadata()) {
         (Err(_), Err(_)) => {
             // Both don't exist
-            Ok(true)
+            Ok(EntityCmpResult::Equal)
         }
         (Ok(m1), Ok(m2)) => {
             // Check if file sizes are different
             if m1.len() != m2.len() {
-                return Ok(false);
+                return Ok(EntityCmpResult::Conflict);
             }
 
             let hash1 = file_hash(f1)?;
             let hash2 = file_hash(f2)?;
-            Ok(hash1 == hash2)
+            Ok((hash1 == hash2).into())
         },
-        _ => Ok(false)
+        (Ok(_), Err(_)) => Ok(EntityCmpResult::LeftHasMore),
+        (Err(_), Ok(_)) => Ok(EntityCmpResult::RightHasMore),
     }
 }
 

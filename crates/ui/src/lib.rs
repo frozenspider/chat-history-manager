@@ -11,7 +11,6 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::oneshot;
 
-use itertools::Itertools;
 use lazy_static::lazy_static;
 use path_dedot::*;
 use serde::Deserialize;

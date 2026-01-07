@@ -12,7 +12,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 use chrono::Local;
-use itertools::Itertools;
 
 use crate::prelude::*;
 
