@@ -25,6 +25,7 @@ message User {
   // If there's no first/last name separation, everything will be in first name.
   optional string first_name_option = 3;
   optional string last_name_option = 4;
+  // Should be prefixed with @ if applicable.
   optional string username_option = 5;
   // Normally this holds E.164 international phone number.
   // For data parsed with early versions, this might hold raw phone number as-is.

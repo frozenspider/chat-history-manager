@@ -247,7 +247,7 @@ fn get_users(
                         id: raw_peer_id.normalize_user_id().0,
                         first_name_option: user.first_name().map(|s| s.to_owned()),
                         last_name_option: user.last_name().map(|s| s.to_owned()),
-                        username_option: user.username().map(|s| s.to_owned()),
+                        username_option: user.username().map(|s| format!("@{s}")),
                         phone_number_option: user.phone().map(|pn| {
                             let mut pn = pn.to_owned();
                             // For whatever reason, Telegram does not prepend plus to international numbers.
