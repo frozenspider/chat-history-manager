@@ -237,7 +237,16 @@ fn get_users(
                         first_name_option: user.first_name().map(|s| s.to_owned()),
                         last_name_option: user.last_name().map(|s| s.to_owned()),
                         username_option: user.username().map(|s| s.to_owned()),
-                        phone_number_option: user.phone().map(|s| normalize_phone_number(s).0),
+                        phone_number_option: user.phone().map(|pn| {
+                            let mut pn = pn.to_owned();
+                            // For whatever reason, Telegram does not prepend plus to international numbers.
+                            // As for the shorter number, e.g. Telegram uses 42777 (no prefix) for system notifications.
+                            if pn.len() >= 8 && !pn.starts_with("+") {
+                                // Assume it's an interational number, add plus
+                                pn.insert(0, '+');
+                            }
+                            normalize_phone_number(&pn).0
+                        }),
                         profile_pictures: vec![],
                     },
                 ))
