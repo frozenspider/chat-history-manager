@@ -5,6 +5,7 @@ use crate::prelude::*;
 use chrono::Local;
 use rusqlite::Connection;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use grammers_client::grammers_tl_types::Deserializable;
 use grammers_client::{grammers_tl_types as tl, types};
@@ -13,7 +14,16 @@ use utf16string::{WString, BE};
 /// Loader for [tg-keeper](https://github.com/frozenspider/tg-keeper/) database.
 /// This should follow closely what [[TelegramDataLoader]] does, conflicts are to be treated
 /// as bugs in this loader.
-pub struct TgKeeperDataLoader;
+pub struct TgKeeperDataLoader {
+    pub config: LoaderConfig,
+}
+
+pub struct LoaderConfig {
+    /// Whether to load generic files (non-audio/video/photo/sticker/etc.). If false, path will set to None.
+    pub load_generic_files: bool,
+    /// Max size of generic and video files to load, in bytes. Does not affect audio/video messages, etc.
+    pub max_file_video_size_bytes: usize,
+}
 
 const NAME: &str = "TgKeeper";
 const FILENAME: &str = "tg-keeper.sqlite";
@@ -43,15 +53,15 @@ impl DataLoader for TgKeeperDataLoader {
         ds: Dataset,
         _feedback_client: &dyn FeedbackClientSync,
     ) -> Result<Box<InMemoryDao>> {
-        load_tg_keeper_db(path, ds)
+        load_tg_keeper_db(&self.config, path, ds)
     }
 }
 
-fn load_tg_keeper_db(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+fn load_tg_keeper_db(config: &LoaderConfig, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let ds_root = path.parent().unwrap().to_path_buf();
 
     let conn = Connection::open(path)?;
-    let (users, chats_with_messages, myself_id) = load_everything(&conn, &ds.uuid)?;
+    let (users, chats_with_messages, myself_id) = load_everything(config, &conn, &ds.uuid)?;
     drop(conn);
 
     let mut result = Box::new(InMemoryDao::new_single(
@@ -68,6 +78,7 @@ fn load_tg_keeper_db(path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
 }
 
 fn load_everything(
+    config: &LoaderConfig,
     conn: &Connection,
     ds_uuid: &PbUuid,
 ) -> Result<(Vec<User>, Vec<ChatWithMessages>, UserId)> {
@@ -141,6 +152,7 @@ fn load_everything(
                 .thumbnail_rel_path
                 .map(|p| format!("{MEDIA_DIR}/{p}"));
             if let Some(msg) = parse_message(
+                config,
                 inner_msg,
                 media_rel_path,
                 thumbnail_rel_path,
@@ -300,6 +312,7 @@ fn mark_message_deleted(
 }
 
 fn parse_message(
+    config: &LoaderConfig,
     raw_message: tl::enums::Message,
     media_rel_path: Option<String>,
     thumbnail_rel_path: Option<String>,
@@ -325,7 +338,7 @@ fn parse_message(
             let text = parse_text(&inner.message, &inner.entities.unwrap_or(vec![]))?;
             let contents = inner
                 .media
-                .map(|m| parse_media(m, media_rel_path, thumbnail_rel_path))
+                .map(|m| parse_media(config, m, media_rel_path, thumbnail_rel_path))
                 .transpose()?
                 .flatten()
                 .into_iter()
@@ -482,6 +495,7 @@ fn parse_text(
 }
 
 fn parse_media(
+    config: &LoaderConfig,
     raw_media: tl::enums::MessageMedia,
     media_rel_path: Option<String>,
     thumbnail_rel_path: Option<String>,
@@ -554,6 +568,12 @@ fn parse_media(
                 })
             } else if is_animation || inner.raw.video {
                 // Video
+                let media_rel_path = match media_rel_path {
+                    Some(ref path) if file_size(&PathBuf::from(path))? > config.max_file_video_size_bytes => {
+                        None
+                    }
+                    etc => etc
+                };
                 content!(Video {
                     path_option: media_rel_path,
                     file_name_option,
@@ -587,6 +607,14 @@ fn parse_media(
                 })
             } else {
                 // Generic file
+                let media_rel_path = match media_rel_path {
+                    _ if !config.load_generic_files => None,
+                    Some(ref path) if file_size(&PathBuf::from(path))? > config.max_file_video_size_bytes => {
+                        None
+                    }
+                    etc => etc
+                };
+
                 content!(File {
                     path_option: media_rel_path,
                     file_name_option,

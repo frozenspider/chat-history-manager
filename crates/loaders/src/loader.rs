@@ -20,6 +20,7 @@ pub use crate::loader::mra::MailRuAgentDataLoader;
 pub use crate::loader::signal::SignalDataLoader;
 pub use crate::loader::telegram::TelegramDataLoader;
 pub use crate::loader::tg_keeper::TgKeeperDataLoader;
+pub use crate::loader::tg_keeper::{LoaderConfig as TgKeeperDataLoaderConfig};
 pub use crate::loader::tinder_android::TinderAndroidDataLoader;
 pub use crate::loader::whatsapp_android::WhatsAppAndroidDataLoader;
 pub use crate::loader::whatsapp_text::WhatsAppTextDataLoader;

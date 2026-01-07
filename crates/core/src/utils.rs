@@ -241,6 +241,11 @@ pub fn file_hash(path: &Path) -> StdResult<u128, io::Error> {
     Ok(((hash1 as u128) << 64) | (hash2 as u128))
 }
 
+pub fn file_size(path: &Path) -> StdResult<usize, io::Error> {
+    let metadata = std::fs::metadata(path)?;
+    Ok(metadata.len() as usize)
+}
+
 /// Get a hash string (32 uppercase hex chars) of a file's content.
 pub fn file_hash_string(path: &Path) -> StdResult<String, io::Error> {
     Ok(format!("{:X}", file_hash(path)?))

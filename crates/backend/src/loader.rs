@@ -12,7 +12,12 @@ impl Loader {
         Loader {
             loaders: vec![
                 Box::new(TelegramDataLoader),
-                Box::new(TgKeeperDataLoader),
+                Box::new(TgKeeperDataLoader {
+                    config: TgKeeperDataLoaderConfig {
+                        load_generic_files: false,
+                        max_file_video_size_bytes: 5 * 1024 * 1024, // 5 MB
+                    }
+                }),
                 Box::new(WhatsAppAndroidDataLoader),
                 Box::new(WhatsAppTextDataLoader),
                 Box::new(SignalDataLoader),
