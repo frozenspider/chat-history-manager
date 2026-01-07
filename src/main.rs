@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use clap::{Parser, Subcommand};
 use deepsize::DeepSizeOf;
 use log::LevelFilter;
@@ -7,7 +5,7 @@ use mimalloc::MiMalloc;
 use tokio::runtime::Handle;
 
 use chat_history_manager_backend::prelude::*;
-use chat_history_manager_backend::{debug_request_myself, parse_file, start_server, start_user_input_server};
+use chat_history_manager_backend::{debug_request_myself, parse_file, start_server};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -71,7 +69,7 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
                 let ui_clone = ui.clone();
                 spawn_server(&handle, "User input server", remote_port, async move {
                     let requester = ui_clone.listen_for_user_input().await?;
-                    start_user_input_server(remote_port, requester).await
+                    chat_history_manager_backend::start_user_input_server(remote_port, requester).await
                 });
                 ui.start_and_block()
             }
@@ -133,6 +131,7 @@ fn init_logger() {
         .init();
 }
 
+#[cfg(feature = "ui-core")]
 fn spawn_server(handle: &Handle, server_name: &str, port: u16, call: impl Future<Output = EmptyRes> + Send + 'static) {
     let server_name = server_name.to_owned();
     handle.spawn(async move {
