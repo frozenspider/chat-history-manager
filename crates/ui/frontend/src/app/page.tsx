@@ -484,6 +484,7 @@ function ShowManageUsersPopup(
           let newUser = User.fromJSON(newUserObj)
 
           // Normalize phone number by removing all non-digit non-plus characters and replacing leading 00 with +
+          // (Should be kept in sync with GetPrettyPhoneNumber and core::utils::entity_utils::PhoneNumber)
           if (newUser.phoneNumberOption !== undefined) {
             newUser.phoneNumberOption = newUser.phoneNumberOption
               .replace(/^00/, "+")

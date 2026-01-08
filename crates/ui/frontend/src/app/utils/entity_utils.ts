@@ -120,6 +120,7 @@ export function GetChatPrettyName(chat: Chat | null): string {
   return chat?.nameOption || Unnamed
 }
 
+// (Should be kept in sync with UserUpdatedEvent listener and core::utils::entity_utils::PhoneNumber)
 export function GetPrettyPhoneNumber(pn: string): string {
   if (pn.startsWith("00")) {
     pn = "+" + pn.slice(2)

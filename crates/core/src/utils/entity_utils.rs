@@ -583,6 +583,7 @@ pub struct PhoneNumber(pub String);
 
 impl PhoneNumber {
     /// Normalize phone number to E.164 format if possible, otherwise strip all non-digit non-plus characters.
+    // (Should be kept in sync with the UI: UserUpdatedEvent listener and GetPrettyPhoneNumber)
     pub fn from_raw(s: &str) -> Self {
         let mut pn = Cow::Borrowed(s);
         if pn.starts_with("00") {
@@ -595,7 +596,6 @@ impl PhoneNumber {
             Err(_) => {
                 log::warn!("Failed to parse phone number: {}", s);
                 // Just strip all non-digit non-plus characters
-                // Keep in sync with UserUpdatedEvent listener in UI
                 PhoneNumber(pn.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect())
             }
         }

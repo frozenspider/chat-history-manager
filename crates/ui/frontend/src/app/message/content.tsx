@@ -21,7 +21,12 @@ import {
 
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
-import { GetUserPrettyName, NameColorClassFromPrettyName, Unnamed } from "@/app/utils/entity_utils";
+import {
+  GetPrettyPhoneNumber,
+  GetUserPrettyName,
+  NameColorClassFromPrettyName,
+  Unnamed
+} from "@/app/utils/entity_utils";
 import TauriImage from "@/app/general/tauri_image";
 import AudioComponent from "@/app/message/audio_component";
 
@@ -296,7 +301,7 @@ export function MessageContentSharedContact(args: {
     <blockquote>
       <SystemMessage>Shared contact</SystemMessage>
       <ColoredName name={contactPrettyName} colorClass={colorClass}/>&nbsp;
-      ({content.phoneNumberOption ? "phone: " + content.phoneNumberOption : "no phone number"})
+      ({content.phoneNumberOption ? "phone: " + GetPrettyPhoneNumber(content.phoneNumberOption) : "no phone number"})
     </blockquote>
   )
 }

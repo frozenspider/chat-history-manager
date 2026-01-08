@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { IdToReadable, NameColorClassFromNumber } from "@/app/utils/entity_utils";
+import { GetPrettyPhoneNumber, IdToReadable, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
 import { User } from "@/protobuf/core/protobuf/entities";
@@ -51,7 +51,7 @@ export default function UserEntryTechncal(args: {
           {args.user.usernameOption &&
               <Row caption="Username" value={args.user.usernameOption}/>}
           {args.user.phoneNumberOption &&
-              <Row caption="Phone" value={args.user.phoneNumberOption}/>}
+              <Row caption="Phone" value={GetPrettyPhoneNumber(args.user.phoneNumberOption)}/>}
         </div>
       </div>
     </div>
