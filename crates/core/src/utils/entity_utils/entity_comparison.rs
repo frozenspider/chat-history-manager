@@ -331,8 +331,43 @@ impl EntityCmp for Tup<'_, String> {
     }
 }
 
-macro_rules! cmp_eq_with_path {
-    ($T:ident, [$($path:ident),+], [$($ignore:ident),*]) => {
+/// Compare structs by categorizing their fields.
+/// `path` fields are compared first. If they differ, the result is returned immediately.
+/// If they match, other fields are compared according to their category:
+/// * `mime` fields are compared for equality only if paths match.
+/// * `zero_is_unknown` fields are considered equal if both are zero, otherwise non-zero
+///   values are considered "more data" than zero.
+/// * `optional` fields are compared for equality if both are Some, otherwise
+///   the side that has Some is considered "more data".
+/// * `other` fields are compared for full equality only if all previous comparisons
+///   resulted in equality.
+/// * `ignore` fields are ignored completely.
+macro_rules! cmp_struct {
+    ($T:ident {
+        path: [$($path:ident),+],
+        mime: [$($mime:ident),*],
+        mime_opt: [$($mime_opt:ident),*],
+        zero_is_unknown: [$($zero_is_unknown:ident),*],
+        optional: [$($optional:ident),*],
+        other: [$($other:ident),*],
+        ignore: [$($ignore:ident),*]
+    }) => {
+        paste::paste! {
+            /// Make sure no field is missing at compile time.
+            #[allow(nonstandard_style)]
+            fn [<_assert_no_fields_missing_for_ $T>]() -> $T {
+                $T {
+                    $( $path: None, )*
+                    $( $mime: Default::default(), )*
+                    $( $mime_opt: None, )*
+                    $( $zero_is_unknown: 0, )*
+                    $( $optional: None, )*
+                    $( $other: Default::default(), )*
+                    $( $ignore: Default::default(), )*
+                }
+            }
+    }
+
         impl<'a> EntityCmp for Tup<'a, $T> {
             fn compare(&self, other: &Self) -> Result<Cmp> {
                 // Compare files first. Only compare everything else if they match.
@@ -342,30 +377,118 @@ macro_rules! cmp_eq_with_path {
                 if path_cmp != Cmp::Equal {
                     return Ok(path_cmp);
                 }
-                Ok(
-                    ($T {
-                        $( $path: None, )*
-                        $( $ignore: None, )*
-                        ..(*self.v).clone()
-                    } == $T {
-                        $( $path: None, )*
-                        $( $ignore: None, )*
-                        ..(*other.v).clone()
-                    }).into()
-                )
+
+                let mut results: Vec<Cmp> = vec![];
+                $(
+                    results.push(compare_mime_types(&self.v.$mime, &other.v.$mime));
+                )*
+                $(
+                    results.push(match (&self.v.$mime_opt, &other.v.$mime_opt) {
+                        (Some(v1), Some(v2)) => compare_mime_types(&v1, &v2),
+                        (Some(_), None) => Cmp::LeftHasMore,
+                        (None, Some(_)) => Cmp::RightHasMore,
+                        (None, None)   => Cmp::Equal,
+                    });
+                )*
+                $(
+                    results.push(match (&self.v.$zero_is_unknown, &other.v.$zero_is_unknown) {
+                        (v1, 0) if *v1 != 0 => Cmp::LeftHasMore,
+                        (0, v2) if *v2 != 0 => Cmp::RightHasMore,
+                        (v1, v2) if *v1 == *v2 => Cmp::Equal,
+                        _ => Cmp::Conflict,
+                    });
+                )*
+                $(
+                    results.push(match (&self.v.$optional, &other.v.$optional) {
+                        (Some(v1), Some(v2)) if v1 != v2 => { return Ok(Cmp::Conflict) }
+                        (Some(_), Some(_)) => Cmp::Equal,
+                        (Some(_), None) => Cmp::LeftHasMore,
+                        (None, Some(_)) => Cmp::RightHasMore,
+                        (None, None)   => Cmp::Equal,
+                    });
+                )*
+                $(
+                    results.push((self.v.$other == other.v.$other).into());
+                )*
+
+                Ok(Cmp::chain(results))
             }
         }
     };
 }
 
-cmp_eq_with_path!(ContentSticker, [path_option, thumbnail_path_option], [file_name_option]);
-cmp_eq_with_path!(ContentPhoto, [path_option], []);
-cmp_eq_with_path!(ContentVoiceMsg, [path_option], [file_name_option]);
-cmp_eq_with_path!(ContentAudio, [path_option], [file_name_option]);
-cmp_eq_with_path!(ContentVideoMsg, [path_option, thumbnail_path_option], [file_name_option]);
-cmp_eq_with_path!(ContentVideo, [path_option, thumbnail_path_option], [file_name_option]);
-cmp_eq_with_path!(ContentFile, [path_option, thumbnail_path_option], [file_name_option]);
-cmp_eq_with_path!(ContentSharedContact, [vcard_path_option], []);
+cmp_struct!(ContentSticker {
+    path: [path_option, thumbnail_path_option],
+    mime: [],
+    mime_opt: [mime_type_option],
+    zero_is_unknown: [width, height],
+    optional: [emoji_option],
+    other: [],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentPhoto {
+    path: [path_option],
+    mime: [],
+    mime_opt: [mime_type_option],
+    zero_is_unknown: [width, height],
+    optional: [],
+    other: [is_one_time],
+    ignore: []
+});
+cmp_struct!(ContentVoiceMsg {
+    path: [path_option],
+    mime: [mime_type],
+    mime_opt: [],
+    zero_is_unknown: [],
+    optional: [duration_sec_option],
+    other: [],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentAudio {
+    path: [path_option, thumbnail_path_option],
+    mime: [mime_type],
+    mime_opt: [],
+    zero_is_unknown: [],
+    optional: [title_option, performer_option, duration_sec_option],
+    other: [],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentVideoMsg {
+    path: [path_option, thumbnail_path_option],
+    mime: [],
+    mime_opt: [mime_type_option],
+    zero_is_unknown: [width, height],
+    optional: [duration_sec_option],
+    other: [is_one_time],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentVideo {
+    path: [path_option, thumbnail_path_option],
+    mime: [mime_type],
+    mime_opt: [],
+    zero_is_unknown: [width, height],
+    optional: [title_option, performer_option, duration_sec_option],
+    other: [is_one_time],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentFile {
+    path: [path_option, thumbnail_path_option],
+    mime: [],
+    mime_opt: [mime_type_option],
+    zero_is_unknown: [],
+    optional: [],
+    other: [],
+    ignore: [file_name_option]
+});
+cmp_struct!(ContentSharedContact {
+    path: [vcard_path_option],
+    mime: [],
+    mime_opt: [],
+    zero_is_unknown: [],
+    optional: [first_name_option, last_name_option, phone_number_option],
+    other: [],
+    ignore: []
+});
 
 impl EntityCmp for Tup<'_, ContentPoll> {
     fn compare(&self, other: &Self) -> Result<Cmp> {
@@ -477,5 +600,15 @@ fn compare_lists_res<'a, T>(list1: &'a [T], list2: &'a [T], f: impl for<'b> Fn(&
             Ok(Cmp::chain(results))
         }
         _ => Ok(Cmp::Conflict),
+    }
+}
+
+fn compare_mime_types(mime1: &str, mime2: &str) -> Cmp {
+    // "application/octet-stream" is defined as "unknown binary data", so any other MIME is more specific
+    const OCTET_STREAM: &str = "application/octet-stream";
+    match (mime1, mime2) {
+        (OCTET_STREAM, _) => Cmp::RightHasMore,
+        (_, OCTET_STREAM) => Cmp::LeftHasMore,
+        _ => (mime1 == mime2).into(),
     }
 }
