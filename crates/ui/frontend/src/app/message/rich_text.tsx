@@ -1,6 +1,7 @@
 'use client'
 
 import React from "react";
+import { cn } from "@/lib/utils"
 
 import { RichTextElement } from "@/protobuf/core/protobuf/entities";
 import { AssertDefined, AssertUnreachable, Deduplicate } from "@/app/utils/utils";
@@ -16,12 +17,12 @@ export default function MessageRichText(args: {
       .flatMap(rte =>
         rte.val?.$case === "link" && rte.val.link.hidden ? [rte.val.link.href] : []))
 
-  let isSingular = args.rtes.length == 1
+  let isSingularRte = args.rtes.length == 1
   return (
     <div>
       {
         args.rtes.map((rte, idx) => {
-          let rteJsx = MessageRichTextElement(rte, args.borderColorClass, isSingular)
+          let rteJsx = MessageRichTextElement(rte, args.borderColorClass, isSingularRte)
           return <React.Fragment key={args.msgInternalId.toString() + "_" + idx}>
             {rteJsx}
           </React.Fragment>
@@ -38,23 +39,30 @@ export default function MessageRichText(args: {
 function MessageRichTextElement(
   rte: RichTextElement,
   borderColorClass: string,
-  isSingular: boolean
+  isSingularRte: boolean
 ): React.JSX.Element | null {
   AssertDefined(rte.val, "RichTextElement value")
   switch (rte.val.$case) {
     case "plain": {
       let text = rte.val.plain.text
-      // Emoji take more than one UTF-16 code unit, so string.length for them would be 2 or more.
-      // Special thanks goes to https://cestoliv.com/blog/how-to-count-emojis-with-javascript/
-      // TODO: This seems to be catching singular digits as emojis, which is not intended
-      let isLoneEmoji = (
-        isSingular
-        && /\p{Emoji}/u.test(text)
+
+      // If a lone RTE contains only emojis, make them larger
+      // (Note that \p{Emoji} captures digits too)
+      let sizeClass: string = "";
+      if (isSingularRte && !/\d/g.test(text) && /\p{Emoji}/u.test(text)) {
+        // Emoji take more than one UTF-16 code unit, so string.length for them would be 2 or more.
+        // Special thanks goes to https://cestoliv.com/blog/how-to-count-emojis-with-javascript/
         // Intl.Segmenter is not available in Firefox (at least not in <=124), but as it's not a webview,
         // we use simpler alternative despite it not working for complex emojis
-        && [...(Intl.Segmenter ? new Intl.Segmenter().segment(text) : text)].length == 1
-      )
-      return <span className={"whitespace-pre-wrap" + (isLoneEmoji ? " text-7xl" : "")}>{text}</span>
+        let emojiLen = [...(Intl.Segmenter ? new Intl.Segmenter().segment(text) : text)].length
+        if (emojiLen == 1) {
+          sizeClass = "text-8xl"
+        } else if (emojiLen <= 3) {
+          sizeClass = "text-5xl"
+        }
+      }
+
+      return <span className={cn("whitespace-pre-wrap", sizeClass)}>{text}</span>
     }
     case "bold":
       return <span className="whitespace-pre-wrap font-bold">{rte.val.bold.text}</span>
