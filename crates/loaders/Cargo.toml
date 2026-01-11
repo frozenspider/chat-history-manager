@@ -26,7 +26,6 @@ utf16string = "0.2.0"
 rtf-grimoire = "0.2.1"
 encoding_rs = "0.8.34"
 base64 = "0.22.1"
-phonenumber = { workspace = true }
 
 # Enum derivation
 num-traits = { workspace = true }

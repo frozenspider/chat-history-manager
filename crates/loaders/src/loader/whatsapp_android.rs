@@ -208,6 +208,9 @@ enum MessageType {
     DisappearTimerSet = 36,
     OneTimePhoto = 42,
     OneTimeVideo = 43,
+    /// Details are in `message_ui_elements`.
+    /// So far it also seems to contain location, although not sure if that's always the case.
+    UiMessage = 85,
     VideoCall = 90,
 }
 
@@ -274,6 +277,11 @@ mod columns {
         pub const DURATION: &str = "live_location_share_duration";
     }
 
+    pub mod message_ui_elements {
+        pub const ELEMENT_TYPE: &str = "element_type";
+        pub const ELEMENT_CONTENT: &str = "element_content";
+    }
+
     pub mod message_revoked {
         pub const REVOKED_KEY: &str = "revoked_key_id";
         pub const REVOKE_TIMESTAMP: &str = "revoke_timestamp";
@@ -290,6 +298,15 @@ mod columns {
     pub const GROUP_USER_JID: &str = "group_user_jid";
     pub const MIGRATE_USER_JID: &str = "migrate_user_jid";
     pub const PARENT_KEY_ID: &str = "parent_key_id";
+}
+
+enum TextParsingState {
+    /// Text should be read from a given column
+    Column(&'static str),
+    /// Text has already been read, no further actions needed
+    Parsed(Vec<RichTextElement>),
+    /// Text is not available
+    None,
 }
 
 fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
@@ -357,7 +374,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
      * - For source_id, we're using hash of `message.key_id` and `call_log.call_id`.
      */
     let mut msgs_stmt = {
-        use columns::{*, chat::*, message::*, message_revoked::*};
+        use columns::{*, chat::*, message::*, message_revoked::*, message_ui_elements::*};
         fn join_by_message_id(table_name: &str) -> String {
             format!("LEFT JOIN {table_name} ON {table_name}.message_row_id = message._id")
         }
@@ -379,6 +396,8 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
                   message_revoked.{REVOKE_TIMESTAMP},
                   message_system.action_type,
                   message_system_group.is_me_joined,
+                  message_ui_elements.{ELEMENT_TYPE},
+                  message_ui_elements.{ELEMENT_CONTENT},
                   group_user_jid.raw_string AS {GROUP_USER_JID},
                   migrate_user_jid.raw_string AS {MIGRATE_USER_JID},
                   message_system_block_contact.is_blocked
@@ -386,6 +405,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
               INNER JOIN chat                  ON chat._id             = message.chat_row_id
               INNER JOIN jid  chat_jid         ON chat_jid._id         = chat.jid_row_id
               LEFT  JOIN jid  sender_jid       ON sender_jid._id       = message.{SENDER_JID_ROW_ID}
+              {}
               {}
               {}
               {}
@@ -425,6 +445,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             join_by_message_id("message_system_chat_participant"),
             join_by_message_id("message_system_number_change"),
             join_by_message_id("message_system_block_contact"),
+            join_by_message_id("message_ui_elements"),
         ))?
     };
     let mut calls_stmt = {
@@ -476,9 +497,11 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             member_ids.insert(from_id);
 
             let msg_tpe = row.get::<_, i32>(columns::message::TYPE)?;
-            let msg_tpe = FromPrimitive::from_i32(msg_tpe).with_context(|| format!("Unknown message type ID: {msg_tpe}"))?;
+            let msg_tpe = FromPrimitive::from_i32(msg_tpe).with_context(||
+                format!("Unknown message type ID: {msg_tpe}")
+            )?;
 
-            let (typed, text_column) = {
+            let (typed, text_state) = {
                 let result_option = match msg_tpe {
                     MessageType::System | MessageType::MissedCall =>
                         parse_system_message(row, msg_tpe, users, &mut member_ids)?,
@@ -494,13 +517,18 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             };
 
             // Technically, text uses markdown, but oh well
-            let text = text_column.map(|col| row.get::<_, Option<String>>(col));
-            let text = match text {
-                None => vec![], // Data type implies no text
-                Some(Ok(None)) => vec![], // Text not supplies
-                Some(Ok(Some(s))) if s.is_empty() => vec![],
-                Some(Ok(Some(text))) => vec![RichText::make_plain(text)],
-                Some(Err(e)) => return Err(e)?
+            let text = match text_state {
+                TextParsingState::Column(col) => {
+                    let text_str = row.get::<_, Option<String>>(col);
+                    match text_str {
+                        Ok(None) => vec![], // Text not supplies
+                        Ok(Some(s)) if s.is_empty() => vec![],
+                        Ok(Some(text)) => vec![RichText::make_plain(text)],
+                        Err(e) => return Err(e)?
+                    }
+                }
+                TextParsingState::Parsed(text) => text,
+                TextParsingState::None => vec![], // Data type implies no text
             };
             let text = normalize_rich_text(text);
 
@@ -581,10 +609,10 @@ fn parse_system_message<'a>(
     msg_tpe: MessageType,
     users: &'a mut Users,
     chat_member_ids: &mut HashSet<UserId, Hasher>,
-) -> Result<Option<(message::Typed, Option<&'static str>)>> {
+) -> Result<Option<(message::Typed, TextParsingState)>> {
     use message_service::SealedValueOptional;
     use message_service::SealedValueOptional::*;
-    let mut text_column = Some(columns::message::TEXT);
+    let mut text_state = TextParsingState::Column(columns::message::TEXT);
     let val: SealedValueOptional = match msg_tpe {
         MessageType::System => {
             let action_type = row.get::<_, i32>("action_type")?;
@@ -616,7 +644,7 @@ fn parse_system_message<'a>(
             match action_type {
                 SystemActionType::GroupPhotoChange => {
                     // We only know some weird "new_photo_id" that leads nowhere
-                    text_column = None; // Text is a new_photo_id
+                    text_state = TextParsingState::None; // Text is a new_photo_id
                     GroupEditPhoto(MessageServiceGroupEditPhoto {
                         photo: ContentPhoto {
                             path_option: None,
@@ -628,7 +656,7 @@ fn parse_system_message<'a>(
                     })
                 }
                 SystemActionType::GroupCreate => {
-                    text_column = None; // Text is a title
+                    text_state = TextParsingState::None; // Text is a title
                     GroupCreate(MessageServiceGroupCreate {
                         title: row.get(columns::message::TEXT)?,
                         members: vec![],
@@ -653,7 +681,7 @@ fn parse_system_message<'a>(
                     })
                 }
                 SystemActionType::BlockContact => {
-                    text_column = None; // Text is a literal true/false string
+                    text_state = TextParsingState::None; // Text is a literal true/false string
                     BlockUser(MessageServiceBlockUser {
                         is_blocked: row.get::<_, i8>("is_blocked")? == 1
                     })
@@ -674,7 +702,7 @@ fn parse_system_message<'a>(
         _ => unreachable!()
     };
 
-    Ok(Some((message_service!(val), text_column)))
+    Ok(Some((message_service!(val), text_state)))
 }
 
 /// Returns `None` for rows that should be skipped.
@@ -682,8 +710,8 @@ fn parse_regular_message(
     row: &Row,
     msg_tpe: MessageType,
     msg_key_to_source_id: &HashMap<MessageKey, i64, Hasher>,
-) -> Result<Option<(message::Typed, Option<&'static str>)>> {
-    let mut text_column = Some(columns::message::TEXT);
+) -> Result<Option<(message::Typed, TextParsingState)>> {
+    let mut text_state = TextParsingState::Column(columns::message::TEXT);
 
     macro_rules! get_mandatory_int {
         ($col:expr, $col_name:expr) => {get_zero_as_null(row, $col)?.expect(concat!("No ", $col_name, " specified!"))};
@@ -702,6 +730,7 @@ fn parse_regular_message(
     let mime_type_option =
         row.get::<_, Option<String>>(columns::message_media::MIME_TYPE)?
             .and_then(|s| if s.is_empty() { None } else { Some(s) });
+
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
     let contents = match msg_tpe {
         MessageType::Text => vec![],
@@ -714,7 +743,7 @@ fn parse_regular_message(
                 is_one_time: false,
             })],
         MessageType::OneTimePhoto => {
-            text_column = None;
+            text_state = TextParsingState::None;
             vec![content!(Photo {
                 path_option: None, // TODO!
                 width: get_mandatory_width!(),
@@ -733,7 +762,7 @@ fn parse_regular_message(
             })]
         }
         MessageType::Video | MessageType::AnimatedGif => {
-            text_column = None;
+            text_state = TextParsingState::None;
             // TODO: One-time videos
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             vec![content!(VideoMsg {
@@ -760,7 +789,7 @@ fn parse_regular_message(
             })],
         MessageType::Document => {
             // For some reason, text is moved here
-            text_column = Some(columns::message_media::CAPTION);
+            text_state = TextParsingState::Column(columns::message_media::CAPTION);
             let (path_option, file_name_option) = get_media_path_and_file_name(row)?;
             vec![content!(File {
                 path_option,
@@ -791,30 +820,50 @@ fn parse_regular_message(
             })]
         }
         MessageType::ContactVcard => {
-            text_column = None; // Text is a contact name, we have it already
+            text_state = TextParsingState::None; // Text is a contact name, we have it already
             let vcard = parse_vcard(&row.get::<_, String>("vcard")?)?;
             vec![content!(SharedContact { ..vcard })]
         }
         MessageType::StaticLocation | MessageType::LiveLocation => {
-            // Since there's no point in having more than 8 precision digits, we're only storing 8.
-            // Having more will mean database content will mismatch after saving, so we're stripping the rest.
-            fn reduce_precision(str: String) -> String {
-                match str.find('.') {
-                    Some(i) if str.len() - i > 8 => str[0..=(i + 8)].to_owned(),
-                    _ => str
-                }
-            }
-            vec![content!(Location {
-                title_option: row.get(columns::message_location::NAME)?,
-                address_option: row.get(columns::message_location::ADDR)?,
-                lat_str: reduce_precision(row.get(columns::message_location::LAT)?),
-                lon_str: reduce_precision(row.get(columns::message_location::LON)?),
-                duration_sec_option: row.get(columns::message_location::DURATION)?,
-            })]
+            vec![parse_optional_location(row)?.expect("No location data found!")]
         }
         MessageType::Deleted => {
             // No content available.
             vec![]
+        }
+        MessageType::UiMessage => {
+            use simd_json::prelude::*;
+
+            let et: u32 = row.get(columns::message_ui_elements::ELEMENT_TYPE)?;
+            // Never seen other types yet
+            ensure!(et == 6, "Unknown UI message element type: {}", et);
+
+            let content: String = row.get(columns::message_ui_elements::ELEMENT_CONTENT)?;
+            let mut content = content.into_bytes();
+
+            let parsed = simd_json::to_owned_value(&mut content)
+                .with_context(|| "Failed to parse UI message element content as JSON")?;
+            let title = get_field_string_option!(parsed, "", "title");
+            let sub_title = get_field_string_option!(parsed, "", "sub_title");
+            let description = get_field_string_option!(parsed, "", "description");
+
+            let mut text = Vec::new();
+            if let Some(title) = title {
+                text.push(RichText::make_bold(title + "\n"));
+            }
+            if let Some(sub_title) = sub_title {
+                text.push(RichText::make_italic(sub_title + "\n"));
+            }
+            if let Some(description) = description {
+                text.push(RichText::make_plain(description));
+            } else {
+                // This in not the end of the world, but means title/subtitle formatting must be slightly more clever
+                bail!("Description missing in UI message element!");
+            }
+            text_state = TextParsingState::Parsed(text);
+
+            // Contains location (at least sometimes)
+            [parse_optional_location(row)?].into_iter().flatten().collect()
         }
         // We're not interested in these
         MessageType::WaitingForMessage | MessageType::BusinessItem | MessageType::BusinessItemTemplated |
@@ -847,11 +896,34 @@ fn parse_regular_message(
         forward_from_name_option,
         reply_to_message_id_option,
         contents,
-    }, text_column)))
+    }, text_state)))
 }
 
 fn get_zero_as_null(row: &Row, col_name: &str) -> Result<Option<i32>> {
     Ok(row.get::<_, Option<i32>>(col_name)?.filter(|&i| i != 0))
+}
+
+fn parse_optional_location(row: &Row) -> Result<Option<Content>> {
+    // Since there's no point in having more than 8 precision digits, we're only storing 8.
+    // Having more will mean database content will mismatch after saving, so we're stripping the rest.
+    fn reduce_precision(str: String) -> String {
+        match str.find('.') {
+            Some(i) if str.len() - i > 8 => str[0..=(i + 8)].to_owned(),
+            _ => str
+        }
+    }
+
+    match (row.get(columns::message_location::LAT)?, row.get(columns::message_location::LON)?) {
+        (Some(lat_str), Some(lon_str)) =>
+            Ok(Some(content!(Location {
+                title_option: row.get(columns::message_location::NAME)?,
+                address_option: row.get(columns::message_location::ADDR)?,
+                lat_str: reduce_precision(lat_str),
+                lon_str: reduce_precision(lon_str),
+                duration_sec_option: row.get(columns::message_location::DURATION)?,
+            }))),
+        _ => Ok(None)
+    }
 }
 
 fn parse_vcard(vcard: &str) -> Result<ContentSharedContact> {

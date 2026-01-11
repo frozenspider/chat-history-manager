@@ -1866,7 +1866,6 @@ dependencies = [
  "num-traits",
  "paste",
  "pbkdf2",
- "phonenumber",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.12",
