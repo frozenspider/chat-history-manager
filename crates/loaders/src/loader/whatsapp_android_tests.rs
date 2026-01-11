@@ -229,7 +229,7 @@ fn loading_2026_01() -> EmptyRes {
     let member = User {
         ds_uuid: ds_uuid.clone(),
         id: 9017079856339592512_i64,
-        first_name_option: None,
+        first_name_option: Some("WA Verified VName".to_owned()),
         last_name_option: None,
         username_option: None,
         phone_number_option: Some("11111".to_owned()),
@@ -246,7 +246,7 @@ fn loading_2026_01() -> EmptyRes {
         assert_eq!(chat, Chat {
             ds_uuid: ds_uuid.clone(),
             id: member.id,
-            name_option: Some("11111".to_owned()),
+            name_option: Some("WA Verified VName".to_owned()),
             source_type: SourceType::WhatsappDb as i32,
             tpe: ChatType::Personal as i32,
             img_path_option: Some("files/Avatars/11111@s.whatsapp.net.j".to_owned()),

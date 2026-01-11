@@ -85,9 +85,11 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         parse_users_from_stmt(&mut conn.prepare(r"
             SELECT
                 jid.raw_string as jid,
-                wa_contacts.*
+                wa_contacts.*,
+                wa_vnames.verified_name
             FROM jid
             LEFT JOIN wa_contacts ON wa_contacts.jid = jid.raw_string
+            LEFT JOIN wa_vnames ON wa_vnames.jid = jid.raw_string
             GROUP BY jid.raw_string
         ")?, ds_uuid, &mut users)?;
 
@@ -95,10 +97,12 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         parse_users_from_stmt(&mut conn.prepare(r"
             SELECT
                 jid.raw_string as jid,
-                wa_contacts.*
+                wa_contacts.*,
+                wa_vnames.verified_name
             FROM message
             LEFT JOIN jid ON jid._id = message.sender_jid_row_id
             LEFT JOIN wa_contacts ON wa_contacts.jid = jid.raw_string
+            LEFT JOIN wa_vnames ON wa_vnames.jid = jid.raw_string
             WHERE message.sender_jid_row_id > 0
             GROUP BY jid.raw_string
         ")?, ds_uuid, &mut users)?;
@@ -148,7 +152,8 @@ fn parse_users_from_stmt(stmt: &mut Statement, ds_uuid: &PbUuid, users: &mut Use
             continue;
         }
 
-        let sort_name_option = row.get::<_, Option<String>>("sort_name")?;
+        let display_name_option = row.get::<_, Option<String>>("display_name")?;
+        let verified_name_option = row.get::<_, Option<String>>("verified_name")?;
         let wa_name_option = row.get::<_, Option<String>>("wa_name")?;
 
         // When phone number is not explicitly supplied, we can deduce it from certain JIDs
@@ -164,7 +169,7 @@ fn parse_users_from_stmt(stmt: &mut Statement, ds_uuid: &PbUuid, users: &mut Use
             row.get::<_, Option<String>>("nickname")?
         };
 
-        let first_name_option = sort_name_option.or(wa_name_option);
+        let first_name_option = display_name_option.or(verified_name_option).or(wa_name_option);
 
         users.id_to_user.insert(id, User {
             ds_uuid: ds_uuid.clone(),
