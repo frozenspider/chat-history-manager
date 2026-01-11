@@ -279,6 +279,12 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
                 let (_uuid, bytes) = next_n_bytes(bytes, uuid_len as usize);
                 bytes
             }
+            0x42 => {
+                // No idea what this block is
+                let ([len], bytes) = next_const_n_bytes::<1>(bytes);
+                let (_skip, bytes) = next_n_bytes(bytes, len as usize);
+                bytes
+            }
             etc => {
                 bail!("Unexpected Tinder photos BLOB format for user {user_key}: don't know how to handle section 0x{:02X}", etc)
             }
