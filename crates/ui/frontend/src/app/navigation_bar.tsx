@@ -4,7 +4,7 @@ import React from "react";
 
 import 'react-day-picker/dist/style.css';
 
-import { ArrowDownToLineIcon, ArrowUpToLineIcon, CalendarIcon } from "lucide-react";
+import { ArrowDownToLineIcon, ArrowUpToLineIcon, CalendarIcon, Search } from "lucide-react";
 import { SelectSingleEventHandler } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -97,6 +97,55 @@ export default function NavigationBar(args: {
           <div className="flex items-center space-x-2 text-xs">
 
             <Tooltip>
+              <Popover>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button size="icon" variant="ghost"
+                            disabled={true /* NYI */}>
+                      <Search className="h-4 w-4"/>
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <PopoverContent className="w-auto p-0">
+                  {/* NYI */}
+                </PopoverContent>
+              </Popover>
+              <TooltipContent>
+                <span>Find in this chat (NYI)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Separator className="mx-2 h-6" orientation="vertical"/>
+
+            <Tooltip>
+              <Popover>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button size="icon" variant="ghost"
+                            disabled={true /* NYI */}>
+                      <CalendarIcon className="h-4 w-4"/>
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single"
+                            classNames={calendarClassNames}
+                            fromDate={dateLimits[0]}
+                            toDate={dateLimits[1]}
+                            initialFocus
+                            required
+                            onSelect={onDateSelected}
+                            captionLayout="dropdown-buttons"/>
+                </PopoverContent>
+              </Popover>
+              <TooltipContent>
+                <span>To the specific date (NYI)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Separator className="mx-2 h-6" orientation="vertical"/>
+
+            <Tooltip>
               <Button size="icon" variant="ghost"
                       onClick={() => {
                         args.navigationCallbacks && PromiseCatchReportError(args.navigationCallbacks.toBeginning())
@@ -128,33 +177,6 @@ export default function NavigationBar(args: {
               </TooltipContent>
             </Tooltip>
 
-            <Separator className="mx-2 h-6" orientation="vertical"/>
-
-            <Tooltip>
-              <Popover>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost"
-                            disabled={true /* NYI */}>
-                      <CalendarIcon className="h-4 w-4"/>
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single"
-                            classNames={calendarClassNames}
-                            fromDate={dateLimits[0]}
-                            toDate={dateLimits[1]}
-                            initialFocus
-                            required
-                            onSelect={onDateSelected}
-                            captionLayout="dropdown-buttons"/>
-                </PopoverContent>
-              </Popover>
-              <TooltipContent>
-                <span>To the specific date</span>
-              </TooltipContent>
-            </Tooltip>
           </div>
         </div>
       </TooltipProvider>
