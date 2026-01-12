@@ -20,6 +20,7 @@ impl Loader {
                 }),
                 Box::new(WhatsAppAndroidDataLoader),
                 Box::new(WhatsAppTextDataLoader),
+                Box::new(InstagramDataLoader),
                 Box::new(SignalDataLoader),
                 Box::new(TinderAndroidDataLoader { http_client }),
                 Box::new(BadooAndroidDataLoader),

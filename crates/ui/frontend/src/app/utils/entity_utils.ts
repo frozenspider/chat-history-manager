@@ -271,6 +271,8 @@ export function ChatSourceTypeToString(sourceType: SourceType): string {
       return "Telegram"
     case SourceType.WHATSAPP_DB:
       return "WhatsApp"
+    case SourceType.INSTAGRAM_EXPORT:
+      return "Instagram"
     case SourceType.SIGNAL:
       return "Signal"
     case SourceType.TINDER_DB:

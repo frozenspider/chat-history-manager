@@ -129,8 +129,18 @@ macro_rules! get_field {
 }
 
 #[macro_export]
+macro_rules! get_field_array {
+    ($v:expr, $path:expr, $txt:expr) => {as_array!(get_field!($v, $path, $txt)?, $path, $txt)};
+}
+
+#[macro_export]
 macro_rules! get_field_object {
     ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt)?, $path, $txt)};
+}
+
+#[macro_export]
+macro_rules! get_field_object_option {
+    ($v:expr, $path:expr, $txt:expr) => {$v.get($txt).map(|v| ok(as_object!(v, $path, $txt))).transpose()?};
 }
 
 #[macro_export]

@@ -113,7 +113,7 @@ Known issues:
 
 Tinder
 ------
-(Required a rooted Androind phone) 
+(Requires a rooted Androind phone) 
 
 Note that what's stored on the device is just cached messages, so:
 - It may contain messages from deleted/unmatched chats.
@@ -129,7 +129,7 @@ Will attempt to download profile pictures and GIFs to `./Media/_downloaded` if n
 
 Badoo
 -----
-(Required a rooted Androind phone)
+(Requires a rooted Androind phone)
 
 Note that what's stored on the device is just cached messages, so:
 - It may contain messages from deleted/unmatched chats.

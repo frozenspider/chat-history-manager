@@ -66,13 +66,14 @@ macro_rules! impl_enum_serialization {
 }
 
 impl_enum_serialization!(SourceType, {
-    TextImport  => "text_import",
-    Telegram    => "telegram",
-    WhatsappDb  => "whatsapp",
-    Signal      => "signal",
-    TinderDb    => "tinder",
-    BadooDb     => "badoo",
-    Mra         => "mra"
+    TextImport      => "text_import",
+    Telegram        => "telegram",
+    WhatsappDb      => "whatsapp",
+    InstagramExport => "instagram_export",
+    Signal          => "signal",
+    TinderDb        => "tinder",
+    BadooDb         => "badoo",
+    Mra             => "mra"
 });
 
 impl_enum_serialization!(ChatType, {
