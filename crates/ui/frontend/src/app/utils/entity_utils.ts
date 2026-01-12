@@ -128,6 +128,15 @@ export function GetPrettyPhoneNumber(pn: string): string {
   try {
     return parsePhoneNumberWithError(pn).format("INTERNATIONAL")
   } catch (error) {
+    if (pn.includes("-")) {
+      // WhatsApp sometimes stores numbers with dashes that phonenumber doesn't like, e.g. +62 XXX-XXXX-XXXX
+      // Strip them and try again
+      return GetPrettyPhoneNumber(pn.replace(/-/g, ""))
+    }
+    if (pn.length >= 11 && !pn.startsWith('0') && !pn.startsWith('+')) {
+      // Pretty sure it's an international number missing the plus sign
+      return GetPrettyPhoneNumber("+" + pn)
+    }
     // Not a phone number, non-existent country, etc.
     return pn
   }

@@ -593,6 +593,16 @@ impl PhoneNumber {
             Ok(parsed) => {
                 PhoneNumber(format!("{}", parsed.format().mode(phonenumber::Mode::E164)))
             }
+            Err(_) if pn.contains('-') => {
+                // WhatsApp sometimes stores numbers with dashes that phonenumber doesn't like, e.g. +62 XXX-XXXX-XXXX
+                // Strip them and try again
+                let stripped: String = pn.chars().filter(|c| *c != '-').collect();
+                PhoneNumber::from_raw(&stripped)
+            }
+            Err(_) if pn.len() >= 11 && !pn.starts_with('0') && !pn.starts_with('+') => {
+                // Pretty sure it's an international number missing the plus sign
+                PhoneNumber::from_raw(&format!("+{pn}"))
+            }
             Err(_) => {
                 log::warn!("Failed to parse phone number: {}", s);
                 // Just strip all non-digit non-plus characters
