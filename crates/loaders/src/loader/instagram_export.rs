@@ -222,12 +222,8 @@ fn parse_chat_folder(
             let messages_array = as_array!(messages_json, json_path, "messages");
             for (idx, msg_json) in messages_array.iter().enumerate() {
                 let msg_path = format!("{}.messages[{}]", json_path, idx);
-                match parse_message(&msg_path, msg_json, ds_uuid, users, root_path) {
-                    Ok(Some(msg)) => all_messages.push(msg),
-                    Ok(None) => { /* Message skipped */ }
-                    Err(e) => {
-                        log::warn!("Failed to parse message at {}: {}", msg_path, e);
-                    }
+                if let Some(msg) = parse_message(&msg_path, msg_json, ds_uuid, users, root_path)? {
+                    all_messages.push(msg);
                 }
             }
         }
@@ -350,48 +346,115 @@ fn parse_message(
     let from_id = get_or_create_user(users, &sender_name, ds_uuid);
 
     // Parse content
-    let content_option = msg.get("content")
-        .and_then(|v| as_string_option_res!(v, json_path, "content").ok())
-        .flatten()
-        .map(|s| fix_encoding(&s));
+    let content_string = get_field_string_option!(msg, json_path, "content").map(|s| fix_encoding(&s));
 
-    // Check if this is a "Liked a message" notification - we can skip these
-    if content_option.as_deref() == Some("Liked a message") {
+    // Skip reaction-only messages, they don't have any useful info anyway
+    if content_string.as_deref().is_some_and(|c| {
+        c == "Liked a message" ||
+            (c.starts_with("Reacted ") && c.contains("to your message"))
+    }) {
         return Ok(None);
     }
 
-    // Build text and content
-    let mut text_parts: Vec<RichTextElement> = vec![];
-    let mut contents: Vec<Content> = vec![];
-
+    let mut is_attachment_placeholder = false;
     let mut is_live_location = false;
+    // In this case we only have share.original_content_owner
+    let mut is_story_share = false;
 
     // Add main content text
-    if let Some(ref content) = content_option {
+    if let Some(ref content_string) = content_string {
         // Skip generic "X sent an attachment" messages if we have actual attachments
-        let is_attachment_placeholder = content.ends_with(" sent an attachment.")
-            || content == "You sent an attachment.";
+        is_attachment_placeholder = content_string.ends_with(" sent an attachment.")
+            || content_string == "You sent an attachment.";
+
+        is_story_share = content_string.ends_with(" shared a story.");
 
         // TODO: What if you shared a location yourself? (not encountered in export yet)
-        is_live_location = content.ends_with(" sent a live location.");
-
-        if !is_attachment_placeholder && !is_live_location {
-            text_parts.push(RichText::make_plain(content.clone()));
-        }
+        is_live_location = content_string.ends_with(" sent a live location.");
+    } else if !msg.contains_key("content") {
+        // Instagram is really inconsistent with the content field.
+        // So far it seems that if content is missing, then it's always a story share.
+        is_story_share = true;
     }
 
-    // Parse share (links to posts/reels)
+    // Build text and content
+    let mut msg_text_parts: Vec<RichTextElement> = vec![];
+    let mut msg_contents: Vec<Content> = vec![];
+    let mut forward_from = None;
+
+
     if let Some(share) = get_field_object_option!(msg, json_path, "share") {
         let json_path = format!("{}.share", json_path);
 
-        let link = get_field_string!(share, json_path, "link");
-        let share_text= get_field_string!(share, json_path, "share_text");
-        let decoded = fix_encoding(&share_text);
-        if decoded.is_empty() {
-            text_parts.push(RichText::make_link(None, link));
+        let link = get_field_string_option!(share, json_path, "link");
+        let share_text = get_field_string_option!(share, json_path, "share_text");
+        let share_text = share_text.as_deref().map(fix_encoding).filter(|s| !s.is_empty());
+
+        // Instagram has REALLY shitty and inconsistent structure of its json.
+        // * is_story_share, then we only have original_content_owner - account name, no leading @.
+        // * is_attachment_placeholder, then link is post URL, share_text is post title (sometimes empty),
+        //   and original_content_owner is as above.
+        // * No share_text, this is reply to your story.
+        // * Content matches share_text exactly, and link is present in the text itself.
+        // * Content, share_text and link are all distinct, share_text contains link preview text.
+        // * Content matches link exactly, share_text (if exists!) contains link preview text.
+        // * Content matches share_text exactly, there's no link and no additional info, wtf?
+
+        forward_from = get_field_string_option!(share, json_path, "original_content_owner");
+
+        if is_story_share {
+            msg_text_parts.push(RichText::make_italic("(Story)".to_owned()));
         } else {
-            text_parts.push(RichText::make_link(Some(decoded), link));
+            if let Some(link) = link {
+                if is_attachment_placeholder {
+                    // Sometimes share_text is an empty string here so it gets discarded.
+                    let text = share_text.unwrap_or(link.clone());
+                    msg_text_parts.push(RichText::make_link(Some(text), link));
+                } else {
+                    let Some(content) = content_string else {
+                        bail!("share.content is missing");
+                    };
+                    match share_text {
+                        None => {
+                            msg_text_parts.push(RichText::make_italic("(Reply to ".to_owned()));
+                            msg_text_parts.push(RichText::make_link(Some("story".to_owned()), link));
+                            msg_text_parts.push(RichText::make_italic(")\n".to_owned()));
+                            msg_text_parts.push(RichText::make_plain(content));
+                        }
+                        Some(share_text) => {
+                            if !share_text.is_empty() && content == share_text {
+                                // Find the link position in the content
+                                let Some(link_pos) = content.find(&link) else {
+                                    bail!("Link not found in content despite matching share.share_text");
+                                };
+                                let link_end_pos = link_pos + link.len();
+                                msg_text_parts.push(RichText::make_plain((&content[..link_pos]).to_owned()));
+                                msg_text_parts.push(RichText::make_link(Some(link.clone()), link));
+                                msg_text_parts.push(RichText::make_plain((&content[link_end_pos..]).to_owned()));
+                            } else {
+                                if content != link {
+                                    msg_text_parts.push(RichText::make_plain(content));
+                                }
+                                msg_text_parts.push(RichText::make_link(Some(share_text), link));
+                            }
+                        }
+                    }
+                }
+            } else {
+                let Some(content) = content_string else {
+                    bail!("share block w/o link is present but content is missing");
+                };
+                ensure!(share_text.as_ref().is_some_and(|st| st == &content), "share block w/o link is present but content doesn't match share.share_text");
+                // We assume this is a regular text message
+                msg_text_parts.push(RichText::make_plain(content));
+            }
         }
+    } else if is_attachment_placeholder {
+        msg_text_parts.push(RichText::make_italic("(Reel not available)".to_owned()));
+    } else if let Some(content) = content_string {
+        // We assume this is a regular text message
+        ensure!(!is_story_share, "Story share must have share block");
+        msg_text_parts.push(RichText::make_plain(content.to_owned()));
     }
 
     // Parse photos
@@ -400,7 +463,7 @@ fn parse_message(
             for photo in photos_array {
                 if let Some(uri) = photo.get("uri") {
                     if let Ok(Some(uri_str)) = as_string_option_res!(uri, json_path, "photos.uri") {
-                        contents.push(content!(Photo {
+                        msg_contents.push(content!(Photo {
                             path_option: Some(uri_str),
                             width: 0,
                             height: 0,
@@ -425,7 +488,7 @@ fn parse_message(
                             .and_then(|u| u.as_str())
                             .map(|s| s.to_owned());
 
-                        contents.push(content!(Video {
+                        msg_contents.push(content!(Video {
                             path_option: Some(uri_str),
                             file_name_option: None,
                             title_option: None,
@@ -449,7 +512,7 @@ fn parse_message(
             for audio in audio_array {
                 if let Some(uri) = audio.get("uri") {
                     if let Ok(Some(uri_str)) = as_string_option_res!(uri, json_path, "audio_files.uri") {
-                        contents.push(content!(VoiceMsg {
+                        msg_contents.push(content!(VoiceMsg {
                             path_option: Some(uri_str),
                             file_name_option: None,
                             mime_type: "audio/mp4".to_owned(),
@@ -463,7 +526,7 @@ fn parse_message(
 
     if is_live_location {
         // No info is actually available
-        contents.push(content!(Location {
+        msg_contents.push(content!(Location {
             title_option: None,
             address_option: None,
             lat_str: "".to_owned(),
@@ -473,7 +536,7 @@ fn parse_message(
     }
 
     // If we have no text and no content, skip this message
-    if text_parts.is_empty() && contents.is_empty() {
+    if msg_text_parts.is_empty() && msg_contents.is_empty() {
         return Ok(None);
     }
 
@@ -494,22 +557,22 @@ fn parse_message(
                 .collect();
 
             if !reaction_strs.is_empty() {
-                if !text_parts.is_empty() {
-                    text_parts.push(RichText::make_plain("\n".to_owned()));
+                if !msg_text_parts.is_empty() {
+                    msg_text_parts.push(RichText::make_plain("\n".to_owned()));
                 }
-                text_parts.push(RichText::make_plain(format!("[{}]", reaction_strs.join(", "))));
+                msg_text_parts.push(RichText::make_plain(format!("[{}]", reaction_strs.join(", "))));
             }
         }
     }
 
-    let text = normalize_rich_text(text_parts);
+    let text = normalize_rich_text(msg_text_parts);
 
     let regular = MessageRegular {
         edit_timestamp_option: None,
         is_deleted: false,
-        forward_from_name_option: None,
+        forward_from_name_option: forward_from,
         reply_to_message_id_option: None,
-        contents,
+        contents: msg_contents,
     };
 
     Ok(Some(Message::new(

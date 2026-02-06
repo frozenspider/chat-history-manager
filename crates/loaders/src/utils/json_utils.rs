@@ -166,7 +166,13 @@ macro_rules! get_field_string {
 /// Empty string is None.
 #[macro_export]
 macro_rules! get_field_string_option {
-    ($v:expr, $path:expr, $txt:expr) => {as_string_option!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {
+        if let Some(v) = $v.get($txt) {
+            as_string_option!(v, $path, $txt)
+        } else {
+            None
+        }
+    };
 }
 
 //
