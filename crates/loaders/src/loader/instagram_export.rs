@@ -1,7 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::fs;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use simd_json::BorrowedValue;
 use simd_json::prelude::*;
@@ -50,54 +49,51 @@ fn parse_instagram_export(
     let root_path = get_root_path(path)?;
     let messages_path = path.parent().unwrap(); // messages folder
 
-    log::info!("Parsing Instagram export from '{}'", root_path.display());
-    let start_time = Instant::now();
-
-    // Collect myself info from personal_information if available
-    let myself_name = get_myself_name(&root_path)?;
-    log::info!("Detected myself name: {:?}", myself_name);
-
     // Users map: name -> User
     let mut users: HashMap<String, User, Hasher> = HashMap::with_hasher(hasher());
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
-    // Process inbox and message_requests folders
-    let inbox_path = messages_path.join("inbox");
-    let message_requests_path = messages_path.join("message_requests");
+    let myself_name = measure(|| {
+        // Collect myself info from personal_information if available
+        let myself_name = get_myself_name(&root_path)?;
 
-    for folder_path in [inbox_path, message_requests_path] {
-        if !folder_path.exists() {
-            continue;
-        }
+        // Process inbox and message_requests folders
+        let inbox_path = messages_path.join("inbox");
+        let message_requests_path = messages_path.join("message_requests");
 
-        for entry in fs::read_dir(&folder_path)? {
-            let entry = entry?;
-            let chat_folder = entry.path();
-            if !chat_folder.is_dir() {
+        for folder_path in [inbox_path, message_requests_path] {
+            if !folder_path.exists() {
                 continue;
             }
 
-            // Find all message_*.json files in the chat folder
-            let mut message_files: Vec<PathBuf> = vec![];
-            for file_entry in fs::read_dir(&chat_folder)? {
-                let file_path = file_entry?.path();
-                let file_name = path_file_name(&file_path)?;
-                if file_name.starts_with("message_") && file_name.ends_with(".json") {
-                    message_files.push(file_path);
+            for entry in fs::read_dir(&folder_path)? {
+                let entry = entry?;
+                let chat_folder = entry.path();
+                if !chat_folder.is_dir() {
+                    continue;
+                }
+
+                // Find all message_*.json files in the chat folder
+                let mut message_files: Vec<PathBuf> = vec![];
+                for file_entry in fs::read_dir(&chat_folder)? {
+                    let file_path = file_entry?.path();
+                    let file_name = path_file_name(&file_path)?;
+                    if file_name.starts_with("message_") && file_name.ends_with(".json") {
+                        message_files.push(file_path);
+                    }
+                }
+
+                // Sort message files (message_1.json, message_2.json, etc.)
+                message_files.sort_by_key(|p| path_file_name(p).expect("Invalid file name").to_owned());
+
+                // Parse all message files for this chat
+                if let Some(cwm) = parse_chat_folder(&chat_folder, &message_files, &ds.uuid, &mut users, &root_path)? {
+                    chats_with_messages.push(cwm);
                 }
             }
-
-            // Sort message files (message_1.json, message_2.json, etc.)
-            message_files.sort_by_key(|p| path_file_name(p).expect("Invalid file name").to_owned());
-
-            // Parse all message files for this chat
-            if let Some(cwm) = parse_chat_folder(&chat_folder, &message_files, &ds.uuid, &mut users, &root_path)? {
-                chats_with_messages.push(cwm);
-            }
         }
-    }
-
-    log::info!("Parsed in {} ms", start_time.elapsed().as_millis());
+        ok(myself_name)
+    }, |_, t| log::info!("Parsed in {t} ms"))?;
 
     // Determine myself
     let myself_id = determine_myself(&users, myself_name.as_deref(), feedback_client)?;
@@ -146,9 +142,8 @@ fn get_myself_name(root_path: &Path) -> Result<Option<String>> {
         return Ok(None);
     }
 
-    let user = &profile_user[0];
     let json_path = "personal_information.profile_user[0]";
-    let user = as_object!(user, json_path);
+    let user = as_object!(&profile_user[0], json_path);
     let string_map_data = get_field_object!(user, json_path, "string_map_data");
     let json_path = format!("{json_path}.string_map_data");
     let name = get_field_object!(string_map_data, json_path, "Name");
@@ -451,6 +446,8 @@ fn parse_message(
         }
     } else if is_attachment_placeholder {
         msg_text_parts.push(RichText::make_italic("(Reel not available)".to_owned()));
+    } else if is_live_location {
+        // NOOP, no separate message
     } else if let Some(content) = content_string {
         // We assume this is a regular text message
         ensure!(!is_story_share, "Story share must have share block");
