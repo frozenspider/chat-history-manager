@@ -12,11 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let curr_dir = env::current_dir().context("current directory is inaccessible")?;
 
-    let scalapb_target = curr_dir.join("../../scalapb/scalapb.proto");
-    if !scalapb_target.exists() {
-        fs::copy(scalapb_target.parent().unwrap().join("_scalapb.proto"), &scalapb_target)?;
-    }
-
     let proto_files = vec!["crates/backend/protobuf/services.proto"];
     let proto_includes = vec!["../.."];
     let fd_out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());

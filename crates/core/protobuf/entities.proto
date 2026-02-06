@@ -2,17 +2,6 @@ syntax = "proto2";
 
 package history;
 
-import "scalapb/scalapb.proto";
-
-option (scalapb.options) = {
-  package_name: "org.fs.chm.protobuf"
-  flat_package: true
-  single_file: true
-  no_default_values_in_constructor: true
-  enum_value_naming: CAMEL_CASE
-  enum_strip_prefix: true
-};
-
 message Dataset {
   required PbUuid uuid = 1;
   required string alias = 2;
@@ -114,8 +103,6 @@ enum Selected {
  */
 
 message Message {
-  option (scalapb.message).no_box = true;  // do not wrap in Option
-
   /**
    * ID assigned to this message by a DAO storage engine (even local one), always valid and >= 0.
    * Within a chat, guaranteed to be unique and properly ordered.
