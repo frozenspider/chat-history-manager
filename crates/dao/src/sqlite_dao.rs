@@ -528,10 +528,12 @@ impl ChatHistoryDao for SqliteDao {
     }
 
     fn messages_slice_len(&self, chat: &Chat, msg1_id: MessageInternalId, msg2_id: MessageInternalId) -> Result<usize> {
+        let uuid = Uuid::parse_str(&chat.ds_uuid.value)?;
         let mut conn = self.get_conn()?;
 
         use schema::*;
         let count: i64 = message::table
+            .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
             .filter(message::columns::chat_id.eq(chat.id))
             .filter(message::columns::internal_id.ge(*msg1_id))
             .filter(message::columns::internal_id.le(*msg2_id))
@@ -543,17 +545,36 @@ impl ChatHistoryDao for SqliteDao {
     }
 
     fn messages_around_date(&self,
-                            _chat: &Chat,
-                            _date_ts: Timestamp,
-                            _limit: usize) -> Result<(Vec<Message>, Vec<Message>)> {
-        // Not needed yet, so leaving this out
-        todo!()
+                            chat: &Chat,
+                            date_ts: Timestamp,
+                            limit: usize) -> Result<(Vec<Message>, Vec<Message>)> {
+        let uuid = Uuid::parse_str(&chat.ds_uuid.value)?;
+        let after = self.fetch_messages(|conn| {
+            use schema::*;
+            Ok(message::table
+                .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
+                .filter(message::columns::chat_id.eq(chat.id))
+                .filter(message::columns::time_sent.ge(*date_ts))
+                .order_by(message::columns::internal_id.asc())
+                .limit(limit as i64)
+                .select(RawMessage::as_select())
+                .load(conn)?)
+        })?;
+
+        let before = if let Some(first_msg) = after.first() {
+            self.messages_before_impl(chat, first_msg.internal_id(), limit)?
+        } else {
+            self.last_messages(chat, limit)?
+        };
+        Ok((before, after))
     }
 
     fn message_option(&self, chat: &Chat, source_id: MessageSourceId) -> Result<Option<Message>> {
+        let uuid = Uuid::parse_str(&chat.ds_uuid.value)?;
         self.fetch_messages(|conn| {
             use schema::*;
             Ok(message::table
+                .filter(message::columns::ds_uuid.eq(uuid.as_bytes().as_slice()))
                 .filter(message::columns::chat_id.eq(chat.id))
                 .filter(message::columns::source_id.eq(Some(*source_id)))
                 .limit(1)

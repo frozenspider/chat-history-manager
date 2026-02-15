@@ -6,10 +6,6 @@ use chat_history_manager_core::err;
 #[path = "in_memory_dao_tests.rs"]
 mod tests;
 
-macro_rules! subtract_or_zero {
-    ($idx:expr, $limit:expr) => { if $idx > $limit { $idx - $limit } else { 0 } };
-}
-
 #[derive(DeepSizeOf)]
 pub struct InMemoryDao {
     pub name: String,
@@ -151,7 +147,7 @@ impl ChatHistoryDao for InMemoryDao {
     fn last_messages(&self, chat: &Chat, limit: usize) -> Result<Vec<Message>> {
         Ok(self.messages_option(&chat.ds_uuid, chat.id)
             .map(|msgs| {
-                cutout(msgs, subtract_or_zero!(msgs.len(), limit), msgs.len()).to_vec()
+                cutout(msgs, msgs.len().saturating_sub(limit), msgs.len()).to_vec()
             })
             .unwrap_or_default())
     }
@@ -162,7 +158,7 @@ impl ChatHistoryDao for InMemoryDao {
         match idx {
             None => err!("Message not found!"),
             Some(idx) => {
-                Ok(cutout(msgs, subtract_or_zero!(idx, limit), idx))
+                Ok(cutout(msgs, idx.saturating_sub(limit), idx))
             }
         }
     }
@@ -232,7 +228,7 @@ impl ChatHistoryDao for InMemoryDao {
             }
             Some(idx) => {
                 let (p1, p2) = messages.split_at(idx);
-                (cutout(p1, subtract_or_zero!(p1.len(), limit), p1.len()),
+                (cutout(p1, p1.len().saturating_sub(limit), p1.len()),
                  cutout(p2, 0, limit))
             }
         })

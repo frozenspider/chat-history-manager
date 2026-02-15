@@ -298,6 +298,62 @@ fn fetching_corner_cases() -> EmptyRes {
 }
 
 #[test]
+fn messages_around_date() -> EmptyRes {
+    let dao_holder = create_simple_dao(
+        false,
+        "test",
+        (1..=10).map(|idx| create_regular_message(idx, 1)).collect_vec(),
+        2,
+        &|_, _, _| {},
+        rng().random(),
+    );
+    let daos = init_from(dao_holder.dao,
+                         dao_holder.tmp_dir.path.clone(),
+                         Some(dao_holder.tmp_dir));
+
+    let mut dao_vec: Vec<(&dyn ChatHistoryDao, &str)> = vec![];
+    dao_vec.push((daos.src_dao.as_ref(), "in-memory"));
+    dao_vec.push((&daos.dst_dao, "sqlite"));
+
+    for (dao, clue) in dao_vec {
+        for ChatWithDetails { chat, .. } in dao.chats(&daos.ds_uuid)? {
+            let msgs = dao.first_messages(&chat, usize::MAX)?;
+            let len = msgs.len();
+
+            fn assert_split(actual: (Vec<Message>, Vec<Message>), left: &[Message], right: &[Message], clue: &str) {
+                assert_eq!(actual.0, left, "{clue}: left mismatch");
+                assert_eq!(actual.1, right, "{clue}: right mismatch");
+            }
+
+            // Edge cases: before all messages and after all messages
+            assert_split(dao.messages_around_date(&chat, Timestamp::MIN, 1)?, &[], &msgs[..=0], clue);
+            assert_split(dao.messages_around_date(&chat, Timestamp::MIN, 1000)?, &[], &msgs[..], clue);
+
+            assert_split(dao.messages_around_date(&chat, Timestamp::MAX, 1)?, &msgs[(len - 1)..], &[], clue);
+            assert_split(dao.messages_around_date(&chat, Timestamp::MAX, 1000)?, &msgs[..], &[], clue);
+
+            // Exact timestamp matches
+            assert_split(dao.messages_around_date(&chat, msgs[0].timestamp(), 1)?, &[], &msgs[..=0], clue);
+            assert_split(dao.messages_around_date(&chat, msgs[1].timestamp(), 1)?, &msgs[..=0], &msgs[1..=1], clue);
+            assert_split(dao.messages_around_date(&chat, msgs[2].timestamp(), 2)?, &msgs[..=1], &msgs[2..=3], clue);
+
+            // From the end
+            assert_split(dao.messages_around_date(&chat, msgs[len - 1].timestamp(), 1)?,
+                         &msgs[(len - 2)..=(len - 2)], &msgs[(len - 1)..], clue);
+            assert_split(dao.messages_around_date(&chat, msgs[len - 2].timestamp(), 2)?,
+                         &msgs[(len - 4)..=(len - 3)], &msgs[(len - 2)..], clue);
+
+            // Timestamp between two messages
+            let n = len / 2;
+            let mid_ts = Timestamp((msgs[n - 1].timestamp + msgs[n].timestamp) / 2);
+            assert_split(dao.messages_around_date(&chat, mid_ts, 1)?,
+                         &msgs[(n - 1)..n], &msgs[n..=n], clue);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn inserts() -> EmptyRes {
     let dao_holder = create_simple_dao(
         false,
