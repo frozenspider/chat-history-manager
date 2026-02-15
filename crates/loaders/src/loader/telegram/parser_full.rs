@@ -74,9 +74,9 @@ pub(super) fn parse(root_obj: &Object,
                     let chat_json = as_object!(chat_json, json_path, "chat");
                     let json_path = format!("{json_path}.chat");
                     // Name will not be present for saved messages
-                    let json_path = match get_field!(chat_json, json_path, "name") {
-                        Ok(name) => format!("{json_path}[{}]", name),
-                        Err(_) => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id")?)
+                    let json_path = match chat_json.get("name") {
+                        Some(name) => format!("{json_path}[{}]", name),
+                        None => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id"))
                     };
                     ok((chat_json, json_path))
                 }).try_collect()?;
@@ -88,7 +88,7 @@ pub(super) fn parse(root_obj: &Object,
                     continue;
                 }
                 let short_user = ShortUser {
-                    id: parse_user_id(get_field!(chat_json, json_path, "id")?)?,
+                    id: parse_user_id(get_field!(chat_json, json_path, "id"))?,
                     full_name_option: get_field_string_option!(chat_json, json_path, "name"),
                 };
                 // Doesn't really make sense to pre-populate users without names.

@@ -124,51 +124,71 @@ macro_rules! as_object {
 #[macro_export]
 macro_rules! get_field {
     ($v:expr, $path:expr, $txt:expr) => {
-        $v.get($txt).with_context(|| format!("{}.{} field not found", $path, $txt))
+        $v.get($txt).with_context(|| format!("{}.{} field not found", $path, $txt))?
     };
 }
 
 #[macro_export]
+macro_rules! get_field_array {
+    ($v:expr, $path:expr, $txt:expr) => {as_array!(get_field!($v, $path, $txt), $path, $txt)};
+}
+
+#[macro_export]
 macro_rules! get_field_object {
-    ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_object!(get_field!($v, $path, $txt), $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_i64 {
-    ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt), $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_bool {
-    ($v:expr, $path:expr, $txt:expr) => {as_bool!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_bool!(get_field!($v, $path, $txt), $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_str {
-    ($v:expr, $path:expr, $txt:expr) => {as_str!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_str!(get_field!($v, $path, $txt), $path, $txt)};
 }
 
 #[macro_export]
 macro_rules! get_field_string {
-    ($v:expr, $path:expr, $txt:expr) => {as_string!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_string!(get_field!($v, $path, $txt), $path, $txt)};
 }
 
 /// Empty string is None.
 #[macro_export]
 macro_rules! get_field_string_option {
-    ($v:expr, $path:expr, $txt:expr) => {as_string_option!(get_field!($v, $path, $txt)?, $path, $txt)};
+    ($v:expr, $path:expr, $txt:expr) => {as_string_option!(get_field!($v, $path, $txt), $path, $txt)};
+}
+
+/// Empty or missing string are both None.
+#[macro_export]
+macro_rules! get_field_string_missing {
+    ($v:expr, $path:expr, $txt:expr) => {
+        if let Some(v) = $v.get($txt) {
+            as_string_option!(v, $path, $txt)
+        } else {
+            None
+        }
+    };
 }
 
 //
 // Parse functions
 //
 
+/// Parses a JSON object from a borrowed value. See [parse_object] for details.
 pub fn parse_bw_as_object(bw: &BorrowedValue,
                           path: &str,
                           process: impl FnMut(ParseCallback) -> EmptyRes) -> EmptyRes {
     parse_object(as_object!(bw, path), path, process)
 }
 
+/// Parses JSON object by iterating over its keys and values and calling `process` for each of them.
+/// As such, all keys in the object must be handled in `process` (either by processing or by calling `consume()`).
 pub fn parse_object(obj: &simd_json::borrowed::Object,
                     path: &str,
                     mut process: impl FnMut(ParseCallback) -> EmptyRes) -> EmptyRes {

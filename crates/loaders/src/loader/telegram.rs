@@ -515,7 +515,7 @@ fn parse_message(json_path: &str,
     }
 
     let mut message_json = MessageJson {
-        json_path: format!("{json_path}.message[{}]", get_field!(bw, "message", "id")?),
+        json_path: format!("{json_path}.message[{}]", get_field!(bw, "message", "id")),
         val: as_object!(bw, "message"),
         expected_fields: None,
     };
@@ -722,7 +722,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         let todo_list = as_object!(todo_list, json_path, "todo_list");
         let json_path = format!("{}.members", json_path);
         let title = get_field_string!(todo_list, json_path, "title");
-        let items = get_field!(todo_list, json_path, "answers")?;
+        let items = get_field!(todo_list, json_path, "answers");
         let json_path = format!("{}.answers", json_path);
         let items = as_array!(items, json_path);
         let items = items.iter().enumerate().map(|(idx, item)| {

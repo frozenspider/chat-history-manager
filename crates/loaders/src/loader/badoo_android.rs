@@ -145,7 +145,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                         "AUDIO" => {
                             ensure!(keys == HashSet::from(["id", "waveform", "url", "duration", "expiration_timestamp"]),
                                     "Unexpected payload format for audio message: {}", payload_json);
-                            let duration_ms = get_field!(root_obj, "duration", "duration")?;
+                            let duration_ms = get_field!(root_obj, "duration", "duration");
                             let duration_sec_option = Some(duration_ms.try_as_i32()? / 1000);
                             (vec![], vec![content!(VoiceMsg {
                                 path_option: None,
