@@ -43,32 +43,23 @@ export function CalendarPicker({
       />
       <div
         className="fixed z-50 rounded-lg border bg-card p-4 shadow-lg"
-        style={{
-          top: `${position.top}px`,
-          left: `${position.left}px`,
-        }}
       >
-        <div>
-          {/*<div
-            className="flex justify-center items-center mb-4 cursor-pointer hover:bg-accent rounded px-2 py-1 transition-colors"
-            onClick={() => setShowYearPicker(true)}
-            title="Click to change year"
-          >
-                  <span className="text-sm font-medium">
-                    {displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </span>
-          </div>*/}
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={handleDateSelect}
-            month={displayMonth}
-            onMonthChange={setDisplayMonth}
-            fromDate={fromDate}
-            toDate={toDate}
-            initialFocus
-          />
-        </div>
+        <Calendar
+          mode="single"
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+          }}
+          selected={selectedDate}
+          onSelect={handleDateSelect}
+          month={displayMonth}
+          onMonthChange={setDisplayMonth}
+          fromDate={fromDate}
+          toDate={toDate}
+          captionLayout="dropdown"
+          className="rounded-lg border"
+          initialFocus
+        />
       </div>
     </>
   )
