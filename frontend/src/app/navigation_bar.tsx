@@ -5,9 +5,7 @@ import React from "react";
 import 'react-day-picker/dist/style.css';
 
 import { ArrowDownToLineIcon, ArrowUpToLineIcon, CalendarIcon, Search } from "lucide-react";
-import { SelectSingleEventHandler } from "react-day-picker";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { GetServices, NavigationCallbacks, ServicesContext } from "@/app/utils/state";
 import { ObjAsc, ObjDesc, PromiseCatchReportError } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";
+import { CalendarPicker } from "@/app/chat_navigation/calendar_picker";
 
 export default function NavigationBar(args: {
   chatState: ChatState | null,
@@ -26,6 +25,10 @@ export default function NavigationBar(args: {
     React.useState(false)
   let [dateLimits, setDateLimits] =
     React.useState<[Date, Date]>([new Date(0), new Date()])
+  let [calendarOpen, setCalendarOpen] =
+    React.useState(false)
+  let [calendarPosition, setCalendarPosition] =
+    React.useState({ top: 0, left: 0 })
 
   // Asynchronously fetch start/end date for calendar
   React.useEffect(() => {
@@ -77,19 +80,6 @@ export default function NavigationBar(args: {
     services.daoClient
   ])
 
-  // See https://github.com/shadcn-ui/ui/issues/546#issuecomment-1873947429
-  let calendarClassNames = {
-    caption_label: 'flex items-center text-sm font-medium',
-    dropdown: 'rdp-dropdown bg-card',
-    dropdown_icon: 'ml-2',
-    dropdown_year: 'rdp-dropdown_year ml-3',
-    button: '',
-    button_reset: '',
-  }
-  let onDateSelected: SelectSingleEventHandler = (d1, d2, _mods, _e) => {
-    console.log("Selected date:", d1, d2)
-    // args.navigationCallbacks?.toDate(d1)
-  }
   return <>
     <header className="sticky top-0 bg-white dark:bg-gray-900 z-10">
       <TooltipProvider delayDuration={0}>
@@ -118,28 +108,22 @@ export default function NavigationBar(args: {
             <Separator className="mx-2 h-6" orientation="vertical"/>
 
             <Tooltip>
-              <Popover>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button size="icon" variant="ghost"
-                            disabled={true /* NYI */}>
-                      <CalendarIcon className="h-4 w-4"/>
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single"
-                            classNames={calendarClassNames}
-                            fromDate={dateLimits[0]}
-                            toDate={dateLimits[1]}
-                            initialFocus
-                            required
-                            onSelect={onDateSelected}
-                            captionLayout="dropdown-buttons"/>
-                </PopoverContent>
-              </Popover>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost"
+                        disabled={!navEnabled}
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setCalendarPosition({
+                            top: rect.bottom + window.scrollY + 4,
+                            left: rect.left + window.scrollX,
+                          })
+                          setCalendarOpen(true)
+                        }}>
+                  <CalendarIcon className="h-4 w-4"/>
+                </Button>
+              </TooltipTrigger>
               <TooltipContent>
-                <span>To the specific date (NYI)</span>
+                <span>Go to specific date</span>
               </TooltipContent>
             </Tooltip>
 
@@ -181,5 +165,16 @@ export default function NavigationBar(args: {
         </div>
       </TooltipProvider>
     </header>
+    <CalendarPicker
+      isOpen={calendarOpen}
+      onClose={() => setCalendarOpen(false)}
+      onDateSelect={(date) => {
+        console.log("Selected date:", date)
+        // TODO: args.navigationCallbacks?.toDate(date)
+      }}
+      position={calendarPosition}
+      fromDate={dateLimits[0]}
+      toDate={dateLimits[1]}
+    />
   </>
 }
