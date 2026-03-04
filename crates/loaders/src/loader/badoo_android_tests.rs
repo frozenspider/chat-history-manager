@@ -125,6 +125,64 @@ fn loading_2023_12() -> EmptyRes {
     Ok(())
 }
 
+
+#[test]
+fn loading_2026_03() -> EmptyRes {
+    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-03_null-named-user", "", DB_FILENAME);
+
+    LOADER.looks_about_right(&res)?;
+    let dao = LOADER.load(&res, &NoFeedbackClient)?;
+
+    let ds_uuid = &dao.ds_uuid();
+    let myself = dao.myself_single_ds();
+    assert_eq!(myself, expected_myself(ds_uuid));
+
+    let member = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 1234567891_i64,
+        first_name_option: None,
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+
+    assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
+
+    assert_eq!(dao.cwms_single_ds().len(), 1);
+
+    {
+        let cwm = dao.cwms_single_ds().remove(0);
+        let chat = cwm.chat;
+        assert_eq!(chat, Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: member.id,
+            name_option: None,
+            source_type: SourceType::BadooDb as i32,
+            tpe: ChatType::Personal as i32,
+            img_path_option: None,
+            member_ids: vec![myself.id, member.id],
+            msg_count: 1,
+            main_chat_id: None,
+        });
+
+        let msgs = dao.first_messages(&chat, 99999)?;
+        assert_eq!(msgs.len() as i32, chat.msg_count);
+
+        assert_eq!(msgs[0], Message {
+            internal_id: 0,
+            source_id_option: Some(10000000),
+            timestamp: 1692781351,
+            from_id: member.id,
+            text: vec![RichText::make_plain("Message from NULL named user".to_owned())],
+            searchable_string: "Message from NULL named user".to_owned(),
+            typed: Some(MESSAGE_REGULAR_NO_CONTENT.clone()),
+        });
+    }
+
+    Ok(())
+}
+
 //
 // Helpers
 //

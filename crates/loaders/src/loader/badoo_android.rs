@@ -70,12 +70,15 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
             ensure!(users.user_id_to_encrypted.insert(id, enc_id).is_none(),
                     "Duplicate encrypted user ID for user {}!", *id);
 
-            let name = row.get::<_, String>("user_name")?;
+            // So far, NULL name was only observed once.
+            // It was also the only one having NULL in user_image_url, photo_url and photo_id,
+            // 0 age and is_reply_allowed, and empty user_photos array, so maybe a deleted user?
+            let name = row.get::<_, Option<String>>("user_name")?;
 
             users.user_id_to_user.insert(id, User {
                 ds_uuid: ds_uuid.clone(),
                 id: *id,
-                first_name_option: Some(name),
+                first_name_option: name,
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
@@ -158,7 +161,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                             ensure!(keys == HashSet::from(["text", "type", "substitute_id"]),
                                     "Unexpected payload format: {}", payload_json);
                             match get_field_str!(root_obj, "type", "type") {
-                                "TEXT" => {
+                                "TEXT" | "SUBSTITUTE"  => {
                                     let text = get_field_string!(root_obj, "text", "text");
                                     (vec![RichText::make_plain(text)], vec![])
                                 }
