@@ -1097,6 +1097,11 @@ fn parse_service_message(message_json: &mut MessageJson,
             // todolist completions is non-functional because it contains no reference to the original message.
             return Ok(ShouldProceed::SkipMessage);
         }
+        "new_creator_pending" => {
+            // No official documentation, has a "new_creator" field with a (pretty) name.
+            // Not interesting either way.
+            return Ok(ShouldProceed::SkipMessage);
+        }
         etc =>
             bail!("Don't know how to parse service message for action '{etc}'"),
     };
