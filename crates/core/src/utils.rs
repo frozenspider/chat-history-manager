@@ -6,7 +6,7 @@ pub use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::hash::{BuildHasher, BuildHasherDefault, Hasher as StdHasher};
-use std::io;
+use std::{fs, io};
 use std::io::{BufReader, Read};
 use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
@@ -171,9 +171,18 @@ pub fn list_all_files(p: &Path, recurse: bool) -> Result<Vec<PathBuf>> {
     Ok(res)
 }
 
-/// Files are equal if their sizes and hashes are equal, or if they both don't exist
+/// Files are equal if their sizes and hashes are equal, or if they both don't exist.
+/// Treats zero-length files as non-existent.
 pub fn files_are_equal(f1: &Path, f2: &Path) -> Result<EntityCmpResult> {
-    match (f1.metadata(), f2.metadata()) {
+    fn metadata(path: &Path) -> io::Result<fs::Metadata> {
+        path.metadata().and_then(|m| if m.len() == 0 {
+            // This is needed e.g. for TgKeeper that sometimes retrieves files as zero-length when they fail to download.
+            Err(io::Error::new(io::ErrorKind::NotFound, "Zero-length file treated as non-existent"))
+        } else {
+            Ok(m)
+        })
+    }
+    match (metadata(f1), metadata(f2)) {
         (Err(_), Err(_)) => {
             // Both don't exist
             Ok(EntityCmpResult::Equal)
