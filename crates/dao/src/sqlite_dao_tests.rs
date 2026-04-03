@@ -658,8 +658,12 @@ fn update_chat_change_id() -> EmptyRes {
     let old_files = dao.first_messages(&cwd.chat, usize::MAX)?.iter()
         .flat_map(|m| m.files(&daos.dst_ds_root)).collect_vec();
     assert!(!old_files.is_empty());
-    let hashes: HashMap<_, _> = old_files.iter()
-        .map(|f| (path_file_name(f).unwrap().to_owned(), file_hash(f).unwrap())).collect();
+    let hashes: HashMap<_, _> = old_files
+        .iter()
+        .map(|f| {
+            let Ok(FileHash::Valid { hash, .. }) = file_hash(f) else { panic!("Uh-oh") };
+            (path_file_name(f).unwrap().to_owned(), hash)
+        }).collect();
 
     let old_id = cwd.id();
     let new_id = ChatId(112233);
@@ -682,7 +686,7 @@ fn update_chat_change_id() -> EmptyRes {
         assert!(f.exists(), "File {} does not exist!", f.display());
 
         let old_hash = hashes[path_file_name(f).unwrap()];
-        let new_hash = file_hash(f).unwrap();
+        let Ok(FileHash::Valid { hash: new_hash, .. }) = file_hash(f) else { panic!("Uh-oh") };
         assert_eq!(old_hash, new_hash);
     }
 

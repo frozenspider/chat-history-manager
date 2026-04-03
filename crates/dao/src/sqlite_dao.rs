@@ -1279,52 +1279,49 @@ fn copy_file(src_file: &Path,
              subpath: &Subpath,
              dst_ds_root: &DatasetRoot) -> Result<Option<String>> {
     let src_absolute_path = path_to_str(src_file)?;
-    let src_meta = fs::metadata(src_file);
-    if let Ok(src_meta) = src_meta {
-        ensure!(src_meta.is_file(), "Not a file: {src_absolute_path}");
-
-        let ext =
-            if let Some(ext) = src_file.extension() {
-                Some(ext.to_str().unwrap())
-            } else {
-                src_mime.and_then(mime2ext::mime2ext)
-            };
-        let ext_suffix = ext.map(|ext| format!(".{ext}")).unwrap_or_default();
-
-        let dst_rel_path: String =
-            if let Some(main_path) = thumbnail_dst_main_path {
-                let full_name = main_path.rsplit('/').next().unwrap();
-                format!("{}{full_name}_thumb{ext_suffix}", main_path.smart_slice(..-(full_name.len() as i32)))
-            } else {
-                let inner_path = if subpath.use_hashing {
-                    let hash = file_hash_string(src_file)?;
-                    // Using first two characters of hash as a prefix for better file distribution, same what git does
-                    let (prefix, name) = hash.split_at(2);
-                    format!("{prefix}/{name}{ext_suffix}")
-                } else if let Some(ext) = ext {
-                    path_file_name(&src_file.with_extension(ext)).unwrap().to_owned()
-                } else {
-                    path_file_name(src_file).unwrap().to_owned()
-                };
-                format!("{subpath_prefix}/{}/{inner_path}", subpath.path_fragment)
-            };
-        let dst_file = dst_ds_root.to_absolute(&dst_rel_path);
-        fs::create_dir_all(dst_file.parent().unwrap()).context("Can't create dataset root path")?;
-
-        if dst_file.exists() {
-            // Assume hash collisions don't exist
-            ensure!(subpath.use_hashing || files_are_equal(src_file, &dst_file)?.is_eq(),
-                    "File already exists: {}, and it doesn't match source {}",
-                    dst_file.display(), src_absolute_path)
-        } else {
-            fs::copy(src_file, dst_file)?;
-        }
-
-        Ok(Some(dst_rel_path))
-    } else {
+    let hash_result = file_hash(src_file)?;
+    let FileHash::Valid { hash, .. } = hash_result else {
         log::info!("Referenced file does not exist: {}", src_file.display());
-        Ok(None)
+        return Ok(None);
+    };
+    let ext =
+        if let Some(ext) = src_file.extension() {
+            Some(ext.to_str().unwrap())
+        } else {
+            src_mime.and_then(mime2ext::mime2ext)
+        };
+    let ext_suffix = ext.map(|ext| format!(".{ext}")).unwrap_or_default();
+
+    let dst_rel_path: String =
+        if let Some(main_path) = thumbnail_dst_main_path {
+            let full_name = main_path.rsplit('/').next().unwrap();
+            format!("{}{full_name}_thumb{ext_suffix}", main_path.smart_slice(..-(full_name.len() as i32)))
+        } else {
+            let inner_path = if subpath.use_hashing {
+                let hash = hash_string(hash);
+                // Using first two characters of hash as a prefix for better file distribution, same what git does
+                let (prefix, name) = hash.split_at(2);
+                format!("{prefix}/{name}{ext_suffix}")
+            } else if let Some(ext) = ext {
+                path_file_name(&src_file.with_extension(ext)).unwrap().to_owned()
+            } else {
+                path_file_name(src_file).unwrap().to_owned()
+            };
+            format!("{subpath_prefix}/{}/{inner_path}", subpath.path_fragment)
+        };
+    let dst_file = dst_ds_root.to_absolute(&dst_rel_path);
+    fs::create_dir_all(dst_file.parent().unwrap()).context("Can't create dataset root path")?;
+
+    if dst_file.exists() {
+        // Assume hash collisions don't exist
+        ensure!(subpath.use_hashing || files_are_equal(src_file, &dst_file)?.is_eq(),
+                "File already exists: {}, and it doesn't match source {}",
+                dst_file.display(), src_absolute_path)
+    } else {
+        fs::copy(src_file, dst_file)?;
     }
+
+    Ok(Some(dst_rel_path))
 }
 
 fn copy_chat_file(src_rel_path: &str,

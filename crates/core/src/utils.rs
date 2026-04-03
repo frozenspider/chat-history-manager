@@ -144,7 +144,17 @@ impl<'a> SmartSlice<'a> for &str {
 //
 // File system
 //
+// Trearts non-existent, zero-length, and all-zero files as non-existent.
+//
 
+pub enum FileHash {
+    Valid {
+        hash: u128,
+        len: u64,
+    },
+    /// File doesn't exist, is zero-length, or consists of zero bytes only.
+    NotFoundOrEmpty,
+}
 /// 64 KiB
 pub const FILE_BUF_CAPACITY: usize = 64 * 1024;
 
@@ -174,31 +184,18 @@ pub fn list_all_files(p: &Path, recurse: bool) -> Result<Vec<PathBuf>> {
 /// Files are equal if their sizes and hashes are equal, or if they both don't exist.
 /// Treats zero-length files as non-existent.
 pub fn files_are_equal(f1: &Path, f2: &Path) -> Result<EntityCmpResult> {
-    fn metadata(path: &Path) -> io::Result<fs::Metadata> {
-        path.metadata().and_then(|m| if m.len() == 0 {
-            // This is needed e.g. for TgKeeper that sometimes retrieves files as zero-length when they fail to download.
-            Err(io::Error::new(io::ErrorKind::NotFound, "Zero-length file treated as non-existent"))
-        } else {
-            Ok(m)
-        })
-    }
-    match (metadata(f1), metadata(f2)) {
-        (Err(_), Err(_)) => {
-            // Both don't exist
+    match (file_hash(f1)?, file_hash(f2)?) {
+        (FileHash::NotFoundOrEmpty, FileHash::NotFoundOrEmpty) => {
             Ok(EntityCmpResult::Equal)
         }
-        (Ok(m1), Ok(m2)) => {
-            // Check if file sizes are different
-            if m1.len() != m2.len() {
-                return Ok(EntityCmpResult::Conflict);
-            }
-
-            let hash1 = file_hash(f1)?;
-            let hash2 = file_hash(f2)?;
+        (FileHash::Valid { len: len1, .. }, FileHash::Valid { len: len2, .. }) if len1 != len2 => {
+            Ok(EntityCmpResult::Conflict)
+        },
+        (FileHash::Valid { hash: hash1, .. }, FileHash::Valid { hash: hash2, .. }) => {
             Ok((hash1 == hash2).into())
         },
-        (Ok(_), Err(_)) => Ok(EntityCmpResult::LeftHasMore),
-        (Err(_), Ok(_)) => Ok(EntityCmpResult::RightHasMore),
+        (FileHash::Valid { .. }, FileHash::NotFoundOrEmpty) => Ok(EntityCmpResult::LeftHasMore),
+        (FileHash::NotFoundOrEmpty, FileHash::Valid { .. }) => Ok(EntityCmpResult::RightHasMore),
     }
 }
 
@@ -232,7 +229,21 @@ pub fn hasher() -> Hasher {
 }
 
 /// Get a hash of a file's content.
-pub fn file_hash(path: &Path) -> StdResult<u128, io::Error> {
+pub fn file_hash(path: &Path) -> StdResult<FileHash, io::Error> {
+    let metadata = match path.metadata() {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(FileHash::NotFoundOrEmpty);
+        }
+        Err(e) => return Err(e),
+        Ok(m) if m.len() == 0 => {
+            // This is needed e.g. for TgKeeper that sometimes retrieves files as zero-length when they fail to download.
+            return Ok(FileHash::NotFoundOrEmpty);
+        },
+        Ok(m) if !m.is_file() => {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Path is not a file"))
+        },
+        Ok(m) => m,
+    };
     let file = File::open(path)?;
     let mut reader = BufReader::with_capacity(FILE_BUF_CAPACITY, file);
     let mut buffer = [0; 512];
@@ -249,17 +260,26 @@ pub fn file_hash(path: &Path) -> StdResult<u128, io::Error> {
     // Concatenate two hashes into u128
     let hash1 = hashers[0].finish();
     let hash2 = hashers[1].finish();
-    Ok(((hash1 as u128) << 64) | (hash2 as u128))
+    if hash1 == 0 && hash2 == 0 {
+        // This happens when the file is empty or consists of zero bytes only, treat it as non-existent.
+        return Ok(FileHash::NotFoundOrEmpty);
+    }
+    let hash = ((hash1 as u128) << 64) | (hash2 as u128);
+    Ok(FileHash::Valid {
+        hash,
+        len: metadata.len(),
+    })
 }
 
+/// This does NOT have a special treatment for zero-length and all-zero files.
 pub fn file_size(path: &Path) -> StdResult<usize, io::Error> {
-    let metadata = std::fs::metadata(path)?;
+    let metadata = fs::metadata(path)?;
     Ok(metadata.len() as usize)
 }
 
 /// Get a hash string (32 uppercase hex chars) of a file's content.
-pub fn file_hash_string(path: &Path) -> StdResult<String, io::Error> {
-    Ok(format!("{:X}", file_hash(path)?))
+pub fn hash_string(hash: u128) -> String {
+    format!("{:X}", hash)
 }
 
 //
