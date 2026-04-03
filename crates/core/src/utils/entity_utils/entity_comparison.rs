@@ -607,8 +607,9 @@ fn compare_mime_types(mime1: &str, mime2: &str) -> Cmp {
     // "application/octet-stream" is defined as "unknown binary data", so any other MIME is more specific
     const OCTET_STREAM: &str = "application/octet-stream";
     match (mime1, mime2) {
+        (x, y) if x == y => Cmp::Equal,
         (OCTET_STREAM, _) => Cmp::RightHasMore,
         (_, OCTET_STREAM) => Cmp::LeftHasMore,
-        _ => (mime1 == mime2).into(),
+        _ => Cmp::Conflict,
     }
 }
