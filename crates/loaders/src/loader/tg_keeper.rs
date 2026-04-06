@@ -337,11 +337,26 @@ fn parse_message(
                             fwd.from_id.map(|peer| users.resolve_pretty_name(peer.raw_id()))
                         })
                     });
-            let reply_to_message_id_option = inner.reply_to.and_then(|r| match r {
-                tl::enums::MessageReplyHeader::Header(h) => h.reply_to_msg_id.map(|id| id as i64),
-                _ => None,
-            });
-            let text = parse_text(&inner.message, &inner.entities.unwrap_or(vec![]))?;
+            let mut text = parse_text(&inner.message, &inner.entities.unwrap_or(vec![]))?;
+
+            // Keeping the format consistent with Telegram parser
+            let reply_to_message_id_option = match inner.reply_to.as_ref() {
+                Some(tl::enums::MessageReplyHeader::Header(reply_to)) => {
+                    if reply_to.reply_to_peer_id.is_some() {
+                        // Could actually be a message from other chat, not a channel
+                        text.insert(0, RichText::make_italic("(Replying to a channel post)\n".to_owned()));
+                        None
+                    } else {
+                        reply_to.reply_to_msg_id.map(|id| id as i64)
+                    }
+                },
+                Some(tl::enums::MessageReplyHeader::MessageReplyStoryHeader(_)) => {
+                    text.insert(0, RichText::make_italic("(Replying to a story)\n".to_owned()));
+                    None
+                }
+                None => None,
+            };
+
             let contents = inner
                 .media
                 .map(|m| parse_media(config, m, media_rel_path, thumbnail_rel_path))
