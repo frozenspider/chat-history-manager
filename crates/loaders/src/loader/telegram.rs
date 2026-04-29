@@ -50,8 +50,8 @@ impl DataLoader for TelegramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
-        parse_telegram_file(path, ds, feedback_client)
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+        parse_telegram_file(feedback_client, path, ds)
     }
 }
 
@@ -169,11 +169,12 @@ fn get_real_path(path: &Path) -> PathBuf {
     }
 }
 
-fn parse_telegram_file(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+fn parse_telegram_file(feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let path = get_real_path(path);
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
     log::info!("Parsing '{}'", path.display());
+    feedback_client.set_load_status(LoadStatus::Parsing);
 
     let start_time = Instant::now();
 

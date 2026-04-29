@@ -58,13 +58,13 @@ impl DataLoader for MailRuAgentDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, _feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
         // We're not using the supplied dataset, just the name of it
-        load_mra_dbs(path, ds.alias)
+        load_mra_dbs(feedback_client, path, ds.alias)
     }
 }
 
-fn load_mra_dbs(path: &Path, dao_name: String) -> Result<Box<InMemoryDao>> {
+fn load_mra_dbs(feedback_client: &dyn FeedbackClientSync, path: &Path, dao_name: String) -> Result<Box<InMemoryDao>> {
     let parent_path = path.parent().expect("Database file has no parent!");
     let storage_path = if path_file_name(parent_path)? == "Base" {
         parent_path.parent().expect(r#""Base" directory has no parent!"#)
@@ -78,6 +78,8 @@ fn load_mra_dbs(path: &Path, dao_name: String) -> Result<Box<InMemoryDao>> {
 
     // Read the whole file into the memory.
     let dbs_bytes = fs::read(path)?;
+
+    feedback_client.set_load_status(LoadStatus::Parsing);
 
     // We'll be loading chats in three phases.
     // Phase 1: Read conversations in an MRA inner format, mapped to file bytes.

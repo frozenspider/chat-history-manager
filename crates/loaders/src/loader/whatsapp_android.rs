@@ -57,12 +57,22 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
 
     type Users = Users;
 
-    fn tweak_conn(&self, path: &Path, conn: &Connection) -> EmptyRes {
+    fn tweak_conn(
+        &self,
+        conn: &Connection,
+        _feedback_client: &dyn FeedbackClientSync,
+        path: &Path,
+    ) -> EmptyRes {
         conn.execute(r#"ATTACH DATABASE ?1 AS wa_db"#, [path_to_str(&path.join("wa.db"))?])?;
         Ok(())
     }
 
-    fn normalize_users(&self, users: Users, cwms: &[ChatWithMessages]) -> Result<Vec<User>> {
+    fn normalize_users(
+        &self,
+        _feedback_client: &dyn FeedbackClientSync,
+        users: Users,
+        cwms: &[ChatWithMessages]
+    ) -> Result<Vec<User>> {
         let myself_id = users.myself_id.unwrap();
         // Filter out users not participating in chats.
         let participating_user_ids: HashSet<i64, Hasher> = cwms.iter()
@@ -78,7 +88,13 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         Ok(users)
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
+    fn parse_users(
+        &self,
+        conn: &Connection,
+        _feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        _path: &Path
+    ) -> Result<Users> {
         let mut users: Users = Default::default();
 
         // 1-on-1 chat users
@@ -133,11 +149,14 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         Ok(users)
     }
 
-    fn parse_chats(&self,
-                   conn: &Connection,
-                   ds_uuid: &PbUuid,
-                   _path: &Path,
-                   users: &mut Users) -> Result<Vec<ChatWithMessages>> {
+    fn parse_chats(
+        &self,
+        conn: &Connection,
+        _feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        _path: &Path,
+        users: &mut Users
+    ) -> Result<Vec<ChatWithMessages>> {
         parse_chats(conn, ds_uuid, users)
     }
 }

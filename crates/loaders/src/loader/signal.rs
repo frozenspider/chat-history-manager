@@ -46,14 +46,14 @@ impl DataLoader for SignalDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
-        load_sqlite(path, ds, feedback_client)
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+        load_sqlite(feedback_client, path, ds)
     }
 }
 
 type Users = HashMap<Uuid, User>;
 
-fn load_sqlite(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+fn load_sqlite(feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let file_name = path_file_name(path)?;
     let is_encrypted = file_name == ENCRYPTED_DB_FILENAME;
 
@@ -115,6 +115,7 @@ fn load_sqlite(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSyn
             })?;
     }
 
+    feedback_client.set_load_status(LoadStatus::Parsing);
     let users = parse_users(&conn, &ds.uuid)?;
     let myself_id = get_myself(&conn)?;
     let cwms = parse_cwms(&conn, &ds.uuid, &users, myself_id, attachments_path, attachments_decrypt_path)?;
