@@ -451,3 +451,13 @@ message MessageServiceGroupMigrateFrom {
 
 // Migrate to supergroup of the same name
 message MessageServiceGroupMigrateTo {}
+
+//
+// Other
+//
+
+enum LoadStatus {
+  PARSING = 0;
+  DOWNLOADING_MEDIA = 50;
+  DONE = 99;
+}

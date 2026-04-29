@@ -38,4 +38,19 @@ impl<R: FeedbackClientAsync> FeedbackService for Arc<UserInputServer<R>> {
         })
         .await
     }
+
+    async fn set_load_status(
+        &self,
+        request: Request<SetLoadStatusRequest>,
+    ) -> TonicResult<Empty> {
+        self.process_request(request, move |self_clone, request| async move {
+            let status = LoadStatus::try_from(request.status)?;
+            self_clone
+                .async_requester
+                .set_load_status(status)
+                .await?;
+            Ok(Empty {})
+        })
+            .await
+    }
 }

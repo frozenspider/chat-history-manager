@@ -11,6 +11,8 @@ service FeedbackService {
   rpc ChooseMyself(ChooseMyselfRequest) returns (ChooseMyselfResponse) {}
 
   rpc AskForText(TextInputRequest) returns (TextInputResponse) {}
+
+  rpc SetLoadStatus(SetLoadStatusRequest) returns (Empty) {}
 }
 
 message ChooseMyselfRequest {
@@ -27,6 +29,11 @@ message TextInputRequest {
 
 message TextInputResponse {
   required string user_input = 1;
+}
+
+message SetLoadStatusRequest {
+  required LoadStatus status = 1;
+  // We may add optional "details" string field here later, with meaning being status-dependent
 }
 
 //

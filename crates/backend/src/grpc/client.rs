@@ -96,7 +96,7 @@ where
     }
 
     impl<R: FeedbackClientAsync> Wrapper<R> {
-        fn ask_for_user_input<F, Out>(&self, logic: F) -> Result<Out>
+        fn do_blocking<F, Out>(&self, logic: F) -> Result<Out>
         where
             F: Future<Output = Result<Out>> + Send + 'static,
             Out: Send + Debug + 'static,
@@ -114,7 +114,7 @@ where
         fn choose_myself(&self, users: &[User]) -> Result<usize> {
             let requester = self.requester.clone();
             let users = users.to_vec();
-            self.ask_for_user_input(async move {
+            self.do_blocking(async move {
                 requester.choose_myself(&users).await
             })
         }
@@ -122,9 +122,18 @@ where
         fn ask_for_text(&self, prompt: &str) -> Result<String> {
             let requester = self.requester.clone();
             let prompt = prompt.to_owned();
-            self.ask_for_user_input(async move {
+            self.do_blocking(async move {
                 requester.ask_for_text(&prompt).await
             })
+        }
+
+        fn set_load_status(&self, status: LoadStatus) {
+            let requester = self.requester.clone();
+            if let Err(e) = self.do_blocking(async move {
+                requester.set_load_status(status).await
+            }) {
+                log::warn!("Failed to set loading status: {e}");
+            }
         }
     }
 

@@ -242,6 +242,11 @@ impl FeedbackClientAsync for TauriFeedbackClientAsync {
         let result = selection_rx.await?;
         Ok(result)
     }
+
+    async fn set_load_status(&self, status: LoadStatus) -> Result<()> {
+        // FIXME!
+        todo!()
+    }
 }
 
 //

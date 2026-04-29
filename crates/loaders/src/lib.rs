@@ -56,12 +56,16 @@ pub trait FeedbackClientAsync: Send + Sync + 'static {
     fn choose_myself(&self, users: &[User]) -> impl Future<Output = Result<usize>> + Send;
 
     fn ask_for_text(&self, prompt: &str) -> impl Future<Output = Result<String>> + Send;
+
+    fn set_load_status(&self, status: LoadStatus) -> impl Future<Output = Result<()>> + Send;
 }
 
 pub trait FeedbackClientSync: Send + Sync {
     fn choose_myself(&self, users: &[User]) -> Result<usize>;
 
     fn ask_for_text(&self, prompt: &str) -> Result<String>;
+
+    fn set_load_status(&self, status: LoadStatus) -> ();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -74,6 +78,10 @@ impl FeedbackClientSync for NoFeedbackClient {
 
     fn ask_for_text(&self, _prompt: &str) -> Result<String> {
         err!("No way to ask user!")
+    }
+
+    fn set_load_status(&self, _status: LoadStatus) {
+        // NOOP
     }
 }
 
@@ -106,5 +114,9 @@ impl FeedbackClientSync for PredefinedInputFeedbackClient {
         self.text
             .clone()
             .ok_or_else(|| anyhow!("No text provided!"))
+    }
+
+    fn set_load_status(&self, _status: LoadStatus) {
+        // NOOP
     }
 }
