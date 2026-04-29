@@ -53,7 +53,7 @@ pub trait DataLoader: Send + Sync {
             };
             self.load_inner(feedback_client, path, ds)
         }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str));
-        feedback_client.set_load_status(LoadStatus::Done);
+        feedback_client.set_load_status(LoadStatus::new_done());
         res
     }
 
@@ -224,7 +224,7 @@ pub mod android {
             path
         };
 
-        feedback_client.set_load_status(LoadStatus::Parsing);
+        feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
         let mut users = adl.parse_users(&conn, feedback_client, &ds.uuid, path)?;
         let cwms = adl.parse_chats(&conn, feedback_client, &ds.uuid, path, &mut users)?;
 

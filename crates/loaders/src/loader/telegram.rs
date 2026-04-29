@@ -174,7 +174,7 @@ fn parse_telegram_file(feedback_client: &dyn FeedbackClientSync, path: &Path, ds
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
     log::info!("Parsing '{}'", path.display());
-    feedback_client.set_load_status(LoadStatus::Parsing);
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
 
     let start_time = Instant::now();
 
@@ -195,9 +195,9 @@ fn parse_telegram_file(feedback_client: &dyn FeedbackClientSync, path: &Path, ds
     let keys = root_obj.keys().map(|s| s.deref()).collect::<HashSet<_>>();
     let (users, chats_with_messages) =
         if single_chat_keys.is_superset(&keys) {
-            parser_single::parse(root_obj, &ds.uuid, &mut myself, feedback_client)?
+            parser_single::parse(feedback_client, root_obj, &ds.uuid, &mut myself)?
         } else {
-            parser_full::parse(root_obj, &ds.uuid, &mut myself)?
+            parser_full::parse(feedback_client, root_obj, &ds.uuid, &mut myself)?
         };
 
     log::info!("Processed in {} ms", start_time.elapsed().as_millis());
@@ -280,11 +280,14 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
 /// `json_path` includes the chat itself.
 ///
 /// Returns None if the chat is skipped (e.g. is saved_messages).
-fn parse_chat(json_path: &str,
-              chat_json: &Object,
-              ds_uuid: &PbUuid,
-              myself_id_option: Option<&UserId>,
-              users: &mut Users) -> Result<Option<ChatWithMessages>> {
+fn parse_chat(
+    feedback_client: &dyn FeedbackClientSync,
+    json_path: &str,
+    chat_json: &Object,
+    ds_uuid: &PbUuid,
+    myself_id_option: Option<&UserId>,
+    users: &mut Users
+) -> Result<Option<ChatWithMessages>> {
     let mut chat: Chat = Chat {
         source_type: SourceType::Telegram as i32,
         ..Default::default()
@@ -294,13 +297,12 @@ fn parse_chat(json_path: &str,
     let mut member_ids: HashSet<UserId, Hasher> =
         HashSet::with_capacity_and_hasher(100, hasher());
 
-    let mut chat_name: Option<String> = None;
     let mut skip_processing = false;
 
     parse_object(chat_json, &json_path, |CB { key, value, wrong_key_action }| match key {
         "name" => {
             if value.value_type() != ValueType::Null {
-                chat_name = as_string_option!(value, json_path, "name");
+                chat.name_option = as_string_option!(value, json_path, "name");
             }
             Ok(())
         }
@@ -324,6 +326,8 @@ fn parse_chat(json_path: &str,
         }
         "messages" => {
             if skip_processing { return Ok(()); }
+            feedback_client.set_load_status(LoadStatus::new_parsing("chat", Some(chat.qualified_name())));
+
             let path = format!("{json_path}.messages");
             let messages_json = as_array!(value, path);
             for v in messages_json {
@@ -334,7 +338,7 @@ fn parse_chat(json_path: &str,
                     ParsedMessage::SkipMessage =>
                         { /* NOOP */ }
                     ParsedMessage::SkipChat => {
-                        log::warn!("Skipping chat '{}' because it contains topics!", name_or_unnamed(&chat_name));
+                        log::warn!("Skipping chat '{}' because it contains topics!", chat.qualified_name());
                         // Note: the parsing itself might've modified users, so we want to remove orphan users later.
                         skip_processing = true;
                         break;
@@ -349,8 +353,6 @@ fn parse_chat(json_path: &str,
     if skip_processing {
         return Ok(None);
     }
-
-    chat.name_option = chat_name;
 
     messages.sort_by_key(|m| (m.timestamp, m.internal_id));
 

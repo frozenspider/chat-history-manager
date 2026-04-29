@@ -66,7 +66,7 @@ fn load_tg_keeper_db(
     let ds_root = path.parent().unwrap().to_path_buf();
 
     let conn = Connection::open(path)?;
-    feedback_client.set_load_status(LoadStatus::Parsing);
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
     let (users, chats_with_messages, myself_id) = load_everything(config, &conn, &ds.uuid)?;
     drop(conn);
 

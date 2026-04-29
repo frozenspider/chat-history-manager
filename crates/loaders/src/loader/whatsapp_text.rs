@@ -38,7 +38,7 @@ impl DataLoader for WhatsAppTextDataLoader {
     }
 
     fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
-        feedback_client.set_load_status(LoadStatus::Parsing);
+        feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
         parse_whatsapp_text_file(path, ds)
     }
 }

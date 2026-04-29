@@ -68,8 +68,6 @@ impl FeedbackClientAsync for UserInputGrpcRequester {
     }
 
     async fn set_load_status(&self, status: LoadStatus) {
-        let status= status as i32;
-
         if let Err(e) = self.request_and_process(move |client| {
             Box::pin(client.set_load_status(SetLoadStatusRequest { status }))
         }, move |_res| {

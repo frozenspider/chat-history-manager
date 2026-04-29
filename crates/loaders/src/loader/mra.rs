@@ -79,17 +79,18 @@ fn load_mra_dbs(feedback_client: &dyn FeedbackClientSync, path: &Path, dao_name:
     // Read the whole file into the memory.
     let dbs_bytes = fs::read(path)?;
 
-    feedback_client.set_load_status(LoadStatus::Parsing);
-
     // We'll be loading chats in three phases.
     // Phase 1: Read conversations in an MRA inner format, mapped to file bytes.
+    feedback_client.set_load_status(LoadStatus::new_parsing("conversations", None));
     let convs_with_msgs = mra_dbs::load_convs_with_msgs(&dbs_bytes)?;
 
     // Phase 2: Populate datasets and users with latest values, usernames being emails.
+    feedback_client.set_load_status(LoadStatus::new_parsing("datasets", None));
     let dataset_map_2 = mra_dbs::collect_datasets(&convs_with_msgs, &storage_path)?;
     dataset_map.extend(dataset_map_2);
 
     // Phase 3: Convert conversations to our format.
+    feedback_client.set_load_status(LoadStatus::new_processing("message conversion".to_owned()));
     mra_dbs::convert_messages(&convs_with_msgs, &mut dataset_map)?;
 
     log::info!("Loading .db (newer) format");
@@ -97,6 +98,7 @@ fn load_mra_dbs(feedback_client: &dyn FeedbackClientSync, path: &Path, dao_name:
     for subdir in DB_FILE_DIRS.iter() {
         let path = parent_path.join(subdir);
         if path.exists() {
+            feedback_client.set_load_status(LoadStatus::new_parsing(".db database", None));
             let conv_map = db::load_accounts_dir(&path, &storage_path, &mut dataset_map)?;
             conv_maps.extend(conv_map);
         }
@@ -106,6 +108,7 @@ fn load_mra_dbs(feedback_client: &dyn FeedbackClientSync, path: &Path, dao_name:
         change_timestamps(timestamp_diff, &mut dataset_map);
     }
 
+    feedback_client.set_load_status(LoadStatus::new_processing("conversation merge".to_owned()));
     db::merge_conversations(conv_maps, &mut dataset_map)?;
 
     let data = dataset_map_to_dao_data(dataset_map);

@@ -244,10 +244,21 @@ impl FeedbackClientAsync for TauriFeedbackClientAsync {
     }
 
     async fn set_load_status(&self, status: LoadStatus) {
-        let text_status = match status {
-            LoadStatus::Parsing => Some("Parsing".to_owned()),
-            LoadStatus::DownloadingMedia => Some("Downloading media".to_owned()),
-            LoadStatus::Done => None,
+        let tpe = LoadStatusType::try_from(status.status_type).expect("invalid load status type");
+        let text_status = match (tpe, status.details_1, status.details_2) {
+            (LoadStatusType::Parsing, d1, d2) =>
+                Some([Some("Parsing".to_owned()), d1, d2].into_iter().filter_map(std::convert::identity).join(" ")),
+            (LoadStatusType::DownloadingMedia, None, _) =>
+                Some(format!("Downloading media")),
+            (LoadStatusType::DownloadingMedia, Some(d1), None) =>
+                Some(format!("Downloading media for {d1}")),
+            (LoadStatusType::DownloadingMedia, Some(d1), Some(d2)) =>
+                Some(format!("Downloading media for {d1} {d2}")),
+            (LoadStatusType::Processing, None, _) =>
+                Some("Processing".to_owned()),
+            (LoadStatusType::Processing, Some(d1), _) =>
+                Some(format!("Processing {d1}")),
+            (LoadStatusType::Done, _, _) => None,
         };
         self.app_handle.emit(EVENT_BUSY, text_status).expect("send busy event");
     }

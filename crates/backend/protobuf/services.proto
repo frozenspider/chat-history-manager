@@ -33,7 +33,6 @@ message TextInputResponse {
 
 message SetLoadStatusRequest {
   required LoadStatus status = 1;
-  // We may add optional "details" string field here later, with meaning being status-dependent
 }
 
 //

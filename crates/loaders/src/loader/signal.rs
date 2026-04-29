@@ -115,10 +115,10 @@ fn load_sqlite(feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Datase
             })?;
     }
 
-    feedback_client.set_load_status(LoadStatus::Parsing);
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
     let users = parse_users(&conn, &ds.uuid)?;
     let myself_id = get_myself(&conn)?;
-    let cwms = parse_cwms(&conn, &ds.uuid, &users, myself_id, attachments_path, attachments_decrypt_path)?;
+    let cwms = parse_cwms(feedback_client, &conn, &ds.uuid, &users, myself_id, attachments_path, attachments_decrypt_path)?;
 
     let mut users = users.into_values().collect_vec();
     users.sort_by_key(|u| if u.id == *myself_id { *UserId::MIN } else { u.id });
@@ -177,12 +177,15 @@ fn parse_users(conn: &Connection, ds_uuid: &PbUuid) -> Result<Users> {
     Ok(users)
 }
 
-fn parse_cwms(conn: &Connection,
-              ds_uuid: &PbUuid,
-              users: &Users,
-              myself_id: UserId,
-              attachments_path: Option<&Path>,
-              attachments_decrypt_path: Option<&Path>) -> Result<Vec<ChatWithMessages>> {
+fn parse_cwms(
+    feedback_client: &dyn FeedbackClientSync,
+    conn: &Connection,
+    ds_uuid: &PbUuid,
+    users: &Users,
+    myself_id: UserId,
+    attachments_path: Option<&Path>,
+    attachments_decrypt_path: Option<&Path>
+) -> Result<Vec<ChatWithMessages>> {
     let mut cwms = vec![];
 
     // NOTE: Non-private conversation types (group chats?) are not supported, and it's checked in `parse_users`
@@ -210,6 +213,8 @@ fn parse_cwms(conn: &Connection,
         } else {
             vec![*myself_id, user.id]
         };
+
+        feedback_client.set_load_status(LoadStatus::new_parsing("chat with", Some(user.pretty_name())));
 
         let mut messages: Vec<Message> = vec![];
 

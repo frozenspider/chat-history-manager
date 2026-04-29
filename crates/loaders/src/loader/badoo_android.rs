@@ -115,7 +115,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
     fn parse_chats(
         &self,
         conn: &Connection,
-        _feedback_client: &dyn FeedbackClientSync,
+        feedback_client: &dyn FeedbackClientSync,
         ds_uuid: &PbUuid,
         path: &Path,
         users: &mut Users
@@ -138,6 +138,8 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
 
             let enc_user_id = users.resolve_encrypted(*user_id)?;
             let mut rows = stmt.query([enc_user_id, enc_user_id])?;
+
+            feedback_client.set_load_status(LoadStatus::new_parsing("chat with", Some(user.pretty_name())));
 
             let mut messages = vec![];
             while let Some(row) = rows.next()? {
