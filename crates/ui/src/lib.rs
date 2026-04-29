@@ -243,9 +243,13 @@ impl FeedbackClientAsync for TauriFeedbackClientAsync {
         Ok(result)
     }
 
-    async fn set_load_status(&self, status: LoadStatus) -> Result<()> {
-        // FIXME!
-        todo!()
+    async fn set_load_status(&self, status: LoadStatus) {
+        let text_status = match status {
+            LoadStatus::Parsing => Some("Parsing".to_owned()),
+            LoadStatus::DownloadingMedia => Some("Downloading media".to_owned()),
+            LoadStatus::Done => None,
+        };
+        self.app_handle.emit(EVENT_BUSY, text_status).expect("send busy event");
     }
 }
 

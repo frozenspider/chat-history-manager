@@ -67,13 +67,15 @@ impl FeedbackClientAsync for UserInputGrpcRequester {
         }).await
     }
 
-    async fn set_load_status(&self, status: LoadStatus) -> Result<()> {
+    async fn set_load_status(&self, status: LoadStatus) {
         let status= status as i32;
 
-        self.request_and_process(move |client| {
+        if let Err(e) = self.request_and_process(move |client| {
             Box::pin(client.set_load_status(SetLoadStatusRequest { status }))
         }, move |_res| {
             Ok(())
-        }).await
+        }).await {
+            log::warn!("Failed to set loading status: {e}");
+        }
     }
 }

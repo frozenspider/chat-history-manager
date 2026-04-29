@@ -48,7 +48,7 @@ impl<R: FeedbackClientAsync> FeedbackService for Arc<UserInputServer<R>> {
             self_clone
                 .async_requester
                 .set_load_status(status)
-                .await?;
+                .await;
             Ok(Empty {})
         })
             .await

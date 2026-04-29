@@ -57,7 +57,7 @@ pub trait FeedbackClientAsync: Send + Sync + 'static {
 
     fn ask_for_text(&self, prompt: &str) -> impl Future<Output = Result<String>> + Send;
 
-    fn set_load_status(&self, status: LoadStatus) -> impl Future<Output = Result<()>> + Send;
+    fn set_load_status(&self, status: LoadStatus) -> impl Future<Output = ()> + Send;
 }
 
 pub trait FeedbackClientSync: Send + Sync {
@@ -65,7 +65,7 @@ pub trait FeedbackClientSync: Send + Sync {
 
     fn ask_for_text(&self, prompt: &str) -> Result<String>;
 
-    fn set_load_status(&self, status: LoadStatus) -> ();
+    fn set_load_status(&self, status: LoadStatus);
 }
 
 #[derive(Debug, Clone, Copy)]

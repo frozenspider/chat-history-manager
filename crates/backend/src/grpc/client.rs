@@ -130,7 +130,8 @@ where
         fn set_load_status(&self, status: LoadStatus) {
             let requester = self.requester.clone();
             if let Err(e) = self.do_blocking(async move {
-                requester.set_load_status(status).await
+                requester.set_load_status(status).await;
+                Ok(())
             }) {
                 log::warn!("Failed to set loading status: {e}");
             }
