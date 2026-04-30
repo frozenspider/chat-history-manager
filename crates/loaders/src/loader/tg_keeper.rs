@@ -49,18 +49,24 @@ impl DataLoader for TgKeeperDataLoader {
 
     fn load_inner(
         &self,
+        feedback_client: &dyn FeedbackClientSync,
         path: &Path,
         ds: Dataset,
-        _feedback_client: &dyn FeedbackClientSync,
     ) -> Result<Box<InMemoryDao>> {
-        load_tg_keeper_db(&self.config, path, ds)
+        load_tg_keeper_db(feedback_client, &self.config, path, ds)
     }
 }
 
-fn load_tg_keeper_db(config: &LoaderConfig, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+fn load_tg_keeper_db(
+    feedback_client: &dyn FeedbackClientSync,
+    config: &LoaderConfig,
+    path: &Path,
+    ds: Dataset
+) -> Result<Box<InMemoryDao>> {
     let ds_root = path.parent().unwrap().to_path_buf();
 
     let conn = Connection::open(path)?;
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
     let (users, chats_with_messages, myself_id) = load_everything(config, &conn, &ds.uuid)?;
     drop(conn);
 

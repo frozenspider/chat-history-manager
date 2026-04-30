@@ -1,8 +1,11 @@
 use super::*;
 
-pub(super) fn parse(root_obj: &Object,
-                    ds_uuid: &PbUuid,
-                    myself: &mut User) -> Result<(Users, Vec<ChatWithMessages>)> {
+pub(super) fn parse(
+    feedback_client: &dyn FeedbackClientSync,
+    root_obj: &Object,
+    ds_uuid: &PbUuid,
+    myself: &mut User
+) -> Result<(Users, Vec<ChatWithMessages>)> {
     let mut users: Users = Default::default();
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
@@ -61,6 +64,7 @@ pub(super) fn parse(root_obj: &Object,
             Ok(())
         }
         "chats" => {
+            feedback_client.set_load_status(LoadStatus::new_parsing("chats", None));
             if myself.id == 0 {
                 bail!("personal_information section is missing!");
             }
@@ -100,7 +104,7 @@ pub(super) fn parse(root_obj: &Object,
             }
 
             for (chat_json, json_path) in chats_arr {
-                if let Some(mut cwm) = parse_chat(&json_path, chat_json, ds_uuid, Some(&myself.id()), &mut users)? {
+                if let Some(mut cwm) = parse_chat(feedback_client, &json_path, chat_json, ds_uuid, Some(&myself.id()), &mut users)? {
                     cwm.chat.ds_uuid = ds_uuid.clone();
                     chats_with_messages.push(cwm);
                 }

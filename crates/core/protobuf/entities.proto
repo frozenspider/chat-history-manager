@@ -451,3 +451,25 @@ message MessageServiceGroupMigrateFrom {
 
 // Migrate to supergroup of the same name
 message MessageServiceGroupMigrateTo {}
+
+//
+// Other
+//
+
+enum LoadStatusType {
+  PARSING = 0;
+  DOWNLOADING_MEDIA = 50;
+  PROCESSING = 75;
+  DONE = 99;
+}
+
+message LoadStatus {
+  required LoadStatusType status_type = 1;
+  // PARSING: What kind of entity are we parsing? (users? chats?)
+  // DOWNLOADING_MEDIA: What kind of entity are we downloading media for? (users? chats?)
+  // PROCESSING: What are we processing? (freeform)
+  optional string details_1 = 2;
+  // PARSING: Name of the entity being parsed
+  // DOWNLOADING_MEDIA: Name of the entity for which media is being downloaded
+  optional string details_2 = 3;
+}

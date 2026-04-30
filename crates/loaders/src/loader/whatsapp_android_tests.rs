@@ -85,7 +85,7 @@ fn loading_2023_10() -> EmptyRes {
     let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2023-10", ".db", DB_FILENAME);
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoFeedbackClient)?;
+    let dao = LOADER.load(&NoFeedbackClient, &res)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -217,7 +217,7 @@ fn loading_2026_01() -> EmptyRes {
     let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-01", ".db", DB_FILENAME);
     LOADER.looks_about_right(&res)?;
 
-    let dao = LOADER.load(&res, &NoFeedbackClient)?;
+    let dao = LOADER.load(&NoFeedbackClient, &res)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

@@ -39,12 +39,23 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
 
     type Users = Users;
 
-    fn tweak_conn(&self, path: &Path, conn: &Connection) -> EmptyRes {
+    fn tweak_conn(
+            &self,
+            conn: &Connection,
+            _feedback_client: &dyn FeedbackClientSync,
+            path: &Path,
+        ) -> EmptyRes {
         conn.execute(r#"ATTACH DATABASE ?1 AS conn_db"#, [path_to_str(&path.join("CombinedConnectionsDatabase"))?])?;
         Ok(())
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, _path: &Path) -> Result<Users> {
+    fn parse_users(
+        &self,
+        conn: &Connection,
+        _feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        _path: &Path
+    ) -> Result<Users> {
         let mut users: Users = Default::default();
 
         // We can get own encrypted ID from messages table where is_incoming = 0, but no reason to do so.
@@ -89,14 +100,26 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
         Ok(users)
     }
 
-    fn normalize_users(&self, users: Users, _cwms: &[ChatWithMessages]) -> Result<Vec<User>> {
+    fn normalize_users(
+        &self,
+        _feedback_client: &dyn FeedbackClientSync,
+        users: Users,
+        _cwms: &[ChatWithMessages]
+    ) -> Result<Vec<User>> {
         let mut users = users.user_id_to_user.into_values().collect_vec();
         // Set myself to be a first member.
         users.sort_by_key(|u| if u.id == *MYSELF_ID { *UserId::MIN } else { u.id });
         Ok(users)
     }
 
-    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
+    fn parse_chats(
+        &self,
+        conn: &Connection,
+        feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        path: &Path,
+        users: &mut Users
+    ) -> Result<Vec<ChatWithMessages>> {
         let mut cwms = vec![];
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);
@@ -115,6 +138,8 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
 
             let enc_user_id = users.resolve_encrypted(*user_id)?;
             let mut rows = stmt.query([enc_user_id, enc_user_id])?;
+
+            feedback_client.set_load_status(LoadStatus::new_parsing("chat with", Some(user.pretty_name())));
 
             let mut messages = vec![];
             while let Some(row) = rows.next()? {

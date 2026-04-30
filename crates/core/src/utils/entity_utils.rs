@@ -669,6 +669,40 @@ impl WithTypedId for SlaveMessage {
     fn typed_id(&self) -> SlaveInternalId { SlaveInternalId(self.0.internal_id) }
 }
 
+impl LoadStatus {
+    pub fn new_parsing(tpe: &str, name: Option<String>) -> Self {
+        LoadStatus {
+            status_type: LoadStatusType::Parsing as i32,
+            details_1: Some(tpe.to_owned()),
+            details_2: name.map(|s| s.to_owned()),
+        }
+    }
+
+    pub fn new_downloading(tpe: &str, name: String) -> Self {
+        LoadStatus {
+            status_type: LoadStatusType::DownloadingMedia as i32,
+            details_1: Some(tpe.to_owned()),
+            details_2: Some(name.to_owned()),
+        }
+    }
+
+    pub fn new_processing(details: String) -> Self {
+        LoadStatus {
+            status_type: LoadStatusType::Parsing as i32,
+            details_1: Some(details),
+            details_2: None,
+        }
+    }
+
+    pub fn new_done() -> Self {
+        LoadStatus {
+            status_type: LoadStatusType::Done as i32,
+            details_1: None,
+            details_2: None,
+        }
+    }
+}
+
 //
 // Helper functions
 //

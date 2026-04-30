@@ -44,7 +44,7 @@ impl Loader {
         let (named_errors, loads): (Vec<_>, Vec<_>) =
             self.loaders.iter()
                 .partition_map(|loader| match loader.looks_about_right(path) {
-                    Ok(()) => Either::Right(|| loader.load(path, feedback_client)),
+                    Ok(()) => Either::Right(|| loader.load(feedback_client, path)),
                     Err(why) => Either::Left((loader.name(), why)),
                 });
         match loads.first() {
