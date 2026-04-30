@@ -1,14 +1,16 @@
 use super::*;
 
-pub(super) fn parse(root_obj: &Object,
-                    ds_uuid: &PbUuid,
-                    myself: &mut User,
-                    feedback_client: &dyn FeedbackClientSync) -> Result<(Users, Vec<ChatWithMessages>)> {
+pub(super) fn parse(
+    feedback_client: &dyn FeedbackClientSync,
+    root_obj: &Object,
+    ds_uuid: &PbUuid,
+    myself: &mut User,
+) -> Result<(Users, Vec<ChatWithMessages>)> {
     let mut users: Users = Default::default();
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
     let cwm_option =
-        parse_chat("<root>", root_obj, ds_uuid, None, &mut users)?;
+        parse_chat(feedback_client, "<root>", root_obj, ds_uuid, None, &mut users)?;
     match cwm_option {
         None =>
             bail!("Chat was skipped entirely!"),

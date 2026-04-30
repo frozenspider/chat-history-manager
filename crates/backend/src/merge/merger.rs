@@ -2,8 +2,6 @@
 #[path = "merger_tests.rs"]
 mod tests;
 
-use std::io;
-
 use crate::merge::analyzer::*;
 use crate::prelude::*;
 
@@ -423,14 +421,13 @@ fn dedup_profile_pics(profile_pics: Vec<AbsoluteProfilePicture>) -> Result<Vec<A
     let mut seen = HashSet::new();
     let mut res = Vec::with_capacity(profile_pics.len());
     for pp in profile_pics {
-        match file_hash(&pp.absolute_path) {
-            Ok(hash) => {
+        match file_hash(&pp.absolute_path)? {
+            FileHash::Valid { hash, .. } => {
                 if seen.insert(hash) {
                     res.push(pp);
                 } // else NOOP
             }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => { /* NOOP */}
-            Err(e) => return Err(e.into())
+            FileHash::NotFoundOrEmpty => { /* NOOP */ }
         }
     }
     Ok(res)

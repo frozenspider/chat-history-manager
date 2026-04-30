@@ -31,16 +31,25 @@ impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
 
     type Users = Users;
 
-    fn tweak_conn(&self, _path: &Path, _conn: &Connection) -> EmptyRes { Ok(()) }
-
-    fn normalize_users(&self, users: Users, _cwms: &[ChatWithMessages]) -> Result<Vec<User>> {
+    fn normalize_users(
+        &self,
+        _feedback_client: &dyn FeedbackClientSync,
+        users: Self::Users,
+        _cwms: &[ChatWithMessages]
+    ) -> Result<Vec<User>> {
         let mut users = users.into_values().collect_vec();
         // Set myself to be a first member.
         users.sort_by_key(|u| if u.id == *MYSELF_ID { *UserId::MIN } else { u.id });
         Ok(users)
     }
 
-    fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path) -> Result<Users> {
+    fn parse_users(
+        &self,
+        conn: &Connection,
+        feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        path: &Path
+    ) -> Result<Users> {
         let mut users: Users = Default::default();
 
         users.insert(MYSELF_KEY.to_owned(), User {
@@ -64,35 +73,44 @@ impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
             let id = UserId(hash_to_id(&key));
 
             let name_option = row.get::<_, Option<String>>("name")?;
-
-            let photos_blob = row.get::<_, Vec<u8>>("photos")?;
-            let photo_urls = analyze_photos_blob(&key, photos_blob)?;
-            let mut profile_pictures = vec![];
-            for photo_url in photo_urls {
-                let (_, file_name) = photo_url.rsplit_once("/").unwrap();
-                // TODO: This can be downloaded in parallel, but slow running time isn't a big deal.
-                download_if_missing(file_name, &downloaded_media_path, &photo_url, self.http_client)?;
-                profile_pictures.push(ProfilePicture {
-                    path: format!("{RELATIVE_MEDIA_DIR}/{file_name}"),
-                    frame_option: None,
-                });
-            }
-
-            users.insert(key, User {
+            let mut user = User {
                 ds_uuid: ds_uuid.clone(),
                 id: *id,
                 first_name_option: name_option,
                 last_name_option: None,
                 username_option: None,
                 phone_number_option: None,
-                profile_pictures,
-            });
+                profile_pictures: vec![], // To be populated below
+            };
+
+            let photos_blob = row.get::<_, Vec<u8>>("photos")?;
+            let photo_urls = analyze_photos_blob(&key, photos_blob)?;
+            for photo_url in photo_urls {
+                let (_, file_name) = photo_url.rsplit_once("/").unwrap();
+                // TODO: This can be downloaded in parallel, but slow running time isn't a big deal.
+                download_if_missing(file_name, &downloaded_media_path, &photo_url, self.http_client, || {
+                    feedback_client.set_load_status(LoadStatus::new_downloading("user", user.pretty_name()));
+                })?;
+                user.profile_pictures.push(ProfilePicture {
+                    path: format!("{RELATIVE_MEDIA_DIR}/{file_name}"),
+                    frame_option: None,
+                });
+            }
+
+            users.insert(key, user);
         }
 
         Ok(users)
     }
 
-    fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
+    fn parse_chats(
+        &self,
+        conn: &Connection,
+        feedback_client: &dyn FeedbackClientSync,
+        ds_uuid: &PbUuid,
+        path: &Path,
+        users: &mut Users
+    ) -> Result<Vec<ChatWithMessages>> {
         let mut cwms = vec![];
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);
@@ -107,6 +125,8 @@ impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
 
         for (key, user) in users {
             if key == MYSELF_KEY { continue; }
+
+            feedback_client.set_load_status(LoadStatus::new_parsing("chat with", Some(user.pretty_name())));
 
             let mut rows = stmt.query([key])?;
 
@@ -126,7 +146,9 @@ impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
                     // Example: https://media.tenor.com/mYFQztB4EHoAAAAM/house-hugh-laurie.gif?width=220&height=226
                     let hash = hash_to_id(&text);
                     let file_name = format!("{}.gif", hash);
-                    download_if_missing(&file_name, &downloaded_media_path, &text, self.http_client)?;
+                    download_if_missing(&file_name, &downloaded_media_path, &text, self.http_client, || {
+                        feedback_client.set_load_status(LoadStatus::new_downloading("chat with", user.pretty_name()));
+                    })?;
                     let (width, height) = {
                         let split = text.split(['?', '&']).skip(1).collect_vec();
                         (split.iter().find(|s| s.starts_with("width=")).map(|s| s[6..].parse()).unwrap_or(Ok(0))?,
@@ -304,10 +326,17 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
     Ok(photos)
 }
 
-fn download_if_missing(file_name: &str, storage_path: &Path, url: &str, http_client: &impl HttpClient) -> EmptyRes {
+fn download_if_missing(
+    file_name: &str,
+    storage_path: &Path,
+    url: &str,
+    http_client: &impl HttpClient,
+    set_status: impl Fn(),
+) -> EmptyRes {
     let file_path = storage_path.join(file_name);
     if !file_path.exists() {
         log::info!("Downloading {}", url);
+        set_status();
         match http_client.get_bytes(url) {
             Ok(HttpResponse::Ok(body)) => {
                 fs::write(&file_path, body)?

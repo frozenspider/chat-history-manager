@@ -45,19 +45,21 @@ pub trait DataLoader: Send + Sync {
     /// Returns an error if the file is not supported.
     fn looks_about_right_inner(&self, path: &Path) -> EmptyRes;
 
-    fn load(&self, path: &Path, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+    fn load(&self, feedback_client: &dyn FeedbackClientSync, path: &Path) -> Result<Box<InMemoryDao>> {
         let root_path_str = ensure_file_presence(path)?;
-        measure(|| {
+        let res = measure(|| {
             let now_str = Local::now().format("%Y-%m-%d");
             let ds = Dataset {
                 uuid: PbUuid::random(),
                 alias: format!("{}, loaded @ {now_str}", self.src_alias()),
             };
-            self.load_inner(path, ds, feedback_client)
-        }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str))
+            self.load_inner(feedback_client, path, ds)
+        }, |_, t| log::info!("File {} loaded in {t} ms", root_path_str));
+        feedback_client.set_load_status(LoadStatus::new_done());
+        res
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>>;
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>>;
 }
 
 fn ensure_file_presence(root_file: &Path) -> Result<&str> {
@@ -159,14 +161,38 @@ pub mod android {
 
         type Users;
 
-        fn tweak_conn(&self, _path: &Path, conn: &Connection) -> EmptyRes;
+        fn tweak_conn(
+            &self,
+            _conn: &Connection,
+            _feedback_client: &dyn FeedbackClientSync,
+            _path: &Path,
+        ) -> EmptyRes {
+            Ok(())
+        }
 
-        fn parse_users(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path) -> Result<Self::Users>;
+        fn parse_users(
+            &self,
+            conn: &Connection,
+            feedback_client: &dyn FeedbackClientSync,
+            ds_uuid: &PbUuid,
+            path: &Path
+        ) -> Result<Self::Users>;
 
-        fn normalize_users(&self, users: Self::Users, cwms: &[ChatWithMessages]) -> Result<Vec<User>>;
+        fn normalize_users(
+            &self,
+            feedback_client: &dyn FeedbackClientSync,
+            users: Self::Users,
+            cwms: &[ChatWithMessages]
+        ) -> Result<Vec<User>>;
 
-        fn parse_chats(&self, conn: &Connection, ds_uuid: &PbUuid, path: &Path, users: &mut Self::Users)
-                       -> Result<Vec<ChatWithMessages>>;
+        fn parse_chats(
+            &self,
+            conn: &Connection,
+            feedback_client: &dyn FeedbackClientSync,
+            ds_uuid: &PbUuid,
+            path: &Path,
+            users: &mut Self::Users
+        ) -> Result<Vec<ChatWithMessages>>;
     }
 
     impl<ADL> DataLoader for ADL
@@ -183,16 +209,16 @@ pub mod android {
             Ok(())
         }
 
-        fn load_inner(&self, path: &Path, ds: Dataset, _feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
-            parse_android_db(self, path, ds)
+        fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+            parse_android_db(self, feedback_client, path, ds)
         }
     }
 
-    fn parse_android_db<ADL: AndroidDataLoader>(adl: &ADL, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+    fn parse_android_db<ADL: AndroidDataLoader>(adl: &ADL, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
         let path = path.parent().unwrap();
 
         let conn = Connection::open(path.join(ADL::DB_FILENAME))?;
-        adl.tweak_conn(path, &conn)?;
+        adl.tweak_conn(&conn, feedback_client, path)?;
 
         let path = if path_file_name(path)? == DATABASES {
             path.parent().unwrap()
@@ -200,10 +226,11 @@ pub mod android {
             path
         };
 
-        let mut users = adl.parse_users(&conn, &ds.uuid, path)?;
-        let cwms = adl.parse_chats(&conn, &ds.uuid, path, &mut users)?;
+        feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
+        let mut users = adl.parse_users(&conn, feedback_client, &ds.uuid, path)?;
+        let cwms = adl.parse_chats(&conn, feedback_client, &ds.uuid, path, &mut users)?;
 
-        let users = adl.normalize_users(users, &cwms)?;
+        let users = adl.normalize_users(feedback_client, users, &cwms)?;
         Ok(Box::new(InMemoryDao::new_single(
             format!("{} ({})", ADL::NAME, path_file_name(path)?),
             ds,

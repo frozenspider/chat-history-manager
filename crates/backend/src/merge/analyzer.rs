@@ -180,7 +180,7 @@ impl<'a> DatasetDiffAnalyzer<'a> {
                 // Conflict continues
                 //
 
-                ((Some(mm), Some(sm)), InProgress(Conflict { .. })) if compare(mm, sm)?.is_conflict() => {
+                ((Some(mm), Some(sm)), InProgress(Conflict { .. })) if compare(mm, sm)?.is_conflict() && mm.source_id_option == sm.source_id_option => {
                     cx.advance_both()?;
                 }
 

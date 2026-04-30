@@ -49,18 +49,24 @@ impl DataLoader for TgKeeperDataLoader {
 
     fn load_inner(
         &self,
+        feedback_client: &dyn FeedbackClientSync,
         path: &Path,
         ds: Dataset,
-        _feedback_client: &dyn FeedbackClientSync,
     ) -> Result<Box<InMemoryDao>> {
-        load_tg_keeper_db(&self.config, path, ds)
+        load_tg_keeper_db(feedback_client, &self.config, path, ds)
     }
 }
 
-fn load_tg_keeper_db(config: &LoaderConfig, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+fn load_tg_keeper_db(
+    feedback_client: &dyn FeedbackClientSync,
+    config: &LoaderConfig,
+    path: &Path,
+    ds: Dataset
+) -> Result<Box<InMemoryDao>> {
     let ds_root = path.parent().unwrap().to_path_buf();
 
     let conn = Connection::open(path)?;
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
     let (users, chats_with_messages, myself_id) = load_everything(config, &conn, &ds.uuid)?;
     drop(conn);
 
@@ -212,7 +218,7 @@ fn load_raw_messages(conn: &Connection) -> Result<Vec<RawMessage>> {
             .map(tl::enums::Message::from_bytes)
             .transpose()?;
         let thumbnail_rel_path = match row.get("thumbnail_rel_path") {
-            Ok(path) => Some(path),
+            Ok(path) => path,
             // tg-keeper pre-0.2 don't have this column
             Err(rusqlite::Error::InvalidColumnName(_)) => None,
             Err(e) => return Err(e).context("Failed to get thumbnail_rel_path"),
@@ -410,10 +416,15 @@ fn parse_text(
             let entity_offset = entity_offset * 2;
             let entity_length = entity_length * 2;
 
-            assert!(
-                entity_offset >= curr_offset,
-                "Incorrect offset, or double formatting"
-            );
+            if entity_offset < curr_offset {
+                if matches!(entity, tl::enums::MessageEntity::TextUrl(_)) {
+                    // Text URLs could also overlap with other entities when fishy channels insert their links weirdly.
+                    // Since we don't care much about text URLs, we can just skip them in this case.
+                    continue;
+                } else {
+                    log::warn!("Incorrect offset, or double formatting detected")
+                }
+            }
 
             if entity_offset > curr_offset {
                 let plaintext = message[curr_offset..entity_offset].to_utf8();
@@ -569,7 +580,7 @@ fn parse_media(
             } else if is_animation || inner.raw.video {
                 // Video
                 let media_rel_path = match media_rel_path {
-                    Some(ref path) if file_size(&PathBuf::from(path))? > config.max_file_video_size_bytes => {
+                    Some(ref path) if file_size(&PathBuf::from(path)).is_ok_and(|v| v > config.max_file_video_size_bytes) => {
                         None
                     }
                     etc => etc

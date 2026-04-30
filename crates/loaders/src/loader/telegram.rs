@@ -50,8 +50,8 @@ impl DataLoader for TelegramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
-        parse_telegram_file(path, ds, feedback_client)
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+        parse_telegram_file(feedback_client, path, ds)
     }
 }
 
@@ -169,11 +169,12 @@ fn get_real_path(path: &Path) -> PathBuf {
     }
 }
 
-fn parse_telegram_file(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
+fn parse_telegram_file(feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
     let path = get_real_path(path);
     assert!(path.exists()); // Should be checked by looks_about_right already.
 
     log::info!("Parsing '{}'", path.display());
+    feedback_client.set_load_status(LoadStatus::new_parsing("file", Some(format!("{}", path.display()))));
 
     let start_time = Instant::now();
 
@@ -194,9 +195,9 @@ fn parse_telegram_file(path: &Path, ds: Dataset, feedback_client: &dyn FeedbackC
     let keys = root_obj.keys().map(|s| s.deref()).collect::<HashSet<_>>();
     let (users, chats_with_messages) =
         if single_chat_keys.is_superset(&keys) {
-            parser_single::parse(root_obj, &ds.uuid, &mut myself, feedback_client)?
+            parser_single::parse(feedback_client, root_obj, &ds.uuid, &mut myself)?
         } else {
-            parser_full::parse(root_obj, &ds.uuid, &mut myself)?
+            parser_full::parse(feedback_client, root_obj, &ds.uuid, &mut myself)?
         };
 
     log::info!("Processed in {} ms", start_time.elapsed().as_millis());
@@ -279,11 +280,14 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
 /// `json_path` includes the chat itself.
 ///
 /// Returns None if the chat is skipped (e.g. is saved_messages).
-fn parse_chat(json_path: &str,
-              chat_json: &Object,
-              ds_uuid: &PbUuid,
-              myself_id_option: Option<&UserId>,
-              users: &mut Users) -> Result<Option<ChatWithMessages>> {
+fn parse_chat(
+    feedback_client: &dyn FeedbackClientSync,
+    json_path: &str,
+    chat_json: &Object,
+    ds_uuid: &PbUuid,
+    myself_id_option: Option<&UserId>,
+    users: &mut Users
+) -> Result<Option<ChatWithMessages>> {
     let mut chat: Chat = Chat {
         source_type: SourceType::Telegram as i32,
         ..Default::default()
@@ -293,13 +297,12 @@ fn parse_chat(json_path: &str,
     let mut member_ids: HashSet<UserId, Hasher> =
         HashSet::with_capacity_and_hasher(100, hasher());
 
-    let mut chat_name: Option<String> = None;
     let mut skip_processing = false;
 
     parse_object(chat_json, &json_path, |CB { key, value, wrong_key_action }| match key {
         "name" => {
             if value.value_type() != ValueType::Null {
-                chat_name = as_string_option!(value, json_path, "name");
+                chat.name_option = as_string_option!(value, json_path, "name");
             }
             Ok(())
         }
@@ -323,6 +326,8 @@ fn parse_chat(json_path: &str,
         }
         "messages" => {
             if skip_processing { return Ok(()); }
+            feedback_client.set_load_status(LoadStatus::new_parsing("chat", Some(chat.qualified_name())));
+
             let path = format!("{json_path}.messages");
             let messages_json = as_array!(value, path);
             for v in messages_json {
@@ -333,7 +338,7 @@ fn parse_chat(json_path: &str,
                     ParsedMessage::SkipMessage =>
                         { /* NOOP */ }
                     ParsedMessage::SkipChat => {
-                        log::warn!("Skipping chat '{}' because it contains topics!", name_or_unnamed(&chat_name));
+                        log::warn!("Skipping chat '{}' because it contains topics!", chat.qualified_name());
                         // Note: the parsing itself might've modified users, so we want to remove orphan users later.
                         skip_processing = true;
                         break;
@@ -348,8 +353,6 @@ fn parse_chat(json_path: &str,
     if skip_processing {
         return Ok(None);
     }
-
-    chat.name_option = chat_name;
 
     messages.sort_by_key(|m| (m.timestamp, m.internal_id));
 
@@ -515,7 +518,7 @@ fn parse_message(json_path: &str,
     }
 
     let mut message_json = MessageJson {
-        json_path: format!("{json_path}.message[{}]", get_field!(bw, "message", "id")?),
+        json_path: format!("{json_path}.message[{}]", get_field!(bw, "message", "id")),
         val: as_object!(bw, "message"),
         expected_fields: None,
     };
@@ -722,7 +725,7 @@ fn parse_regular_message(message_json: &mut MessageJson,
         let todo_list = as_object!(todo_list, json_path, "todo_list");
         let json_path = format!("{}.members", json_path);
         let title = get_field_string!(todo_list, json_path, "title");
-        let items = get_field!(todo_list, json_path, "answers")?;
+        let items = get_field!(todo_list, json_path, "answers");
         let json_path = format!("{}.answers", json_path);
         let items = as_array!(items, json_path);
         let items = items.iter().enumerate().map(|(idx, item)| {
@@ -1095,6 +1098,11 @@ fn parse_service_message(message_json: &mut MessageJson,
         }
         "todo_completions" => {
             // todolist completions is non-functional because it contains no reference to the original message.
+            return Ok(ShouldProceed::SkipMessage);
+        }
+        "new_creator_pending" => {
+            // No official documentation, has a "new_creator" field with a (pretty) name.
+            // Not interesting either way.
             return Ok(ShouldProceed::SkipMessage);
         }
         etc =>

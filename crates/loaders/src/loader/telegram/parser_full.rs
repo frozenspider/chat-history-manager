@@ -1,8 +1,11 @@
 use super::*;
 
-pub(super) fn parse(root_obj: &Object,
-                    ds_uuid: &PbUuid,
-                    myself: &mut User) -> Result<(Users, Vec<ChatWithMessages>)> {
+pub(super) fn parse(
+    feedback_client: &dyn FeedbackClientSync,
+    root_obj: &Object,
+    ds_uuid: &PbUuid,
+    myself: &mut User
+) -> Result<(Users, Vec<ChatWithMessages>)> {
     let mut users: Users = Default::default();
     let mut chats_with_messages: Vec<ChatWithMessages> = vec![];
 
@@ -61,6 +64,7 @@ pub(super) fn parse(root_obj: &Object,
             Ok(())
         }
         "chats" => {
+            feedback_client.set_load_status(LoadStatus::new_parsing("chats", None));
             if myself.id == 0 {
                 bail!("personal_information section is missing!");
             }
@@ -74,9 +78,9 @@ pub(super) fn parse(root_obj: &Object,
                     let chat_json = as_object!(chat_json, json_path, "chat");
                     let json_path = format!("{json_path}.chat");
                     // Name will not be present for saved messages
-                    let json_path = match get_field!(chat_json, json_path, "name") {
-                        Ok(name) => format!("{json_path}[{}]", name),
-                        Err(_) => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id")?)
+                    let json_path = match chat_json.get("name") {
+                        Some(name) => format!("{json_path}[{}]", name),
+                        None => format!("{json_path}[#{}]", get_field!(chat_json, json_path, "id"))
                     };
                     ok((chat_json, json_path))
                 }).try_collect()?;
@@ -88,7 +92,7 @@ pub(super) fn parse(root_obj: &Object,
                     continue;
                 }
                 let short_user = ShortUser {
-                    id: parse_user_id(get_field!(chat_json, json_path, "id")?)?,
+                    id: parse_user_id(get_field!(chat_json, json_path, "id"))?,
                     full_name_option: get_field_string_option!(chat_json, json_path, "name"),
                 };
                 // Doesn't really make sense to pre-populate users without names.
@@ -100,7 +104,7 @@ pub(super) fn parse(root_obj: &Object,
             }
 
             for (chat_json, json_path) in chats_arr {
-                if let Some(mut cwm) = parse_chat(&json_path, chat_json, ds_uuid, Some(&myself.id()), &mut users)? {
+                if let Some(mut cwm) = parse_chat(feedback_client, &json_path, chat_json, ds_uuid, Some(&myself.id()), &mut users)? {
                     cwm.chat.ds_uuid = ds_uuid.clone();
                     chats_with_messages.push(cwm);
                 }

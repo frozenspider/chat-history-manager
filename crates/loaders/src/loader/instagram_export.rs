@@ -25,8 +25,8 @@ impl DataLoader for InstagramDataLoader {
         Ok(())
     }
 
-    fn load_inner(&self, path: &Path, ds: Dataset, feedback_client: &dyn FeedbackClientSync) -> Result<Box<InMemoryDao>> {
-        parse_instagram_export(path, ds, feedback_client)
+    fn load_inner(&self, feedback_client: &dyn FeedbackClientSync, path: &Path, ds: Dataset) -> Result<Box<InMemoryDao>> {
+        parse_instagram_export(feedback_client, path, ds)
     }
 }
 
@@ -42,9 +42,9 @@ fn get_root_path(secret_conversations_path: &Path) -> Result<PathBuf> {
 }
 
 fn parse_instagram_export(
+    feedback_client: &dyn FeedbackClientSync,
     path: &Path,
     ds: Dataset,
-    feedback_client: &dyn FeedbackClientSync,
 ) -> Result<Box<InMemoryDao>> {
     let root_path = get_root_path(path)?;
     let messages_path = path.parent().unwrap(); // messages folder
@@ -206,7 +206,7 @@ fn parse_chat_folder(
                 }
             }
 
-            // Get chat title from first participant (the other person) or folder name
+            // Get a chat title from the first participant (the other person) or folder name
             if let Some(title) = parsed.get("title") {
                 chat_title = as_string_option!(title, json_path, "title").map(|s| fix_encoding(&s));
             }
