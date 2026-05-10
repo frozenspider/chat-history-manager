@@ -123,14 +123,101 @@ impl<H: HttpClient> AndroidDataLoader for TinderAndroidDataLoader<'_, H> {
             ORDER BY sent_date ASC
         ")?;
 
+        let mut ctxt_stmt = conn.prepare(r"
+            SELECT *
+            FROM like_context
+            WHERE match_id LIKE '%' || ? || '%'
+        ")?;
+
+        let mut match_stmt = conn.prepare(r"
+            SELECT *
+            FROM match
+            WHERE id LIKE '%' || ? || '%'
+        ")?;
+
+
         for (key, user) in users {
             if key == MYSELF_KEY { continue; }
 
             feedback_client.set_load_status(LoadStatus::new_parsing("chat with", Some(user.pretty_name())));
 
             let mut rows = stmt.query([key])?;
+            let ctxt = ctxt_stmt.query_row([key], |r| r.get::<_, Option<Vec<u8>>>("like_contexts"))?;
+            let match_time = match_stmt.query_row([key], |r| r.get::<_, i64>("creation_date"))? / 1000;
 
             let mut messages = vec![];
+
+            if let Some(bytes) = ctxt {
+                use crate::utils::blob_utils::*;
+                use message_service::SealedValueOptional as ServiceSvo;
+
+                // Based on the previously analyzed struct...
+
+                let (_no_idea, bytes) = next_n_bytes(&bytes, 54);
+
+                let ([target_key_len], bytes) = next_const_n_bytes(&bytes);
+                let (target_key, bytes) = next_n_bytes(bytes, target_key_len as usize);
+                let target_key = String::from_utf8(target_key.into())?;
+
+                let ([separator], bytes) = next_const_n_bytes(bytes);
+                ensure!(separator == 0x1A, "Unexpected Tinder like context format for user {key}");
+
+                let ([liker_key_len], bytes) = next_const_n_bytes(bytes);
+                let (liker_key, bytes) = next_n_bytes(bytes, liker_key_len as usize);
+                let liker_key = String::from_utf8(liker_key.into())?;
+
+                let (_no_idea, mut bytes) = next_n_bytes(&bytes, 7);
+
+                while !bytes.is_empty() {
+                    let ([section_type], rest) = next_const_n_bytes(bytes);
+                    let ([len], rest) = next_const_n_bytes(rest);
+                    let (data, rest) = next_n_bytes(rest, len as usize);
+
+                    match section_type {
+                        0x2A => {
+                            // Like type
+                            let data = String::from_utf8(data.into())?;
+                            ensure!(data == "CONTEXTUAL_LIKE", "Unexpected Tinder like context format like type for user {key}");
+                        }
+                        0x32 => {
+                            // Content type
+                            let data = String::from_utf8(data.into())?;
+                            ensure!(data == "MEDIA", "Unexpected Tinder like context format content type for user {key}");
+                        }
+                        0x3A => {
+                            // Content subtype
+                            let data = String::from_utf8(data.into())?;
+                            ensure!(data == "PROFILE_PHOTO", "Unexpected Tinder like context format content subtype for user {key}");
+                        }
+                        0x42 => {
+                            // Content ID
+                            // UUID string with 4 dashes, so 36 chars long
+                            let data = String::from_utf8(data.into())?;
+                            ensure!(data.len() == 36, "Unexpected Tinder like context format content ID for user {key}");
+                        }
+                        etc => {
+                            bail!("Unexpected Tinder like context context format for user {key}, unknown section type 0x{:02X}", etc)
+                        }
+                    }
+
+                    bytes = rest;
+                }
+
+                let from_id = if liker_key == *key { user.id() } else { MYSELF_ID };
+
+                let text = vec![RichText::make_plain("Liked profile photo".to_owned())];
+
+                // There seems to be no way to know the exact time of the like, so use the match time instead.
+                messages.push(Message::new(
+                    *NO_INTERNAL_ID,
+                    Some(0),
+                    match_time,
+                    from_id,
+                    text,
+                    message_service!(ServiceSvo::Notice(MessageServiceNotice {}))
+                ));
+            }
+
             while let Some(row) = rows.next()? {
                 // Source ID is way too large to fit into i64, so we use hash instead.
                 let source_id = row.get::<_, String>("id")?;
