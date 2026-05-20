@@ -47,8 +47,10 @@ CREATE TABLE conversation_info (
     hive_id                             text,
     hive_pending_join_request_count     integer,
     last_seen_message_id                text,
-    is_best_bee                         boolean not null default 0,
-    photo_background_color              integer
+    is_best_bee                         boolean not null,
+    photo_background_color              integer,
+    location                            text,
+    statusIndicators                    text    not null
 );
 
 CREATE TABLE message (
@@ -74,7 +76,8 @@ CREATE TABLE message (
     is_liked              int     not null,
     is_like_allowed       int     not null,
     is_likely_offensive   boolean not null,
-    clear_chat_version    int     not null
+    clear_chat_version    int     not null,
+    composed_offline      boolean not null
 );
 
 --
@@ -87,7 +90,8 @@ VALUES ('1234567890', 1, 'Abcde', 'https://us1.badoocdn.com/some/irrelevant/url'
         '{"json":"doesn''t matter"}', 1, 'User', '',
         '[{"id":"1375194859","url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url"}]', '1375194859', NULL, NULL, 0, 0,
         0, 0, NULL, 1, NULL, 0, NULL, 0, 0, NULL,
-        'abcde-encrypted-id', NULL, NULL, NULL, 0, NULL, NULL, '4313683957', 0, NULL);
+        'abcde-encrypted-id', NULL, NULL, NULL, 0, NULL, NULL, '4313683957', 0, NULL,
+        'MyCity', '[]');
 
 --
 -- Chats
@@ -96,20 +100,24 @@ VALUES ('1234567890', 1, 'Abcde', 'https://us1.badoocdn.com/some/irrelevant/url'
 INSERT INTO message
 VALUES (1, '4313483375', '1234567890', 'abcde-encrypted-id', NULL, 'my-encrypypted-id', 1687425601000, 1687425601000,
         'ON_SERVER', 0, '{"text":"Hello there!","type":"TEXT","substitute_id":""}', NULL,
-        1, 0, 0, NULL, NULL, 1, 'TEXT', 0, 1, 0, 1374986756);
+        1, 0, 0, NULL, NULL, 1, 'TEXT', 0, 1, 0, 1374986756,
+        0);
 INSERT INTO message
 VALUES (2, '4313483378', '1234567890', 'my-encrypypted-id', NULL, 'abcde-encrypted-id', 1687425658000, 1687425658000,
         'ON_SERVER', 0, '{"text":"Reply there!","type":"TEXT","substitute_id":""}', '4313483375',
-        1, 0, 0, NULL, NULL, 0, 'TEXT', 0, 0, 0, 1374986756);
+        1, 0, 0, NULL, NULL, 0, 'TEXT', 0, 0, 0, 1374986756,
+        0);
 
 INSERT INTO message
 VALUES (3, '4313658961', '1234567890', 'abcde-encrypted-id', NULL, 'my-encrypypted-id', 1690856116000, 1690856116000,
         'ON_SERVER', 0,
         '{"id":"1375308869","waveform":[0,7,4,5,3,0],"url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url","duration":23650,"expiration_timestamp":1695258720000}',
-        NULL, 1, 0, 0, NULL, NULL, 1, 'AUDIO', 0, 1, 0, 1375179843);
+        NULL, 1, 0, 0, NULL, NULL, 1, 'AUDIO', 0, 1, 0, 1375179843,
+        0);
 
 INSERT INTO message
 VALUES (4, '4313616080', '1234567890', 'abcde-encrypted-id', NULL, 'my-encrypypted-id', 1692781351000, 1692781351000,
         'ON_SERVER', 0,
-        '{"photo_id":"1374985678","photo_url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url","photo_width":640,"photo_height":480,"photo_expiration_timestamp":1693389603000,"emoji_reaction":"🤔","message":"Abcde reacted to your profile"}',
-        NULL, 1, 0, 0, NULL, NULL, 1, 'REACTION', 0, 0, 0, 1375123987);
+        '{"photo_id":"1374985678","photo_url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url","photo_width":640,"photo_height":480,"photo_expiration_timestamp":1693389603000,"emoji_reaction":"🤔","message":"Abcde reacted to your profile", "reaction_style": "DEFAULT"}',
+        NULL, 1, 0, 0, NULL, NULL, 1, 'REACTION', 0, 0, 0, 1375123987,
+        0);

@@ -23,8 +23,8 @@ const LOADER: BadooAndroidDataLoader = BadooAndroidDataLoader;
 //
 
 #[test]
-fn loading_2023_12() -> EmptyRes {
-    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2023-12", "", DB_FILENAME);
+fn loading_2026_05() -> EmptyRes {
+    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-05", "", DB_FILENAME);
 
     LOADER.looks_about_right(&res)?;
     let dao = LOADER.load(&NoFeedbackClient, &res)?;
@@ -124,7 +124,6 @@ fn loading_2023_12() -> EmptyRes {
 
     Ok(())
 }
-
 
 #[test]
 fn loading_2026_03() -> EmptyRes {

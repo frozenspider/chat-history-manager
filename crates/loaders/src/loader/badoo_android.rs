@@ -164,7 +164,8 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                     match row.get::<_, String>("payload_type")?.as_str() {
                         "REACTION" => {
                             ensure!(keys == HashSet::from(["photo_id", "photo_url", "photo_width", "photo_height",
-                                                            "photo_expiration_timestamp", "emoji_reaction", "message"]),
+                                                            "photo_expiration_timestamp", "emoji_reaction", "message",
+                                                            "reaction_style"]),
                                     "Unexpected payload format for reaction to photo: {}", payload_json);
                             let message = get_field_str!(root_obj, "message", "message");
                             let emoji = get_field_str!(root_obj, "emoji_reaction", "emoji_reaction");
