@@ -223,7 +223,9 @@ enum MessageType {
     Deleted = 15,
     LiveLocation = 16,
     AnimatedSticker = 20,
+    /// Linked item is in `message_product`.
     BusinessItem = 23,
+    /// ???
     BusinessItemTemplated = 25,
     OneTimePassword = 27,
     WhatsAppMessage = 28,
@@ -232,10 +234,13 @@ enum MessageType {
     DisappearTimerSet = 36,
     OneTimePhoto = 42,
     OneTimeVideo = 43,
+    /// Sent a cart with some items selected - see `message_order` for items list.
+    SentCart = 44,
     /// Details are in `message_ui_elements`.
     /// So far it also seems to contain location, although not sure if that's always the case.
     UiMessage = 85,
     VideoCall = 90,
+    MultiplePictures = 99,
 }
 
 #[repr(i32)]
@@ -261,6 +266,8 @@ enum SystemActionType {
     PrivacyProvider = 67,
     /// Don't know the exact specifics, but it's not interesting anyway
     BusinessState = 69,
+    /// "XXX changed this group's settings to allow only admins to add others to this group"
+    AllowOnlyAdminsToAddUsers = 92,
     /// No idea what it is
     IsAContact = 129,
 }
@@ -309,6 +316,15 @@ mod columns {
     pub mod message_revoked {
         pub const REVOKED_KEY: &str = "revoked_key_id";
         pub const REVOKE_TIMESTAMP: &str = "revoke_timestamp";
+    }
+
+    pub mod message_order {
+        pub const ITEM_COUNT: &str = "item_count";
+    }
+
+    pub mod message_product {
+        pub const TITLE: &str = "title";
+        pub const DESCRIPTION: &str = "description";
     }
 
     pub mod call_logs {
@@ -708,6 +724,12 @@ fn parse_system_message<'a>(
                         is_blocked: row.get::<_, i8>("is_blocked")? == 1
                     })
                 }
+                SystemActionType::AllowOnlyAdminsToAddUsers => {
+                    text_state = TextParsingState::Parsed(vec![
+                        RichText::make_plain("Only admins can add users to this group now".to_owned())
+                    ]);
+                    Notice(MessageServiceNotice {})
+                }
                 SystemActionType::PrivacyProvider | SystemActionType::DisappearTimerDisabled |
                 SystemActionType::BecameBusinessAccount | SystemActionType::BusinessState |
                 SystemActionType::IsAContact => {
@@ -764,6 +786,14 @@ fn parse_regular_message(
                 mime_type_option,
                 is_one_time: false,
             })],
+        MessageType::MultiplePictures => {
+            let photo: Option<String> = row.get(columns::message_media::FILE_PATH)?;
+            vec![] // FIXME
+        }
+        MessageType::SentCart => {
+            // panic!("AAAAA!")
+            vec![] // FIXME
+        }
         MessageType::OneTimePhoto => {
             text_state = TextParsingState::None;
             vec![content!(Photo {
@@ -865,8 +895,8 @@ fn parse_regular_message(
 
             let parsed = simd_json::to_owned_value(&mut content)
                 .with_context(|| "Failed to parse UI message element content as JSON")?;
-            let title = get_field_string_option!(parsed, "", "title");
-            let sub_title = get_field_string_option!(parsed, "", "sub_title");
+            let title = get_field_string_missing!(parsed, "", "title");
+            let sub_title = get_field_string_missing!(parsed, "", "sub_title");
             let description = get_field_string_option!(parsed, "", "description");
 
             let mut text = Vec::new();
@@ -949,8 +979,12 @@ fn parse_optional_location(row: &Row) -> Result<Option<Content>> {
 }
 
 fn parse_vcard(vcard: &str) -> Result<ContentSharedContact> {
-    let mut vcard = VcardParser::new(BufReader::new(vcard.as_bytes()));
-    let vcard = vcard.next().unwrap()?;
+    let mut vcard_parser = VcardParser::new(BufReader::new(vcard.as_bytes()));
+    let vcard_res = vcard_parser.next().unwrap();
+    if vcard_res.is_err() {
+        println!("Uh-oh"); // FIXME
+    }
+    let vcard = vcard_res?;
 
     let full_name = vcard.properties.iter()
         .find(|p| p.name == "FN")
