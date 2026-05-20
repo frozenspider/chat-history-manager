@@ -936,7 +936,6 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
 fn parse_service_message(message_json: &mut MessageJson,
                          service_msg: &mut MessageService) -> Result<ShouldProceed> {
-    use message_service::SealedValueOptional;
 
     // Null members are added as unknown
     fn parse_members(message_json: &mut MessageJson) -> Result<Vec<String>> {
@@ -954,26 +953,26 @@ fn parse_service_message(message_json: &mut MessageJson,
             .collect::<Result<Vec<String>>>()
     }
 
-    let (val, text_prefix): (SealedValueOptional, Option<String>) = match message_json.field_str("action")?.as_str() {
+    let (val, text_prefix): (ServiceSvo, Option<String>) = match message_json.field_str("action")?.as_str() {
         "phone_call" =>
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 discard_reason_option: message_json.field_opt_str("discard_reason")?,
                 members: vec![],
             }), None),
         "group_call" => // Treated the same as phone_call
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: message_json.field_opt_i32("duration")?,
                 discard_reason_option: None,
                 members: vec![],
             }), None),
         "pin_message" =>
-            (SealedValueOptional::PinMessage(MessageServicePinMessage {
+            (ServiceSvo::PinMessage(MessageServicePinMessage {
                 message_source_id: message_json.field_i64("message_id")?
             }), None),
         "suggest_profile_photo" => {
             message_json.add_optional("photo_file_size");
-            (SealedValueOptional::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
+            (ServiceSvo::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
                     height: message_json.field_i32("height")?,
@@ -984,20 +983,20 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None)
         }
         "clear_history" =>
-            (SealedValueOptional::ClearHistory(MessageServiceClearHistory {}), None),
+            (ServiceSvo::ClearHistory(MessageServiceClearHistory {}), None),
         "create_group" =>
-            (SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+            (ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                 title: message_json.field_str("title")?,
                 members: parse_members(message_json)?,
             }), None),
         "create_channel" =>
-            (SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+            (ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                 title: message_json.field_str("title")?,
                 members: vec![],
             }), None),
         "edit_group_photo" => {
             message_json.add_optional("photo_file_size");
-            (SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
+            (ServiceSvo::GroupEditPhoto(MessageServiceGroupEditPhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
                     height: message_json.field_i32("height")?,
@@ -1008,41 +1007,41 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None)
         }
         "delete_group_photo" =>
-            (SealedValueOptional::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}), None),
+            (ServiceSvo::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}), None),
         "edit_group_title" =>
-            (SealedValueOptional::GroupEditTitle(MessageServiceGroupEditTitle {
+            (ServiceSvo::GroupEditTitle(MessageServiceGroupEditTitle {
                 title: message_json.field_str("title")?
             }), None),
         "invite_members" =>
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: parse_members(message_json)?
             }), None),
         "remove_members" =>
-            (SealedValueOptional::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
+            (ServiceSvo::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
                 members: parse_members(message_json)?
             }), None),
         "join_group_by_link" => {
             // "UserName joined the group via invite link"
             message_json.add_required("inviter");
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
             }), None)
         }
         "join_group_by_request" => {
             // "UserName was accepted to the group"
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
             }), None)
         }
         "migrate_from_group" =>
-            (SealedValueOptional::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
+            (ServiceSvo::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
                 title: message_json.field_str("title")?
             }), None),
         "migrate_to_supergroup" =>
-            (SealedValueOptional::GroupMigrateTo(MessageServiceGroupMigrateTo {}), None),
+            (ServiceSvo::GroupMigrateTo(MessageServiceGroupMigrateTo {}), None),
         "invite_to_group_call" => {
             // TODO: This should probably modify a previous group call if one is in progress
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: None,
                 discard_reason_option: None,
                 members: parse_members(message_json)?,
@@ -1062,17 +1061,17 @@ fn parse_service_message(message_json: &mut MessageJson,
                 period_str = new_period_str;
             }
 
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(format!("Messages will be auto-deleted in {period} {period_str}")))
         }
         "boost_apply" => {
             let boosts = message_json.field_i32("boosts")?;
 
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(format!("Group boosted by {boosts}")))
         }
         "joined_telegram" => {
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some("Joined Telegram".to_owned()))
         }
         "edit_chat_theme" => {
@@ -1093,7 +1092,7 @@ fn parse_service_message(message_json: &mut MessageJson,
             } else {
                 bail!("Don't know how to phrase DM price {price} and broadcast_allowed={broadcast_allowed:?}");
             };
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(text))
         }
         "todo_completions" => {

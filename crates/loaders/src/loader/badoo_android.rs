@@ -1,5 +1,6 @@
 use std::fs;
-
+use lazy_static::lazy_static;
+use regex::Regex;
 use rusqlite::Connection;
 use simd_json::prelude::*;
 
@@ -10,13 +11,19 @@ use super::android::*;
 #[path = "badoo_android_tests.rs"]
 mod tests;
 
-pub struct BadooAndroidDataLoader;
+pub struct BadooAndroidDataLoader<'a, H: HttpClient> {
+    pub http_client: &'a H,
+}
 
 /// Using a first legal ID (i.e. "1") for myself
 const MYSELF_ID: UserId = UserId(UserId::INVALID.0 + 1);
 
 const NAME: &str = "Badoo";
 pub const DB_FILENAME: &str = "ChatComDatabase";
+
+lazy_static! {
+    static ref PHOTO_URL_REGEX: Regex = Regex::new(r"^.+euri=([^&]).*$").unwrap();
+}
 
 type EncUserId = String;
 
@@ -33,7 +40,7 @@ impl Users {
     }
 }
 
-impl AndroidDataLoader for BadooAndroidDataLoader {
+impl<H: HttpClient> AndroidDataLoader for BadooAndroidDataLoader<'_, H> {
     const NAME: &'static str = NAME;
     const DB_FILENAME: &'static str = DB_FILENAME;
 
@@ -123,7 +130,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
         let mut cwms = vec![];
 
         let downloaded_media_path = path.join(RELATIVE_MEDIA_DIR);
-        fs::create_dir_all(downloaded_media_path)?;
+        fs::create_dir_all(&downloaded_media_path)?;
 
         let mut stmt = conn.prepare(r"
             SELECT *
@@ -154,7 +161,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                 // TODO: if created_timestamp <> modified_timestamp, does it really mean message was edited?
 
                 // While URLs are known, following them without setting headers results in 403.
-                let (text, contents) = {
+                let (text, contents, service) = {
                     let payload_json = row.get::<_, String>("payload")?;
                     let mut payload_bytes_vec = payload_json.as_bytes().to_vec();
                     let parsed = simd_json::to_borrowed_value(&mut payload_bytes_vec)
@@ -169,7 +176,31 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                                     "Unexpected payload format for reaction to photo: {}", payload_json);
                             let message = get_field_str!(root_obj, "message", "message");
                             let emoji = get_field_str!(root_obj, "emoji_reaction", "emoji_reaction");
-                            (vec![RichText::make_plain(format!("{message}: {emoji}"))], vec![])
+
+                            let photo_url = get_field_str!(root_obj, "photo_url", "photo_url");
+                            let Some(photo_id) = PHOTO_URL_REGEX.captures(&photo_url).map(|c| c[1].to_owned()) else {
+                                bail!("Couldn't extract photo ID from URL {photo_url}");
+                            };
+                            let photo_width = get_field_i32!(root_obj, "photo_width", "photo_width");
+                            let photo_height = get_field_i32!(root_obj, "photo_height", "photo_height");
+                            let file_name = format!("{}.jpg", hash_to_id(&photo_id));
+                            let _ = (photo_width, photo_height, file_name); // TODO
+                            /*
+                            download_if_missing(&file_name, &downloaded_media_path, &photo_url, self.http_client, || {
+                                feedback_client.set_load_status(LoadStatus::new_downloading_tpe("profile photo"));
+                            })?;
+                            */
+                            (
+                                vec![RichText::make_plain(format!("{message}: {emoji}"))],
+                                vec![/*content!(Photo {
+                                    path_option: Some(format!("{RELATIVE_MEDIA_DIR}/{}/{file_name}", MYSELF_ID.0)),
+                                    width: photo_width,
+                                    height: photo_height,
+                                    mime_type_option: None,
+                                    is_one_time: false,
+                                })*/],
+                                Some(ServiceSvo::Notice(MessageServiceNotice {}))
+                            )
                         }
                         "AUDIO" => {
                             ensure!(keys == HashSet::from(["id", "waveform", "url", "duration", "expiration_timestamp"]),
@@ -181,7 +212,7 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                                 file_name_option: None,
                                 mime_type: "".to_string(),
                                 duration_sec_option,
-                            })])
+                            })], None)
                         }
                         "TEXT" => {
                             ensure!(keys == HashSet::from(["text", "type", "substitute_id"]),
@@ -189,13 +220,13 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
                             match get_field_str!(root_obj, "type", "type") {
                                 "TEXT" | "SUBSTITUTE"  => {
                                     let text = get_field_string!(root_obj, "text", "text");
-                                    (vec![RichText::make_plain(text)], vec![])
+                                    (vec![RichText::make_plain(text)], vec![], None)
                                 }
                                 "SMILE" => {
                                     // This is an auto-generated message, let's mark it as such
                                     let text = get_field_string!(root_obj, "text", "text");
                                     (vec![RichText::make_italic("(Auto-generated message)\n".to_owned()),
-                                          RichText::make_plain(text)], vec![])
+                                          RichText::make_plain(text)], vec![], None)
                                 }
                                 etc => bail!("Unexpected message type {etc}!")
                             }
@@ -206,19 +237,25 @@ impl AndroidDataLoader for BadooAndroidDataLoader {
 
                 let text = normalize_rich_text(text);
 
-                messages.push(Message::new(
-                    *NO_INTERNAL_ID,
-                    Some(source_id),
-                    timestamp,
-                    from_id,
-                    text,
+                let typed= if let Some(service) = service {
+                    message_service!(service)
+                } else {
                     message_regular! {
                         edit_timestamp_option: None,
                         is_deleted: false,
                         forward_from_name_option: None,
                         reply_to_message_id_option,
                         contents,
-                    },
+                    }
+                };
+
+                messages.push(Message::new(
+                    *NO_INTERNAL_ID,
+                    Some(source_id),
+                    timestamp,
+                    from_id,
+                    text,
+                    typed,
                 ));
             }
             messages.iter_mut().enumerate().for_each(|(i, m)| m.internal_id = i as i64);

@@ -725,10 +725,9 @@ fn parse_service_message(
     media_rel_path: Option<String>,
     users: &Users,
 ) -> Result<Option<(MessageService, Vec<RichTextElement>)>> {
-    use message_service::SealedValueOptional;
     use tl::enums::MessageAction;
 
-    let (sealed_value, rich_text): (SealedValueOptional, Option<String>) =
+    let (sealed_value, rich_text): (ServiceSvo, Option<String>) =
         match &raw_service_msg.action {
             MessageAction::PhoneCall(action) => {
                 let discard_reason_option = action.reason.as_ref().map(|reason| {
@@ -744,7 +743,7 @@ fn parse_service_message(
                     .to_owned()
                 });
                 (
-                    SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                    ServiceSvo::PhoneCall(MessageServicePhoneCall {
                         duration_sec_option: action.duration,
                         discard_reason_option,
                         members: vec![],
@@ -753,7 +752,7 @@ fn parse_service_message(
                 )
             }
             MessageAction::GroupCall(action) => (
-                SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                ServiceSvo::PhoneCall(MessageServicePhoneCall {
                     duration_sec_option: action.duration,
                     discard_reason_option: None,
                     members: vec![],
@@ -775,19 +774,19 @@ fn parse_service_message(
                 let message_source_id =
                     message_source_id.context("Pin message without reply_to_msg_id")? as i64;
                 (
-                    SealedValueOptional::PinMessage(MessageServicePinMessage { message_source_id }),
+                    ServiceSvo::PinMessage(MessageServicePinMessage { message_source_id }),
                     None,
                 )
             }
             MessageAction::ChatCreate(action) => (
-                SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+                ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                     title: action.title.clone(),
                     members: action.users.iter().map(|u| u.to_string()).collect(),
                 }),
                 None,
             ),
             MessageAction::ChatEditTitle(action) => (
-                SealedValueOptional::GroupEditTitle(MessageServiceGroupEditTitle {
+                ServiceSvo::GroupEditTitle(MessageServiceGroupEditTitle {
                     title: action.title.clone(),
                 }),
                 None,
@@ -795,7 +794,7 @@ fn parse_service_message(
             MessageAction::ChatEditPhoto(action) => {
                 let (width, height) = action.photo.resolution().unwrap_or((0, 0));
                 (
-                    SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
+                    ServiceSvo::GroupEditPhoto(MessageServiceGroupEditPhoto {
                         photo: ContentPhoto {
                             path_option: media_rel_path,
                             width,
@@ -808,29 +807,29 @@ fn parse_service_message(
                 )
             }
             MessageAction::ChatDeletePhoto => (
-                SealedValueOptional::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}),
+                ServiceSvo::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}),
                 None,
             ),
             MessageAction::ChatAddUser(action) => (
-                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                     members: action.users.iter().map(|u| u.to_string()).collect(),
                 }),
                 None,
             ),
             MessageAction::ChatDeleteUser(action) => (
-                SealedValueOptional::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
+                ServiceSvo::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
                     members: vec![action.user_id.to_string()],
                 }),
                 None,
             ),
             MessageAction::ChatJoinedByLink(action) => (
-                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                     members: vec![users.resolve_pretty_name(RawPeerId(action.inviter_id))],
                 }),
                 None,
             ),
             MessageAction::ChatJoinedByRequest => (
-                SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+                ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                     members: raw_service_msg
                         .from_id
                         .as_ref()
@@ -841,28 +840,28 @@ fn parse_service_message(
                 None,
             ),
             MessageAction::ChannelCreate(action) => (
-                SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+                ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                     title: action.title.clone(),
                     members: vec![],
                 }),
                 None,
             ),
             MessageAction::ChatMigrateTo(_action) => (
-                SealedValueOptional::GroupMigrateTo(MessageServiceGroupMigrateTo {}),
+                ServiceSvo::GroupMigrateTo(MessageServiceGroupMigrateTo {}),
                 None,
             ),
             MessageAction::ChannelMigrateFrom(action) => (
-                SealedValueOptional::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
+                ServiceSvo::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
                     title: action.title.clone(),
                 }),
                 None,
             ),
             MessageAction::HistoryClear => (
-                SealedValueOptional::ClearHistory(MessageServiceClearHistory {}),
+                ServiceSvo::ClearHistory(MessageServiceClearHistory {}),
                 None,
             ),
             MessageAction::InviteToGroupCall(action) => (
-                SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                ServiceSvo::PhoneCall(MessageServicePhoneCall {
                     duration_sec_option: None,
                     discard_reason_option: None,
                     members: action
@@ -885,14 +884,14 @@ fn parse_service_message(
                     period_str = new_period_str;
                 }
                 (
-                    SealedValueOptional::Notice(MessageServiceNotice {}),
+                    ServiceSvo::Notice(MessageServiceNotice {}),
                     Some(format!(
                         "Messages will be auto-deleted in {period} {period_str}"
                     )),
                 )
             }
             MessageAction::ContactSignUp => (
-                SealedValueOptional::Notice(MessageServiceNotice {}),
+                ServiceSvo::Notice(MessageServiceNotice {}),
                 Some("Joined Telegram".to_owned()),
             ),
             MessageAction::ScreenshotTaken => {

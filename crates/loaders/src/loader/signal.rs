@@ -3,8 +3,6 @@ use crate::prelude::*;
 
 use std::fs;
 
-use message_service::SealedValueOptional as ServiceSvo;
-
 use base64::prelude::*;
 use cbc::cipher::{BlockDecryptMut, KeyIvInit};
 use hmac::Mac;

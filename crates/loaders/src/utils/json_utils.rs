@@ -139,6 +139,11 @@ macro_rules! get_field_object {
 }
 
 #[macro_export]
+macro_rules! get_field_i32 {
+    ($v:expr, $path:expr, $txt:expr) => {as_i32!(get_field!($v, $path, $txt), $path, $txt)};
+}
+
+#[macro_export]
 macro_rules! get_field_i64 {
     ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt), $path, $txt)};
 }

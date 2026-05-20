@@ -26,6 +26,7 @@ pub mod prelude {
     pub use chat_history_manager_core::message_service_pat;
     pub use chat_history_manager_core::message_service_pat_unreachable;
     pub use chat_history_manager_core::protobuf::history::*;
+    pub use chat_history_manager_core::protobuf::history::message_service::SealedValueOptional as ServiceSvo;
     pub use chat_history_manager_core::utils::entity_utils::*;
     pub use chat_history_manager_core::utils::*;
 

@@ -325,27 +325,3 @@ fn analyze_photos_blob(user_key: &UserKey, bytes: Vec<u8>) -> Result<Vec<String>
 
     Ok(photos)
 }
-
-fn download_if_missing(
-    file_name: &str,
-    storage_path: &Path,
-    url: &str,
-    http_client: &impl HttpClient,
-    set_status: impl Fn(),
-) -> EmptyRes {
-    let file_path = storage_path.join(file_name);
-    if !file_path.exists() {
-        log::info!("Downloading {}", url);
-        set_status();
-        match http_client.get_bytes(url) {
-            Ok(HttpResponse::Ok(body)) => {
-                fs::write(&file_path, body)?
-            }
-            Ok(HttpResponse::Failure { status, .. }) =>
-                log::warn!("Failed to download {file_name}: HTTP code {}", status.as_str()),
-            Err(e) =>
-                log::warn!("Failed to download {file_name}: {}", e),
-        }
-    }
-    Ok(())
-}

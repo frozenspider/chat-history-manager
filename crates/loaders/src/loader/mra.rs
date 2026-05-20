@@ -11,8 +11,6 @@ use num_traits::FromPrimitive;
 use regex::{Captures, Regex};
 use utf16string::{LE, WStr};
 
-use message_service::SealedValueOptional as ServiceSvo;
-
 use chat_history_manager_dao::in_memory_dao::{DatasetEntry, InMemoryDao};
 use crate::loader::DataLoader;
 use crate::prelude::*;

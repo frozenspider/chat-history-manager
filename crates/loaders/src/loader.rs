@@ -7,7 +7,7 @@ mod signal;
 mod badoo_android;
 mod mra;
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 
 use chrono::Local;
@@ -19,7 +19,7 @@ pub use crate::loader::mra::MailRuAgentDataLoader;
 pub use crate::loader::signal::SignalDataLoader;
 pub use crate::loader::telegram::TelegramDataLoader;
 pub use crate::loader::tg_keeper::TgKeeperDataLoader;
-pub use crate::loader::tg_keeper::{LoaderConfig as TgKeeperDataLoaderConfig};
+pub use crate::loader::tg_keeper::LoaderConfig as TgKeeperDataLoaderConfig;
 pub use crate::loader::tinder_android::TinderAndroidDataLoader;
 pub use crate::loader::whatsapp_android::WhatsAppAndroidDataLoader;
 pub use crate::loader::whatsapp_text::WhatsAppTextDataLoader;
@@ -132,6 +132,30 @@ fn normalize_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
         *text = text.trim_end().to_owned();
     }
     rtes[first_idx..=last_idx].to_vec()
+}
+
+fn download_if_missing(
+    file_name: &str,
+    storage_path: &Path,
+    url: &str,
+    http_client: &impl HttpClient,
+    set_status: impl Fn(),
+) -> EmptyRes {
+    let file_path = storage_path.join(file_name);
+    if !file_path.exists() {
+        log::info!("Downloading {}", url);
+        set_status();
+        match http_client.get_bytes(url) {
+            Ok(HttpResponse::Ok(body)) => {
+                fs::write(&file_path, body)?
+            }
+            Ok(HttpResponse::Failure { status, .. }) =>
+                log::warn!("Failed to download {file_name}: HTTP code {}", status.as_str()),
+            Err(e) =>
+                log::warn!("Failed to download {file_name}: {}", e),
+        }
+    }
+    Ok(())
 }
 
 // Android-specific helpers.

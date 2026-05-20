@@ -596,14 +596,13 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             let source_id = hash_to_id(&key);
             msg_key_to_source_id.insert(key, source_id);
 
-            use message_service::SealedValueOptional;
             cwm.messages.push(Message::new(
                 *NO_INTERNAL_ID,
                 Some(source_id),
                 row.get::<_, i64>(columns::call_logs::TIMESTAMP)? / 1000,
                 from_id,
                 vec![],
-                message_service!(SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+                message_service!(ServiceSvo::PhoneCall(MessageServicePhoneCall {
                     duration_sec_option: get_zero_as_null(row, columns::call_logs::DURATION)?,
                     discard_reason_option: None,
                     members: vec![],
@@ -634,10 +633,9 @@ fn parse_system_message<'a>(
     users: &'a mut Users,
     chat_member_ids: &mut HashSet<UserId, Hasher>,
 ) -> Result<Option<(message::Typed, TextParsingState)>> {
-    use message_service::SealedValueOptional;
     use message_service::SealedValueOptional::*;
     let mut text_state = TextParsingState::Column(columns::message::TEXT);
-    let val: SealedValueOptional = match msg_tpe {
+    let val: ServiceSvo = match msg_tpe {
         MessageType::System => {
             let action_type = row.get::<_, i32>("action_type")?;
             let action_type = FromPrimitive::from_i32(action_type)

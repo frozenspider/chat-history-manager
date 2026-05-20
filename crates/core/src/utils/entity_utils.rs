@@ -686,6 +686,14 @@ impl LoadStatus {
         }
     }
 
+    pub fn new_downloading_tpe(tpe: &str) -> Self {
+        LoadStatus {
+            status_type: LoadStatusType::DownloadingMedia as i32,
+            details_1: Some(tpe.to_owned()),
+            details_2: None,
+        }
+    }
+
     pub fn new_processing(details: String) -> Self {
         LoadStatus {
             status_type: LoadStatusType::Parsing as i32,

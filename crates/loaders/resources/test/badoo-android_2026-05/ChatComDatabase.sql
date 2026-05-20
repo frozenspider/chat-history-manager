@@ -118,6 +118,6 @@ VALUES (3, '4313658961', '1234567890', 'abcde-encrypted-id', NULL, 'my-encrypypt
 INSERT INTO message
 VALUES (4, '4313616080', '1234567890', 'abcde-encrypted-id', NULL, 'my-encrypypted-id', 1692781351000, 1692781351000,
         'ON_SERVER', 0,
-        '{"photo_id":"1374985678","photo_url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url","photo_width":640,"photo_height":480,"photo_expiration_timestamp":1693389603000,"emoji_reaction":"🤔","message":"Abcde reacted to your profile", "reaction_style": "DEFAULT"}',
+        '{"photo_id":"1374985678","photo_url":"https:\/\/us1.badoocdn.com\/some/irrelevant/url?euri=MYID&something","photo_width":640,"photo_height":480,"photo_expiration_timestamp":1693389603000,"emoji_reaction":"🤔","message":"Abcde reacted to your profile", "reaction_style": "DEFAULT"}',
         NULL, 1, 0, 0, NULL, NULL, 1, 'REACTION', 0, 0, 0, 1375123987,
         0);

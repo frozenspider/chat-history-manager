@@ -16,7 +16,6 @@ use lazy_static::lazy_static;
 use pretty_assertions::{assert_eq, assert_ne};
 
 const RESOURCE_DIR: &str = "badoo-android";
-const LOADER: BadooAndroidDataLoader = BadooAndroidDataLoader;
 
 //
 // Tests
@@ -24,10 +23,12 @@ const LOADER: BadooAndroidDataLoader = BadooAndroidDataLoader;
 
 #[test]
 fn loading_2026_05() -> EmptyRes {
-    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-05", "", DB_FILENAME);
+    let http_client = MockHttpClient::new();
+    let loader = BadooAndroidDataLoader { http_client: &http_client };
 
-    LOADER.looks_about_right(&res)?;
-    let dao = LOADER.load(&NoFeedbackClient, &res)?;
+    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-05", "", DB_FILENAME);
+    loader.looks_about_right(&res)?;
+    let dao = loader.load(&NoFeedbackClient, &res)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();
@@ -118,19 +119,25 @@ fn loading_2026_05() -> EmptyRes {
             from_id: member.id,
             text: vec![RichText::make_plain("Abcde reacted to your profile: 🤔".to_owned())],
             searchable_string: "Abcde reacted to your profile: 🤔".to_owned(),
-            typed: Some(MESSAGE_REGULAR_NO_CONTENT.clone()),
+            typed: Some(message_service!(Notice(MessageServiceNotice {}))),
         });
     }
+
+    assert_eq!(http_client.calls_copy(),
+               vec!["https://us1.badoocdn.com/some/irrelevant/url?euri=MYID&something"]);
 
     Ok(())
 }
 
 #[test]
 fn loading_2026_03() -> EmptyRes {
+    let http_client = MockHttpClient::new();
+    let loader = BadooAndroidDataLoader { http_client: &http_client };
+
     let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-03_null-named-user", "", DB_FILENAME);
 
-    LOADER.looks_about_right(&res)?;
-    let dao = LOADER.load(&NoFeedbackClient, &res)?;
+    loader.looks_about_right(&res)?;
+    let dao = loader.load(&NoFeedbackClient, &res)?;
 
     let ds_uuid = &dao.ds_uuid();
     let myself = dao.myself_single_ds();

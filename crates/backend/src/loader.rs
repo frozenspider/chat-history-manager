@@ -22,7 +22,7 @@ impl Loader {
                 Box::new(WhatsAppTextDataLoader),
                 Box::new(SignalDataLoader),
                 Box::new(TinderAndroidDataLoader { http_client }),
-                Box::new(BadooAndroidDataLoader),
+                Box::new(BadooAndroidDataLoader { http_client }),
                 Box::new(MailRuAgentDataLoader),
             ],
         }
