@@ -1,12 +1,11 @@
-use std::collections::hash_map::Entry;
-
-use ical::VcardParser;
+use super::android::AndroidDataLoader;
+use super::*;
+use calcard::vcard::VCardProperty;
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension, Row, Statement};
-use super::*;
-use super::android::AndroidDataLoader;
+use std::collections::hash_map::Entry;
 
 #[cfg(test)]
 #[path = "whatsapp_android_tests.rs"]
@@ -414,7 +413,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
      * - For source_id, we're using hash of `message.key_id` and `call_log.call_id`.
      */
     let mut msgs_stmt = {
-        use columns::{*, chat::*, message::*, message_revoked::*, message_ui_elements::*};
+        use columns::{chat::*, message::*, message_revoked::*, message_ui_elements::*, *};
         fn join_by_message_id(table_name: &str) -> String {
             format!("LEFT JOIN {table_name} ON {table_name}.message_row_id = message._id")
         }
@@ -978,24 +977,29 @@ fn parse_optional_location(row: &Row) -> Result<Option<Content>> {
     }
 }
 
-fn parse_vcard(vcard: &str) -> Result<ContentSharedContact> {
-    let mut vcard_parser = VcardParser::new(BufReader::new(vcard.as_bytes()));
-    let vcard_res = vcard_parser.next().unwrap();
-    if vcard_res.is_err() {
-        println!("Uh-oh"); // FIXME
-    }
-    let vcard = vcard_res?;
+fn parse_vcard(vcard_str: &str) -> Result<ContentSharedContact> {
+    let vcard = calcard::vcard::VCard::parse(vcard_str)
+        .map_err(|_| anyhow!("Parsed something else instead of vcard from: {vcard_str}"))?;
 
-    let full_name = vcard.properties.iter()
-        .find(|p| p.name == "FN")
-        .and_then(|p| p.value.clone())
-        .expect("Name not found for vcard!");
+    let Some(full_name_entry) = vcard.property(&VCardProperty::Fn) else {
+        bail!("No full name in vcard: {vcard_str}");
+    };
+    let Some(full_name) = full_name_entry.values
+        .first()
+        .and_then(|v| v.as_text())
+        .map(|v| v.to_owned())
+    else {
+        bail!("Full name is not a text value in vcard: {vcard_str}");
+    };
 
-    let phone_number = vcard.properties.iter()
-        .filter(|p| p.name.split('.').contains(&"TEL"))
-        .find(|p| p.params.as_ref().is_some_and(|params| params.iter().any(|(k, _)| k == "WAID")))
-        .and_then(|p| p.value.clone())
-        .expect("Phone number not found for vcard!");
+    let Some(phone_number) = vcard.entries.into_iter()
+        .filter(|e| e.name.as_str().split('.').contains(&"TEL"))
+        .flat_map(|e| e.params)
+        .find(|p| p.name.as_str().to_uppercase().as_str() == "WAID")
+        .and_then(|p| p.value.as_text().map(|s| s.to_owned()))
+    else {
+        bail!("WAID phone number not found in vcard: {vcard_str}");
+    };
 
     let phone_number = PhoneNumber::from_raw(&phone_number).0;
 

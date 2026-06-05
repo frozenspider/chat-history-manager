@@ -13,7 +13,7 @@ simd-json = { workspace = true }
 chrono = { workspace = true }
 lazy_static = { workspace = true }
 anyhow = { workspace = true }
-ical = "0.11.0"
+calcard = "0.3.4"
 const_format = { workspace = true }
 reqwest = { version = "0.12.7", features = ["blocking"] }
 uuid = { workspace = true }

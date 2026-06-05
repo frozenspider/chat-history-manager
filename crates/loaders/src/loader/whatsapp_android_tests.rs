@@ -77,6 +77,20 @@ fn vcards() -> EmptyRes {
         END:VCARD
     ")?, vc("Full Name", "+1122233334444"));
 
+    assert_eq!(parse(r"
+        BEGIN:VCARD
+        VERSION:3.0
+        N:;MyName;;;
+        FN:MyFullName
+        X-WA-BIZ-NAME:MyFullName
+        X-WA-BIZ-DESCRIPTION:Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1 Long line 1
+        Line 2 Line 2 Line 2 Line 2 Line 2 Line 2 Line 2 Line 2 Line 2 Line 2 Line 2
+
+        Line 4❗Line 4❗Line 4❗Line 4❗Line 4❗Line 4❗Line 4❗Line 4❗
+        TEL;type=CELL;type=VOICE;waid=78889991122:+7 888 999 1122
+        END:VCARD
+    ")?, vc("MyFullName", "+78889991122"));
+
     Ok(())
 }
 
