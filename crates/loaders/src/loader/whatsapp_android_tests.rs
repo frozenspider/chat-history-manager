@@ -299,6 +299,147 @@ fn loading_2026_01() -> EmptyRes {
     Ok(())
 }
 
+#[test]
+fn loading_2026_05() -> EmptyRes {
+    let (res, _db_dir) = test_android::create_databases(RESOURCE_DIR, "2026-05", ".db", DB_FILENAME);
+    LOADER.looks_about_right(&res)?;
+
+    let dao = LOADER.load(&NoFeedbackClient, &res)?;
+
+    let ds_uuid = &dao.ds_uuid();
+    let myself = dao.myself_single_ds();
+
+    let mut expected_myself = expected_myself(ds_uuid);
+    expected_myself.phone_number_option = None; // There's no group joining message, so there's no get self phone number
+    assert_eq!(myself, expected_myself);
+
+    let member = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 9017079856339592512_i64,
+        first_name_option: None,
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: Some("11111".to_owned()),
+        profile_pictures: vec![],
+    };
+
+    assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
+
+    assert_eq!(dao.cwms_single_ds().len(), 1);
+
+    {
+        let cwm = dao.cwms_single_ds().into_iter().find(|cwm| cwm.chat.tpe == ChatType::PrivateGroup as i32).unwrap();
+        let chat = cwm.chat;
+        assert_eq!(chat, Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: 15668065017168951_i64,
+            name_option: Some("My Group".to_owned()),
+            source_type: SourceType::WhatsappDb as i32,
+            tpe: ChatType::PrivateGroup as i32,
+            img_path_option: Some("files/Avatars/100000000000000001@g.us.j".to_owned()),
+            member_ids: vec![myself.id, member.id],
+            msg_count: 1,
+            main_chat_id: None,
+        });
+
+        let msgs = dao.first_messages(&chat, 99999)?;
+        assert_eq!(msgs.len() as i32, chat.msg_count);
+
+        assert_eq!(msgs[0], Message {
+            internal_id: 0,
+            source_id_option: Some(8082739393298423973),
+            timestamp: 1776594122,
+            from_id: member.id,
+            text: vec![RichText::make_plain("Multiline\n\nmessage".to_owned())],
+            searchable_string: "Multiline message".to_owned(),
+            typed: Some(message_regular! {
+                edit_timestamp_option: None,
+                is_deleted: false,
+                forward_from_name_option: None,
+                reply_to_message_id_option: None,
+                contents: vec![
+                    content!(Photo {
+                        path_option: Some("Media/img-2.jpg".to_owned()),
+                        width: 1204,
+                        height: 1600,
+                        mime_type_option: Some("image/jpeg".to_owned()),
+                        is_one_time: false,
+                    }),
+                    content!(Photo {
+                        path_option: Some("Media/img-1.jpg".to_owned()),
+                        width: 1204,
+                        height: 1600,
+                        mime_type_option: Some("image/jpeg".to_owned()),
+                        is_one_time: false,
+                    })
+                ],
+            }),
+        });
+    }
+
+    /*
+    {
+        let cwm = dao.cwms_single_ds().into_iter().find(|cwm| cwm.chat.tpe == ChatType::Personal as i32).unwrap();
+        let chat = cwm.chat;
+        assert_eq!(chat, Chat {
+            ds_uuid: ds_uuid.clone(),
+            id: member.id,
+            name_option: Some("11111".to_owned()),
+            source_type: SourceType::WhatsappDb as i32,
+            tpe: ChatType::Personal as i32,
+            img_path_option: Some("files/Avatars/11111@s.whatsapp.net.j".to_owned()),
+            member_ids: vec![myself.id, member.id],
+            msg_count: 2,
+            main_chat_id: None,
+        });
+
+        let msgs = dao.first_messages(&chat, 99999)?;
+        assert_eq!(msgs.len() as i32, chat.msg_count);
+
+        assert_eq!(msgs[0], Message {
+            internal_id: 0,
+            source_id_option: Some(3891646720130869054),
+            timestamp: 1687757170,
+            from_id: member.id,
+            text: vec![],
+            searchable_string: "Jl. Gurita No.21x, Denpasar, Bali New Bahari -8.70385650 115.21673666".to_owned(),
+            typed: Some(message_regular! {
+                edit_timestamp_option: None,
+                is_deleted: false,
+                forward_from_name_option: None,
+                reply_to_message_id_option: None,
+                contents: vec![
+                    content!(Location {
+                        title_option: Some("New Bahari".to_owned()),
+                        address_option: Some("Jl. Gurita No.21x, Denpasar, Bali".to_owned()),
+                        lat_str: "-8.70385650".to_string(),
+                        lon_str: "115.21673666".to_string(),
+                        duration_sec_option: Some(123),
+                    })
+                ],
+            }),
+        });
+
+        assert_eq!(msgs[1], Message {
+            internal_id: 1,
+            source_id_option: Some(8221205389172673925),
+            timestamp: 1693993938,
+            from_id: myself.id,
+            text: vec![],
+            searchable_string: "".to_owned(),
+            typed: Some(message_regular! {
+                edit_timestamp_option: Some(1693993963),
+                is_deleted: true,
+                forward_from_name_option: None,
+                reply_to_message_id_option: None,
+                contents: vec![],
+            }),
+        });
+    }
+    */
+    Ok(())
+}
+
 //
 // Helpers
 //

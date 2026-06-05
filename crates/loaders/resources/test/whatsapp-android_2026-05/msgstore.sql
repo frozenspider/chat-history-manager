@@ -21,7 +21,8 @@ CREATE TABLE call_log (
     call_type                      INTEGER,
     offer_silence_reason           INTEGER,
     scheduled_id                   TEXT,
-    telecom_uuid                   TEXT
+    telecom_uuid                   TEXT,
+    terminated_by_device_switch    INTEGER
 );
 CREATE TABLE chat (
     _id                                              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +75,9 @@ CREATE TABLE chat (
     group_member_count                               INTEGER,
     limited_sharing                                  INTEGER,
     limited_sharing_setting_timestamp                INTEGER,
-    is_contact                                       INTEGER
+    is_contact                                       INTEGER,
+    ephemeral_after_read_duration                    INTEGER,
+    business_chat_state                              INTEGER
 );
 CREATE TABLE jid (
     _id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +111,21 @@ CREATE TABLE message (
     message_add_on_flags     INTEGER,
     view_mode                INTEGER,
     translated_text          TEXT,
-    view_replies_thread_id   INTEGER
+    view_replies_thread_id   INTEGER,
+    server_sts               INTEGER
+);
+CREATE TABLE message_album (
+    message_row_id       INTEGER PRIMARY KEY,
+    image_count          INTEGER NOT NULL DEFAULT 0,
+    video_count          INTEGER NOT NULL DEFAULT 0,
+    expected_image_count INTEGER,
+    expected_video_count INTEGER
+);
+CREATE TABLE message_association (
+    _id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    child_message_row_id  INTEGER NOT NULL,
+    parent_message_row_id INTEGER NOT NULL,
+    association_type      INTEGER NOT NULL
 );
 CREATE TABLE message_edit_info (
     message_row_id   INTEGER PRIMARY KEY,
@@ -183,7 +200,12 @@ CREATE TABLE message_media (
     media_transcode_quality             INTEGER DEFAULT 0,
     metadata_url                        TEXT,
     motion_photo_presentation_offset_ms INTEGER,
-    qr_url                              TEXT
+    qr_url                              TEXT,
+    media_key_domain                    INTEGER,
+    e2ee_media_key                      BLOB,
+    premium_message                     INTEGER,
+    emoji_tags                          TEXT,
+    is_offloaded                        INTEGER
 );
 CREATE TABLE message_quoted (
     message_row_id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -215,7 +237,13 @@ CREATE TABLE message_ui_elements (
     _id             INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     message_row_id  INTEGER NOT NULL,
     element_type    INTEGER,
-    element_content TEXT
+    element_content TEXT,
+    description     TEXT,
+    template_id     TEXT,
+    hsm_tag         TEXT,
+    footer_text     TEXT,
+    button_text     TEXT,
+    message_type    INTEGER
 );
 CREATE TABLE message_vcard (
     _id INTEGER PRIMARY KEY AUTOINCREMENT, message_row_id INTEGER, vcard TEXT
@@ -234,20 +262,58 @@ INSERT INTO props VALUES (48857, 'user_push_name', 'Aaaaa Aaaaaaaaaaa');
 INSERT INTO jid VALUES (252, '11111', 's.whatsapp.net', 0, 0, 0, '11111@s.whatsapp.net');
 
 
+-- A group (#jid = 2512)
+INSERT INTO chat
+VALUES (338, 2708, 0, 'My Group', 1643607839000, 750, 750, 750, 750, 1, 1, 1661417508000, 0, 0.0, 1, 0, 0, 0, 0, 1,
+        0, 1, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 750, 750,
+        750, 750, 0, 0, NULL, NULL, 0,
+        NULL, 2, 2708, 2, -1, 0, 0, NULL, 0, 0);
+INSERT INTO jid VALUES (2708, '100000000000000001', 'g.us', 0, 0, 1, '100000000000000001@g.us');
+
+-- Media album (#parent_msg = 12114)
+INSERT INTO message
+VALUES (12114, 338, 0, 'GROUPMSG00100', 252, 0, 0, 6, NULL, 0, 0, 1776594122000, 1776594122291, -1,
+        99, NULL, 0, 2048, 12114, 0, 0, NULL, NULL, NULL);
+INSERT INTO message
+VALUES (12115, 338, 0, 'GROUPMSG00101', 252, 0, 0, 6, NULL, 67108864, 0, 1776594122000, 1776594122466, -1,
+        1, replace('Multiline\n\nmessage', '\n', char(10)), 0, 0, 12115, 0, 2, NULL, NULL, NULL);
+INSERT INTO message
+VALUES (12116, 338, 0, 'GROUPMSG00102', 252, 0, 0, 6, NULL, 67108864, 0, 1776594122000, 1776594122811, -1,
+        1, NULL, 0, 0, 12116, 0, 2, NULL, NULL, NULL);
+
+INSERT INTO message_album VALUES (12114, 2, 0, 2, 0);
+
+-- Note the reversed order of the media messages!
+-- WA does that, but it still groups media by message row id.
+INSERT INTO message_association VALUES (13, 12116, 12114, 2);
+INSERT INTO message_association VALUES (14, 12115, 12114, 2);
+
+INSERT INTO message_media
+VALUES (12115, 338, 1, NULL, 'c9357128-2bef-421a-93b2-42bb814b95e3', 1, 0,
+        'Media/album-2.jpg', 136724, 0, 0, 0, 619, 755,
+        X'a603b688778cfb623631e3e12a6a4e4ec7ef4d544a4bfb7e93e67803d2275375', 1776594120000, 1204, 1600, 0, 0, 1.3125,
+        '/doesntmatter', X'b3fddaf79aa91265fa9e', 20296, 'https://mmg.whatsapp.net/doesntmatter0&mms3=true',
+        'image/jpeg', 136724, NULL, 'meh', 0, 0,
+        'meh', 'meh', NULL, 0, NULL, 0,
+        NULL, NULL, NULL, NULL, 0, NULL, -1, NULL, 0, NULL, 0, NULL, 0, NULL, 0, NULL, 0);
+INSERT INTO message_media
+VALUES (12116, 338, 1, NULL, '70527068-f55f-4e4d-97db-a61654e0bc79', 1, 0,
+        'Media/album-1.jpg', 81833, 0, 0, 0, 0, 0,
+        X'01aee12b97f95f04bced57707f1a34b8c5423bf132f4ddc22c8bb7706b72232d', 1776594120000, 1204, 1600, 0, 0, 1.3125,
+        '/doesntmatter', X'86e69b382bcb3480140d', 14536, 'https://mmg.whatsapp.net/doesntmatter0&mms3=true',
+        'image/jpeg', 81833, NULL, 'meh', 0, 0,
+        'meh', 'meh', NULL, 0, NULL, 0,
+        NULL, NULL, NULL, NULL, 0, NULL, -1, NULL, 0, NULL, 0, NULL, 0, NULL, 0, NULL, 0);
+
+
 -- Personal chat with user 1 (jid = #252)
 INSERT INTO chat
 VALUES (148, 252, 0, NULL, 1687705763841, 7747, 7747, 7756, 7756, 1, 1, 1696244219000, NULL, NULL, 1, 0, 0, 0, 0, 1,
-        0, 1, 0, 86400, NULL, 1696243309000, 0, 0, 0, 55, 55, 0, NULL, NULL, 7756, 7747,
-        7747, 7756, 0, 0, 0, 0, NULL, 'general', NULL, 932, 2, NULL, NULL, NULL, NULL);
+        0, 1, 0, 86400, NULL, 1696243309000, 0, 0, 0, 55, 55, 0, NULL, NULL,
+        7756, 7747, 7747, 7756, 0, 0, 0, 0, NULL,
+        'general', NULL, 932, 2, NULL, NULL, NULL, NULL, NULL, NULL);
 
--- UI message (#msg = 11761)
+-- SentCart message
 INSERT INTO message
-VALUES (11761, 148, 0, 'A79C32A482DF09EF37', 0, 0, 0, 0, NULL, 8589934632, 0, 1761287123000, 1761287125595, -1,
-        85, NULL, 0, 0, 11761, 0, 0, NULL, NULL);
-INSERT INTO message_ui_elements
-VALUES (1, 11761, 6,
-        '{"title":"","sub_title":"","description":"Line 1\nLine 2\n\nLine 3","templateId":"1078989761066675","hsmtag":"UTILITY","buttonText":"","selectListType":5,"sections":[],"native_flow_content":{"content_of_nfm":0,"message_params_json":"{\"bottom_sheet\":{\"in_thread_buttons_limit\":3,\"divider_indices\":[]}}","buttons":[{"name":"cta_url","params":"{\"display_text\":\"Doesn''t matter\",\"url\":\"https:\\\/\\\/w.meta.me\\\/s\\\/SOMETHING\",\"webview_presentation\":null,\"payment_link_preview\":false,\"landing_page_url\":\"https:\\\/\\\/t.me\\\/TELEGRAM_LINK\",\"webview_interaction\":false}","selected":false}],"is_carousel_card":false,"carousel_card_index":-1}}');
-INSERT INTO message_location
-VALUES (11761, 148, -8.7038565050269092182, 115.21673666751774955,
-        'New Bahari', 'Jl. Gurita No.21x, Denpasar, Bali', NULL,
-        NULL, NULL, NULL, NULL, NULL, 2);
+VALUES (12205, 13, 1, 'PERSONALMSG100100', 0, 13, 0, 0, NULL, 0, 0, 1777808710229, 1777808711465, 1777808711000,
+        44, NULL, 0, 0, 12205, 0, 0, NULL, NULL, NULL);
