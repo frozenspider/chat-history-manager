@@ -45,8 +45,7 @@ pub struct Users {
 impl Users {
     fn add_or_get_user_id(&mut self, jid: Jid) -> UserId {
         match self.jids.entry(jid) {
-            Entry::Occupied(ref occ) =>
-                *occ.get(),
+            Entry::Occupied(ref occ) => *occ.get(),
             Entry::Vacant(vac) => {
                 let user_id = UserId(hash_to_id(vac.key()));
                 assert!(!self.occupied_user_ids.contains(&user_id));
@@ -77,16 +76,19 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         &self,
         _feedback_client: &dyn FeedbackClientSync,
         users: Users,
-        cwms: &[ChatWithMessages]
+        cwms: &[ChatWithMessages],
     ) -> Result<Vec<User>> {
         let myself_id = users.myself_id.unwrap();
         // Filter out users not participating in chats.
-        let participating_user_ids: HashSet<i64, Hasher> = cwms.iter()
+        let participating_user_ids: HashSet<i64, Hasher> = cwms
+            .iter()
             .map(|cwm| &cwm.chat)
             .flat_map(|c| &c.member_ids)
             .copied()
             .collect();
-        let mut users = users.id_to_user.into_values()
+        let mut users = users
+            .id_to_user
+            .into_values()
             .filter(|u| u.id == *myself_id || participating_user_ids.contains(&u.id))
             .collect_vec();
         // Set myself to be a first member (not required by convention but to match existing behaviour).
@@ -99,7 +101,7 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         conn: &Connection,
         _feedback_client: &dyn FeedbackClientSync,
         ds_uuid: &PbUuid,
-        _path: &Path
+        _path: &Path,
     ) -> Result<Users> {
         let mut users: Users = Default::default();
 
@@ -161,7 +163,7 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         _feedback_client: &dyn FeedbackClientSync,
         ds_uuid: &PbUuid,
         _path: &Path,
-        users: &mut Users
+        users: &mut Users,
     ) -> Result<Vec<ChatWithMessages>> {
         parse_chats(conn, ds_uuid, users)
     }
@@ -229,8 +231,8 @@ enum MessageType {
     Deleted = 15,
     LiveLocation = 16,
     AnimatedSticker = 20,
-    /// Linked item is in `message_product`.
-    BusinessItem = 23,
+    /// Sent a business item with details and proposal to add it to the cart, linked item is in `message_product`.
+    SentBusinessItem = 23,
     /// ???
     BusinessItemTemplated = 25,
     OneTimePassword = 27,
@@ -333,12 +335,13 @@ mod columns {
     }
 
     pub mod message_order {
+        pub const ORDER_TITLE: &str = "order_title";
         pub const ITEM_COUNT: &str = "item_count";
     }
 
     pub mod message_product {
-        pub const TITLE: &str = "title";
-        pub const DESCRIPTION: &str = "description";
+        pub const TITLE: &str = "product_title";
+        pub const DESCRIPTION: &str = "product_description";
     }
 
     pub mod call_logs {
@@ -363,7 +366,11 @@ enum TextParsingState {
     None,
 }
 
-fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
+fn parse_chats(
+    conn: &Connection,
+    ds_uuid: &PbUuid,
+    users: &mut Users,
+) -> Result<Vec<ChatWithMessages>> {
     // Parent to child
     let assoc_ids = parse_message_associations(conn)?;
     // Child to parent
@@ -438,7 +445,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
      * - For source_id, we're using hash of `message.key_id` and `call_log.call_id`.
      */
     let mut msgs_stmt = {
-        use columns::{chat::*, message::*, message_revoked::*, message_ui_elements::*, *};
+        use columns::{chat::*, message::*, message_revoked::*, message_product::*, message_ui_elements::*, *};
         fn join_by_message_id(table_name: &str) -> String {
             format!("LEFT JOIN {table_name} ON {table_name}.message_row_id = message._id")
         }
@@ -455,6 +462,10 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
                   message_forwarded.forward_score,
                   {},
                   {},
+                  message_order.order_title,
+                  message_order.item_count,
+                  message_product.title AS {TITLE},
+                  message_product.description AS {DESCRIPTION},
                   message_vcard.vcard,
                   message_revoked.{REVOKED_KEY},
                   message_revoked.{REVOKE_TIMESTAMP},
@@ -469,6 +480,8 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
               INNER JOIN chat                  ON chat._id             = message.chat_row_id
               INNER JOIN jid  chat_jid         ON chat_jid._id         = chat.jid_row_id
               LEFT  JOIN jid  sender_jid       ON sender_jid._id       = message.{SENDER_JID_ROW_ID}
+              {}
+              {}
               {}
               {}
               {}
@@ -502,6 +515,8 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             join_by_message_id("message_forwarded"),
             join_by_message_id("message_media"),
             join_by_message_id("message_location"),
+            join_by_message_id("message_order"),
+            join_by_message_id("message_product"),
             join_by_message_id("message_vcard"),
             join_by_message_id("message_revoked"),
             join_by_message_id("message_system"),
@@ -618,7 +633,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             let from_id: UserId = match row.get(columns::call_logs::FROM_ME)? {
                 1 => myself_id,
                 0 => UserId(hash_to_id(&row.get::<_, String>(columns::SENDER_JID)?)),
-                _ => unreachable!()
+                _ => unreachable!(),
             };
             assert!(users.id_to_user.contains_key(&from_id));
             member_ids.insert(from_id);
@@ -703,7 +718,7 @@ fn parse_message<'a>(
     let from_me = match row.get(columns::message::FROM_ME)? {
         0 => false,
         1 => true,
-        _ => panic!("Unexpected '{}' value!", columns::message::FROM_ME)
+        _ => panic!("Unexpected '{}' value!", columns::message::FROM_ME),
     };
     let sender_jid = &row.get::<_, Option<String>>(columns::SENDER_JID)?;
 
@@ -715,7 +730,7 @@ fn parse_message<'a>(
             if from_me { myself_id } else { UserId(chat.id) },
         ChatType::PrivateGroup => match sender_jid {
             None => myself_id,
-            Some(sender_jid) => UserId(hash_to_id(sender_jid))
+            Some(sender_jid) => UserId(hash_to_id(sender_jid)),
         },
     };
 
@@ -738,7 +753,7 @@ fn parse_message<'a>(
         };
         match result_option {
             Some(v) => v,
-            None => return Ok(None)
+            None => return Ok(None),
         }
     };
 
@@ -750,7 +765,7 @@ fn parse_message<'a>(
                 Ok(None) => vec![], // Text not supplies
                 Ok(Some(s)) if s.is_empty() => vec![],
                 Ok(Some(text)) => vec![RichText::make_plain(text)],
-                Err(e) => return Err(e)?
+                Err(e) => return Err(e)?,
             }
         }
         TextParsingState::Parsed(text) => text,
@@ -829,7 +844,7 @@ fn parse_system_message<'a>(
                             height: 0,
                             mime_type_option: None,
                             is_one_time: false,
-                        }
+                        },
                     })
                 }
                 SystemActionType::GroupCreate => {
@@ -869,9 +884,11 @@ fn parse_system_message<'a>(
                     ]);
                     Notice(MessageServiceNotice {})
                 }
-                SystemActionType::PrivacyProvider | SystemActionType::DisappearTimerDisabled |
-                SystemActionType::BecameBusinessAccount | SystemActionType::BusinessState |
-                SystemActionType::IsAContact => {
+                SystemActionType::PrivacyProvider
+                | SystemActionType::DisappearTimerDisabled
+                | SystemActionType::BecameBusinessAccount
+                | SystemActionType::BusinessState
+                | SystemActionType::IsAContact => {
                     return Ok(None);
                 }
             }
@@ -914,6 +931,23 @@ fn parse_regular_message(
         row.get::<_, Option<String>>(columns::message_media::MIME_TYPE)?
             .and_then(|s| if s.is_empty() { None } else { Some(s) });
 
+    let get_optional_photo = {
+        let mime_type_option = mime_type_option.clone();
+        || -> Result<Option<Content>> {
+            Ok(if let Some(path) = row.get(columns::message_media::FILE_PATH)? {
+                Some(content!(Photo {
+                path_option: Some(path),
+                width: row.get(columns::message_media::WIDTH)?,
+                height: row.get(columns::message_media::HEIGHT)?,
+                mime_type_option,
+                is_one_time: false,
+            }))
+            } else {
+                None
+            })
+        }
+    };
+
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
     let contents = match msg_tpe {
         MessageType::Text => vec![],
@@ -931,8 +965,33 @@ fn parse_regular_message(
             vec![]
         }
         MessageType::SentCart => {
-            // panic!("AAAAA!")
-            vec![] // FIXME
+            let order_title: Option<String> = row.get(columns::message_order::ORDER_TITLE)?;
+            let item_count: u32 = row.get(columns::message_order::ITEM_COUNT)?;
+            let mut text = vec![RichText::make_italic("(Shared catalog)\n".to_owned())];
+            if let Some(order_title) = order_title {
+                text.push(RichText::make_bold(format!("{order_title}, ")));
+            }
+            text.push(RichText::make_plain(format!("{item_count} item(s)")));
+            text_state = TextParsingState::Parsed(text);
+
+            let mut content = vec![];
+            if let Some(photo) = get_optional_photo()? {
+                content.push(photo);
+            }
+            content
+        }
+        MessageType::SentBusinessItem => {
+            text_state = TextParsingState::Parsed(vec![
+                RichText::make_bold(row.get(columns::message_product::TITLE)?),
+                RichText::make_bold("\n".to_owned()),
+                RichText::make_plain(row.get(columns::message_product::DESCRIPTION)?),
+            ]);
+
+            let mut content = vec![];
+            if let Some(photo) = get_optional_photo()? {
+                content.push(photo);
+            }
+            content
         }
         MessageType::OneTimePhoto => {
             text_state = TextParsingState::None;
@@ -1058,9 +1117,13 @@ fn parse_regular_message(
             [parse_optional_location(row)?].into_iter().flatten().collect()
         }
         // We're not interested in these
-        MessageType::WaitingForMessage | MessageType::BusinessItem | MessageType::BusinessItemTemplated |
-        MessageType::OneTimePassword | MessageType::WhatsAppMessage | MessageType::DisappearTimerSet =>
-            return Ok(None),
+        MessageType::WaitingForMessage
+        | MessageType::BusinessItemTemplated
+        | MessageType::OneTimePassword
+        | MessageType::WhatsAppMessage
+        | MessageType::DisappearTimerSet => {
+            return Ok(None)
+        }
         MessageType::System => unreachable!(),
         MessageType::MissedCall => unreachable!(),
         MessageType::VideoCall => unreachable!(),

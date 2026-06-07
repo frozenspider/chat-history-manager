@@ -325,7 +325,7 @@ fn loading_2026_05() -> EmptyRes {
 
     assert_eq!(dao.users_single_ds(), vec![myself.clone(), member.clone()]);
 
-    assert_eq!(dao.cwms_single_ds().len(), 1);
+    assert_eq!(dao.cwms_single_ds().len(), 2);
 
     {
         let cwm = dao.cwms_single_ds().into_iter().find(|cwm| cwm.chat.tpe == ChatType::PrivateGroup as i32).unwrap();
@@ -359,14 +359,14 @@ fn loading_2026_05() -> EmptyRes {
                 reply_to_message_id_option: None,
                 contents: vec![
                     content!(Photo {
-                        path_option: Some("Media/img-2.jpg".to_owned()),
+                        path_option: Some("Media/album-2.jpg".to_owned()),
                         width: 1204,
                         height: 1600,
                         mime_type_option: Some("image/jpeg".to_owned()),
                         is_one_time: false,
                     }),
                     content!(Photo {
-                        path_option: Some("Media/img-1.jpg".to_owned()),
+                        path_option: Some("Media/album-1.jpg".to_owned()),
                         width: 1204,
                         height: 1600,
                         mime_type_option: Some("image/jpeg".to_owned()),
@@ -377,7 +377,6 @@ fn loading_2026_05() -> EmptyRes {
         });
     }
 
-    /*
     {
         let cwm = dao.cwms_single_ds().into_iter().find(|cwm| cwm.chat.tpe == ChatType::Personal as i32).unwrap();
         let chat = cwm.chat;
@@ -399,44 +398,59 @@ fn loading_2026_05() -> EmptyRes {
         assert_eq!(msgs[0], Message {
             internal_id: 0,
             source_id_option: Some(3891646720130869054),
-            timestamp: 1687757170,
-            from_id: member.id,
-            text: vec![],
-            searchable_string: "Jl. Gurita No.21x, Denpasar, Bali New Bahari -8.70385650 115.21673666".to_owned(),
+            timestamp: 1777808710,
+            from_id: myself.id,
+            text: vec![
+                RichText::make_italic("(Shared catalog)\n".to_owned()),
+                RichText::make_bold("Order Title, ".to_owned()),
+                RichText::make_plain("1 item(s)".to_owned()),
+            ],
+            searchable_string: "(Shared catalog) Order Title, 1 item(s)".to_owned(),
             typed: Some(message_regular! {
                 edit_timestamp_option: None,
                 is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
                 contents: vec![
-                    content!(Location {
-                        title_option: Some("New Bahari".to_owned()),
-                        address_option: Some("Jl. Gurita No.21x, Denpasar, Bali".to_owned()),
-                        lat_str: "-8.70385650".to_string(),
-                        lon_str: "115.21673666".to_string(),
-                        duration_sec_option: Some(123),
-                    })
+                    content!(Photo {
+                        path_option: Some("Media/sent-cart.jpeg".to_owned()),
+                        width: 0,
+                        height: 0,
+                        mime_type_option: None,
+                        is_one_time: false,
+                    }),
                 ],
             }),
         });
 
         assert_eq!(msgs[1], Message {
             internal_id: 1,
-            source_id_option: Some(8221205389172673925),
-            timestamp: 1693993938,
-            from_id: myself.id,
-            text: vec![],
-            searchable_string: "".to_owned(),
+            source_id_option: Some(5492094371688353207),
+            timestamp: 1777812766,
+            from_id: member.id,
+            text: vec![
+                RichText::make_bold("Item Title\n".to_owned()),
+                RichText::make_plain("Item Description".to_owned()),
+            ],
+            searchable_string: "Item Title Item Description".to_owned(),
             typed: Some(message_regular! {
-                edit_timestamp_option: Some(1693993963),
-                is_deleted: true,
+                edit_timestamp_option: None,
+                is_deleted: false,
                 forward_from_name_option: None,
                 reply_to_message_id_option: None,
-                contents: vec![],
+                contents: vec![
+                    content!(Photo {
+                        path_option: Some("Media/sent-business-item.jpg".to_owned()),
+                        width: 1600,
+                        height: 1200,
+                        mime_type_option: Some("image/jpeg".to_owned()),
+                        is_one_time: false,
+                    }),
+                ],
             }),
         });
     }
-    */
+
     Ok(())
 }
 

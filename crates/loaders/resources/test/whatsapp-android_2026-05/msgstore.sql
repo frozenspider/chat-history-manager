@@ -207,6 +207,38 @@ CREATE TABLE message_media (
     emoji_tags                          TEXT,
     is_offloaded                        INTEGER
 );
+CREATE TABLE message_order (
+    message_row_id    INTEGER PRIMARY KEY,
+    order_id          TEXT,
+    thumbnail         BLOB,
+    order_title       TEXT,
+    item_count        INTEGER,
+    status            INTEGER,
+    surface           INTEGER,
+    message           TEXT,
+    seller_jid        INTEGER,
+    token             TEXT,
+    currency_code     TEXT,
+    total_amount_1000 INTEGER,
+    message_version   INTEGER,
+    catalog_type      TEXT
+);
+CREATE TABLE message_product (
+    message_row_id      INTEGER PRIMARY KEY,
+    business_owner_jid  INTEGER,
+    product_id          TEXT,
+    title               TEXT,
+    description         TEXT,
+    currency_code       TEXT,
+    amount_1000         INTEGER,
+    retailer_id         TEXT,
+    url                 TEXT,
+    product_image_count INTEGER,
+    sale_amount_1000    INTEGER,
+    body                TEXT,
+    footer              TEXT,
+    signed_url          TEXT
+);
 CREATE TABLE message_quoted (
     message_row_id             INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_row_id                INTEGER NOT NULL,
@@ -308,12 +340,43 @@ VALUES (12116, 338, 1, NULL, '70527068-f55f-4e4d-97db-a61654e0bc79', 1, 0,
 
 -- Personal chat with user 1 (jid = #252)
 INSERT INTO chat
-VALUES (148, 252, 0, NULL, 1687705763841, 7747, 7747, 7756, 7756, 1, 1, 1696244219000, NULL, NULL, 1, 0, 0, 0, 0, 1,
-        0, 1, 0, 86400, NULL, 1696243309000, 0, 0, 0, 55, 55, 0, NULL, NULL,
-        7756, 7747, 7747, 7756, 0, 0, 0, 0, NULL,
-        'general', NULL, 932, 2, NULL, NULL, NULL, NULL, NULL, NULL);
+VALUES (13, 252, 0, NULL, 1632502361031, 12243, 12243, 12243, 12242, 1, 1, 1777813013000, NULL, 0.0, 1, 0, 0, 0, 0, 1,
+        0, 1, 0, 0, NULL, 0, 0, 0, 0, 106, 106, 0, NULL, NULL,
+        12243, 12243, 12243, 12242, 0, 0, NULL, 0, 0,
+        'general', 0, 252, 2, -1, 0, 0, NULL, 0, 0);
 
 -- SentCart message
 INSERT INTO message
 VALUES (12205, 13, 1, 'PERSONALMSG100100', 0, 13, 0, 0, NULL, 0, 0, 1777808710229, 1777808711465, 1777808711000,
         44, NULL, 0, 0, 12205, 0, 0, NULL, NULL, NULL);
+
+INSERT INTO message_order
+VALUES (12205, '1333111515535703', X'deadbeef',
+        'Order Title', 1, 1, 1, '', 252, 'meh', NULL, NULL, 1, 'NATIVE');
+
+INSERT INTO message_media
+VALUES (12205, 13, 0, NULL, 'c11ef04f-d54f-4b7d-9cac-27dff907ee27', 1, 0,
+        'Media/sent-cart.jpeg', 246751, 0, 0, 0, 0, 0,
+        X'd8b7749fc6d294615e042802395551f3a6295f097485fce780c15de33a48f977', 1777808710291, 0, 0, 0, 0, 0.75,
+        '/doesntmatter', NULL, 0, 'https://mmg.whatsapp.net/o1/doesntmatter',
+        NULL, 246751, 'sent-cart-real-name.jpeg', 'meh', 0, 0,
+        'meh', NULL, NULL, 0, NULL, 0,
+        NULL, NULL, NULL, NULL, 0, NULL, -1, NULL, 0, NULL, NULL, NULL, 0, X'deadbeef', 0, NULL, NULL);
+
+-- SentBusinessItem message
+INSERT INTO message
+VALUES (12241, 13, 0, 'PERSONALMSG100101', 0, 16, 0, 0, NULL, 0, 0, 1777812766000, 1777812767206, -1,
+        23, NULL, 0, 0, 12241, 0, 0, NULL, NULL, NULL);
+
+INSERT INTO message_product
+VALUES (12241, 223, '4903023773137584',
+        'Item Title', 'Item Description', 'USD', 0, '', '', 10, 0, '', '', '');
+
+INSERT INTO message_media
+VALUES (12241, 13, 1, NULL, '1bf3a8ab-333d-4544-bab0-beb6f2847e14', 1, 0,
+        'Media/sent-business-item.jpg', 264270, 0, 0, 0, 0, 0,
+        X'78fa3d0afda1049f82ee0e2c9111d0ba49a98bdbaf4fbabcc6fb55e3799da5bc', 1777812765000, 1600, 1200, 1, 0, 1.0,
+        '/doesntmatter', X'72ccfbc720ba5de53b4f', 18713, 'https://mmg.whatsapp.net/o1/doesntmatter',
+        'image/jpeg', 264270, NULL, 'meh', 0, 0,
+        'meh', 'meh', NULL, 0, NULL, 0,
+        NULL, NULL, NULL, NULL, 0, NULL, 0, NULL, 0, NULL, NULL, NULL, 0, NULL, 0, NULL, NULL);

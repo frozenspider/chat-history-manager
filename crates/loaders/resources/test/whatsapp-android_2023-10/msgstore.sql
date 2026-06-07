@@ -161,6 +161,36 @@ CREATE TABLE message_media (
     media_caption                TEXT,
     media_upload_handle          TEXT
 );
+CREATE TABLE message_order (
+    message_row_id    INTEGER PRIMARY KEY,
+    order_id          TEXT,
+    thumbnail         BLOB,
+    order_title       TEXT,
+    item_count        INTEGER,
+    status            INTEGER,
+    surface           INTEGER,
+    message           TEXT,
+    seller_jid        INTEGER,
+    token             TEXT,
+    currency_code     TEXT,
+    total_amount_1000 INTEGER,
+    message_version   INTEGER
+);
+CREATE TABLE message_product (
+    message_row_id      INTEGER PRIMARY KEY,
+    business_owner_jid  INTEGER,
+    product_id          TEXT,
+    title               TEXT,
+    description         TEXT,
+    currency_code       TEXT,
+    amount_1000         INTEGER,
+    retailer_id         TEXT,
+    url                 TEXT,
+    product_image_count INTEGER,
+    sale_amount_1000    INTEGER,
+    body                TEXT,
+    footer              TEXT
+);
 CREATE TABLE message_quoted (
     message_row_id             INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_row_id                INTEGER NOT NULL,
