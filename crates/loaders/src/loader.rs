@@ -86,20 +86,43 @@ fn first_line(path: &Path) -> Result<String> {
 fn normalize_rich_text(mut rtes: Vec<RichTextElement>) -> Vec<RichTextElement> {
     use rich_text_element::Val;
 
-    // Concatenate consecutive plaintext elements
+    // Concatenate consecutive "trivial" text elements
     let mut i = 0;
     while (i + 1) < rtes.len() {
         let el1 = &rtes[i];
         let el2 = &rtes[i + 1];
-        if let (Some(Val::Plain(plain1)), Some(Val::Plain(plain2))) = (&el1.val, &el2.val) {
-            let mut new_text = String::new();
-            new_text.push_str(&plain1.text);
-            new_text.push_str(&plain2.text);
-            let new_plain = RichText::make_plain(new_text);
-            rtes.splice(i..=(i + 1), vec![new_plain]);
-        } else {
-            i += 1;
+        if let (Some(el1), Some(el2)) = (&el1.val, &el2.val)
+            && std::mem::discriminant(el1) == std::mem::discriminant(el2)
+        {
+            macro_rules! concat_trivial_texts {
+                ([$($trivial:ident),+], [$($non_trivial:ident),*]) => {
+                    paste::paste! {
+                        match (el1, el2) {
+                            $((Val::$trivial(v1), Val::$trivial(v2)) => {
+                                let mut new_text = String::new();
+                                new_text.push_str(&v1.text);
+                                new_text.push_str(&v2.text);
+                                let new = RichText::[<make_ $trivial:lower>](new_text);
+                                rtes.splice(i..=(i + 1), vec![new]);
+                                continue; // Avoid incrementing `i`
+                            }),+
+                            $((Val::$non_trivial(_), Val::$non_trivial(_)) => {
+                                // NOOP, fall-through
+                            }),*
+
+                            _ => panic!("Unsupported rich text element types: {:?}, {:?}", el1, el2),
+                        }
+                    };
+                }
+            }
+
+            concat_trivial_texts!(
+                [Plain, Bold, Italic, Underline, Strikethrough],
+                [Link, PrefmtInline, PrefmtBlock, Blockquote, Spoiler]
+            );
         }
+        // If `continue` wasn't called
+        i += 1;
     }
 
     fn is_whitespaces(rte: &RichTextElement) -> bool {

@@ -1,12 +1,11 @@
-use std::collections::hash_map::Entry;
-
-use ical::VcardParser;
+use super::android::AndroidDataLoader;
+use super::*;
+use calcard::vcard::VCardProperty;
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
 use rusqlite::{Connection, OptionalExtension, Row, Statement};
-use super::*;
-use super::android::AndroidDataLoader;
+use std::collections::hash_map::Entry;
 
 #[cfg(test)]
 #[path = "whatsapp_android_tests.rs"]
@@ -28,6 +27,13 @@ pub const DB_FILENAME: &str = "msgstore.db";
 type Jid = String;
 type MessageKey = String;
 
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct MessageRowId(i64);
+
+/// Message association: parent message and child messages. Currently only used for media albums.
+type MessageAssocMap = HashMap<MessageRowId, Vec<MessageRowId>>;
+
 #[derive(Default)]
 pub struct Users {
     jids: HashMap<Jid, UserId>,
@@ -39,8 +45,7 @@ pub struct Users {
 impl Users {
     fn add_or_get_user_id(&mut self, jid: Jid) -> UserId {
         match self.jids.entry(jid) {
-            Entry::Occupied(ref occ) =>
-                *occ.get(),
+            Entry::Occupied(ref occ) => *occ.get(),
             Entry::Vacant(vac) => {
                 let user_id = UserId(hash_to_id(vac.key()));
                 assert!(!self.occupied_user_ids.contains(&user_id));
@@ -71,16 +76,19 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         &self,
         _feedback_client: &dyn FeedbackClientSync,
         users: Users,
-        cwms: &[ChatWithMessages]
+        cwms: &[ChatWithMessages],
     ) -> Result<Vec<User>> {
         let myself_id = users.myself_id.unwrap();
         // Filter out users not participating in chats.
-        let participating_user_ids: HashSet<i64, Hasher> = cwms.iter()
+        let participating_user_ids: HashSet<i64, Hasher> = cwms
+            .iter()
             .map(|cwm| &cwm.chat)
             .flat_map(|c| &c.member_ids)
             .copied()
             .collect();
-        let mut users = users.id_to_user.into_values()
+        let mut users = users
+            .id_to_user
+            .into_values()
             .filter(|u| u.id == *myself_id || participating_user_ids.contains(&u.id))
             .collect_vec();
         // Set myself to be a first member (not required by convention but to match existing behaviour).
@@ -93,7 +101,7 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         conn: &Connection,
         _feedback_client: &dyn FeedbackClientSync,
         ds_uuid: &PbUuid,
-        _path: &Path
+        _path: &Path,
     ) -> Result<Users> {
         let mut users: Users = Default::default();
 
@@ -155,7 +163,7 @@ impl AndroidDataLoader for WhatsAppAndroidDataLoader {
         _feedback_client: &dyn FeedbackClientSync,
         ds_uuid: &PbUuid,
         _path: &Path,
-        users: &mut Users
+        users: &mut Users,
     ) -> Result<Vec<ChatWithMessages>> {
         parse_chats(conn, ds_uuid, users)
     }
@@ -223,7 +231,9 @@ enum MessageType {
     Deleted = 15,
     LiveLocation = 16,
     AnimatedSticker = 20,
-    BusinessItem = 23,
+    /// Sent a business item with details and proposal to add it to the cart, linked item is in `message_product`.
+    SentBusinessItem = 23,
+    /// ???
     BusinessItemTemplated = 25,
     OneTimePassword = 27,
     WhatsAppMessage = 28,
@@ -232,10 +242,14 @@ enum MessageType {
     DisappearTimerSet = 36,
     OneTimePhoto = 42,
     OneTimeVideo = 43,
+    /// Sent a cart with some items selected - see `message_order` for items list.
+    SentCart = 44,
     /// Details are in `message_ui_elements`.
     /// So far it also seems to contain location, although not sure if that's always the case.
     UiMessage = 85,
     VideoCall = 90,
+    /// Album consisting of multiple messages with media, all associated together.
+    Album = 99,
 }
 
 #[repr(i32)]
@@ -261,6 +275,8 @@ enum SystemActionType {
     PrivacyProvider = 67,
     /// Don't know the exact specifics, but it's not interesting anyway
     BusinessState = 69,
+    /// "XXX changed this group's settings to allow only admins to add others to this group"
+    AllowOnlyAdminsToAddUsers = 92,
     /// No idea what it is
     IsAContact = 129,
 }
@@ -271,6 +287,7 @@ mod columns {
     }
 
     pub mod message {
+        pub const ID: &str = "_id";
         pub const TIMESTAMP: &str = "timestamp";
         pub const FROM_ME: &str = "from_me";
         pub const KEY: &str = "key_id";
@@ -281,6 +298,12 @@ mod columns {
         // References
         pub const SENDER_JID_ROW_ID: &str = "sender_jid_row_id";
         pub const CHAT_ROW_ID: &str = "chat_row_id";
+    }
+
+    pub mod message_association {
+        pub const CHILD_MESSAGE_ROW_ID: &str = "child_message_row_id";
+        pub const PARENT_MESSAGE_ROW_ID: &str = "parent_message_row_id";
+        pub const ASSOCIATION_TYPE: &str = "association_type";
     }
 
     pub mod message_media {
@@ -311,6 +334,16 @@ mod columns {
         pub const REVOKE_TIMESTAMP: &str = "revoke_timestamp";
     }
 
+    pub mod message_order {
+        pub const ORDER_TITLE: &str = "order_title";
+        pub const ITEM_COUNT: &str = "item_count";
+    }
+
+    pub mod message_product {
+        pub const TITLE: &str = "product_title";
+        pub const DESCRIPTION: &str = "product_description";
+    }
+
     pub mod call_logs {
         pub const TIMESTAMP: &str = "timestamp";
         pub const FROM_ME: &str = "from_me";
@@ -333,7 +366,21 @@ enum TextParsingState {
     None,
 }
 
-fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result<Vec<ChatWithMessages>> {
+fn parse_chats(
+    conn: &Connection,
+    ds_uuid: &PbUuid,
+    users: &mut Users,
+) -> Result<Vec<ChatWithMessages>> {
+    // Parent to child
+    let assoc_ids = parse_message_associations(conn)?;
+    // Child to parent
+    let rev_assoc_ids: HashMap<MessageRowId, MessageRowId> = assoc_ids
+        .iter()
+        .flat_map(|(parent, children)| {
+            children.iter().map(|child| (*child, *parent))
+        })
+        .collect();
+
     let mut cwms_map: HashMap<Jid, ChatWithMessages> = Default::default();
     let myself_id = users.myself_id.unwrap();
 
@@ -398,7 +445,7 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
      * - For source_id, we're using hash of `message.key_id` and `call_log.call_id`.
      */
     let mut msgs_stmt = {
-        use columns::{*, chat::*, message::*, message_revoked::*, message_ui_elements::*};
+        use columns::{chat::*, message::*, message_revoked::*, message_product::*, message_ui_elements::*, *};
         fn join_by_message_id(table_name: &str) -> String {
             format!("LEFT JOIN {table_name} ON {table_name}.message_row_id = message._id")
         }
@@ -415,6 +462,10 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
                   message_forwarded.forward_score,
                   {},
                   {},
+                  message_order.order_title,
+                  message_order.item_count,
+                  message_product.title AS {TITLE},
+                  message_product.description AS {DESCRIPTION},
                   message_vcard.vcard,
                   message_revoked.{REVOKED_KEY},
                   message_revoked.{REVOKE_TIMESTAMP},
@@ -429,6 +480,8 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
               INNER JOIN chat                  ON chat._id             = message.chat_row_id
               INNER JOIN jid  chat_jid         ON chat_jid._id         = chat.jid_row_id
               LEFT  JOIN jid  sender_jid       ON sender_jid._id       = message.{SENDER_JID_ROW_ID}
+              {}
+              {}
               {}
               {}
               {}
@@ -462,6 +515,8 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
             join_by_message_id("message_forwarded"),
             join_by_message_id("message_media"),
             join_by_message_id("message_location"),
+            join_by_message_id("message_order"),
+            join_by_message_id("message_product"),
             join_by_message_id("message_vcard"),
             join_by_message_id("message_revoked"),
             join_by_message_id("message_system"),
@@ -487,118 +542,109 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
     };
 
     for (jid, cwm) in cwms_map.iter_mut() {
+        // Position of parents in message list
+        let mut assoc_parent_id_pos: HashMap<MessageSourceId, usize> = Default::default();
+        // Temporary storage for child messages
+        let mut assocs: HashMap<MessageSourceId, Vec<Message>> = Default::default();
+
         let mut msg_rows = msgs_stmt.query([jid])?;
         let mut call_rows = calls_stmt.query([jid])?;
         let chat: &mut Chat = &mut cwm.chat;
-        let chat_tpe = ChatType::resolve(chat.tpe).unwrap();
 
         let mut member_ids: HashSet<UserId, Hasher> = Default::default();
         member_ids.insert(myself_id);
 
-        let mut msg_key_to_source_id: HashMap<MessageKey, i64, Hasher> = Default::default();
+        let mut msg_key_to_source_id: HashMap<MessageKey, MessageSourceId, Hasher> = Default::default();
+        let mut msg_row_id_to_source_id: HashMap<MessageRowId, MessageSourceId, Hasher> = Default::default();
 
         while let Some(row) = msg_rows.next()? {
-            let from_me = match row.get(columns::message::FROM_ME)? {
-                0 => false,
-                1 => true,
-                _ => panic!("Unexpected '{}' value!", columns::message::FROM_ME)
-            };
-            let sender_jid = &row.get::<_, Option<String>>(columns::SENDER_JID)?;
+            if let Some((row_id, message)) = parse_message(
+                row,
+                chat,
+                myself_id,
+                users,
+                &mut member_ids,
+                &mut msg_key_to_source_id,
+            )? {
+                let src_id = message.source_id();
+                msg_row_id_to_source_id.insert(row_id, src_id);
 
-            // WhatsApp is weird in this aspect. When it comes to group chat, from_me is set to 1 on
-            // system messages even though sender JID points to the real actor.
-            // If this is a personal chat, non-myself sender ID matches chat ID.
-            let from_id: UserId = match chat_tpe {
-                ChatType::Personal =>
-                    if from_me { myself_id } else { UserId(chat.id) },
-                ChatType::PrivateGroup => match sender_jid {
-                    None => myself_id,
-                    Some(sender_jid) => UserId(hash_to_id(sender_jid))
-                },
-            };
+                if let Some(parent_src_id) = rev_assoc_ids
+                    .get(&row_id)
+                    .and_then(|parent_row_id| msg_row_id_to_source_id.get(parent_row_id))
+                {
+                    // This message is part of an album, store it temporarily to later merge into parent message.
+                    assocs.entry(*parent_src_id).or_default().push(message)
+                } else {
+                    cwm.messages.push(message);
 
-            assert!(users.id_to_user.contains_key(&from_id));
-            member_ids.insert(from_id);
-
-            let msg_tpe = row.get::<_, i32>(columns::message::TYPE)?;
-            let msg_tpe = FromPrimitive::from_i32(msg_tpe).with_context(||
-                format!("Unknown message type ID: {msg_tpe}")
-            )?;
-
-            let (typed, text_state) = {
-                let result_option = match msg_tpe {
-                    MessageType::System | MessageType::MissedCall =>
-                        parse_system_message(row, msg_tpe, users, &mut member_ids)?,
-                    MessageType::VideoCall =>
-                        None, // Will be processed when parsing call_rows
-                    _ =>
-                        parse_regular_message(row, msg_tpe, &msg_key_to_source_id)?
-                };
-                match result_option {
-                    Some(v) => v,
-                    None => continue
-                }
-            };
-
-            // Technically, text uses markdown, but oh well
-            let text = match text_state {
-                TextParsingState::Column(col) => {
-                    let text_str = row.get::<_, Option<String>>(col);
-                    match text_str {
-                        Ok(None) => vec![], // Text not supplies
-                        Ok(Some(s)) if s.is_empty() => vec![],
-                        Ok(Some(text)) => vec![RichText::make_plain(text)],
-                        Err(e) => return Err(e)?
+                    if assoc_ids.contains_key(&row_id) {
+                        assoc_parent_id_pos.insert(src_id, cwm.messages.len() - 1);
                     }
                 }
-                TextParsingState::Parsed(text) => text,
-                TextParsingState::None => vec![], // Data type implies no text
             };
-            let text = normalize_rich_text(text);
+        }
 
-            let key: MessageKey = row.get(columns::message::KEY)?;
-            let source_id = hash_to_id(&key);
-            msg_key_to_source_id.insert(key, source_id);
+        // Merge albums into parent messages
+        for (parent_src_id, parent_idx) in &assoc_parent_id_pos {
+            let parent = &mut cwm.messages[*parent_idx];
+            let Some(children) = assocs.get_mut(parent_src_id) else {
+                bail!("Associated messages hierarchy is broken!")
+            };
+            let Some(message::Typed::Regular(parent_typed)) = parent.typed.as_mut() else {
+                bail!("Associated messages parent message is of unexpected type!");
+            };
 
-            // Deleted message has a different key ID. This is important when users are replying to the message
-            // that was later deleted. To fix this, we're linking a deleted key to existing placeholder deleted message.
-            if msg_tpe == MessageType::Deleted {
-                let revoked_key: MessageKey = row.get(columns::message_revoked::REVOKED_KEY)?;
-                msg_key_to_source_id.insert(revoked_key, source_id);
+            let mut text = std::mem::take(&mut parent.text);
+            let mut contents = std::mem::take(&mut parent_typed.contents);
+
+            let children = std::mem::take(children);
+            for child in children {
+                text.extend(child.text);
+                let Some(message::Typed::Regular(child_typed)) = child.typed else {
+                    bail!("Associated messages child message is of unexpected type!");
+                };
+
+                contents.extend(child_typed.contents);
             }
 
-            let ts = row.get::<_, i64>(columns::message::TIMESTAMP)?;
-
-            cwm.messages.push(Message::new(
-                *NO_INTERNAL_ID,
-                Some(source_id),
-                ts / 1000,
-                from_id,
+            // Overwriting parent message entirely to avoid issues like searchable string.
+            *parent = Message::new(
+                parent.internal_id,
+                parent.source_id_option,
+                parent.timestamp,
+                UserId(parent.from_id),
                 text,
-                typed,
-            ));
+                message_regular! {
+                    edit_timestamp_option: parent_typed.edit_timestamp_option,
+                    is_deleted: parent_typed.is_deleted,
+                    forward_from_name_option: parent_typed.forward_from_name_option.clone(),
+                    reply_to_message_id_option: parent_typed.reply_to_message_id_option,
+                    contents,
+                },
+            );
         }
 
         while let Some(row) = call_rows.next()? {
-            if chat_tpe == ChatType::PrivateGroup {
+            if chat.tpe() == ChatType::PrivateGroup {
                 // TODO: Not sure how group chat calls work here
                 log::warn!("Group chat call found and skipped for chat {}!", name_or_unnamed(&chat.name_option));
             }
             let from_id: UserId = match row.get(columns::call_logs::FROM_ME)? {
                 1 => myself_id,
                 0 => UserId(hash_to_id(&row.get::<_, String>(columns::SENDER_JID)?)),
-                _ => unreachable!()
+                _ => unreachable!(),
             };
             assert!(users.id_to_user.contains_key(&from_id));
             member_ids.insert(from_id);
 
             let key: String = row.get(columns::call_logs::CALL_ID)?;
-            let source_id = hash_to_id(&key);
-            msg_key_to_source_id.insert(key, source_id);
+            let src_id = MessageSourceId(hash_to_id(&key));
+            msg_key_to_source_id.insert(key, src_id);
 
             cwm.messages.push(Message::new(
                 *NO_INTERNAL_ID,
-                Some(source_id),
+                Some(*src_id),
                 row.get::<_, i64>(columns::call_logs::TIMESTAMP)? / 1000,
                 from_id,
                 vec![],
@@ -624,6 +670,130 @@ fn parse_chats(conn: &Connection, ds_uuid: &PbUuid, users: &mut Users) -> Result
         .filter(|cwm| cwm.chat.msg_count > 0)
         .filter(|cwm| cwm.messages.iter().any(|m| matches!(m.typed(), message::Typed::Regular(_))))
         .collect_vec())
+}
+
+fn parse_message_associations(conn: &Connection) -> Result<MessageAssocMap> {
+    const TABLE_NAME: &str = "message_association";
+
+    let mut result: MessageAssocMap = MessageAssocMap::new();
+    if !table_exists(conn, TABLE_NAME) {
+        // Probably an older version of WhatsApp, associations are not a thing
+        return Ok(result);
+    }
+
+    let mut assoc_stmt = {
+        use columns::message_association::*;
+        conn.prepare(&format!(
+            r"SELECT * FROM {TABLE_NAME}
+              ORDER BY {PARENT_MESSAGE_ROW_ID} ASC, {CHILD_MESSAGE_ROW_ID} ASC, {ASSOCIATION_TYPE} ASC",
+        ))?
+    };
+
+    let mut assoc_rows = assoc_stmt.query([])?;
+    while let Some(row) = assoc_rows.next()? {
+        use columns::message_association::*;
+        let parent_message_row_id = MessageRowId(row.get::<_, i64>(PARENT_MESSAGE_ROW_ID)?);
+        let child_message_row_id = MessageRowId(row.get::<_, i64>(CHILD_MESSAGE_ROW_ID)?);
+        let association_type = row.get::<_, i32>(ASSOCIATION_TYPE)?;
+
+        // So far we've only seen this one, it means exactly "album"
+        ensure!(association_type == 2, "Unknown association type ID: {association_type}!");
+
+        result.entry(parent_message_row_id).or_default().push(child_message_row_id);
+    }
+
+    Ok(result)
+}
+
+fn parse_message<'a>(
+    row: &Row,
+    chat: &Chat,
+    myself_id: UserId,
+    users: &'a mut Users,
+    member_ids: &mut HashSet<UserId, Hasher>,
+    msg_key_to_source_id: &mut HashMap<MessageKey, MessageSourceId, Hasher>,
+) -> Result<Option<(MessageRowId, Message)>> {
+    let row_id: MessageRowId = MessageRowId(row.get(columns::message::ID)?);
+
+    let from_me = match row.get(columns::message::FROM_ME)? {
+        0 => false,
+        1 => true,
+        _ => panic!("Unexpected '{}' value!", columns::message::FROM_ME),
+    };
+    let sender_jid = &row.get::<_, Option<String>>(columns::SENDER_JID)?;
+
+    // WhatsApp is weird in this aspect. When it comes to group chat, from_me is set to 1 on
+    // system messages even though sender JID points to the real actor.
+    // If this is a personal chat, non-myself sender ID matches chat ID.
+    let from_id: UserId = match chat.tpe() {
+        ChatType::Personal =>
+            if from_me { myself_id } else { UserId(chat.id) },
+        ChatType::PrivateGroup => match sender_jid {
+            None => myself_id,
+            Some(sender_jid) => UserId(hash_to_id(sender_jid)),
+        },
+    };
+
+    assert!(users.id_to_user.contains_key(&from_id));
+    member_ids.insert(from_id);
+
+    let msg_tpe = row.get::<_, i32>(columns::message::TYPE)?;
+    let msg_tpe = FromPrimitive::from_i32(msg_tpe).with_context(||
+        format!("Unknown message type ID: {msg_tpe}")
+    )?;
+
+    let (typed, text_state) = {
+        let result_option = match msg_tpe {
+            MessageType::System | MessageType::MissedCall =>
+                parse_system_message(row, msg_tpe, users, member_ids)?,
+            MessageType::VideoCall =>
+                None, // Will be processed when parsing call_rows
+            _ =>
+                parse_regular_message(row, msg_tpe, msg_key_to_source_id)?
+        };
+        match result_option {
+            Some(v) => v,
+            None => return Ok(None),
+        }
+    };
+
+    // Technically, text uses markdown, but oh well
+    let text = match text_state {
+        TextParsingState::Column(col) => {
+            let text_str = row.get::<_, Option<String>>(col);
+            match text_str {
+                Ok(None) => vec![], // Text not supplies
+                Ok(Some(s)) if s.is_empty() => vec![],
+                Ok(Some(text)) => vec![RichText::make_plain(text)],
+                Err(e) => return Err(e)?,
+            }
+        }
+        TextParsingState::Parsed(text) => text,
+        TextParsingState::None => vec![], // Data type implies no text
+    };
+    let text = normalize_rich_text(text);
+
+    let key: MessageKey = row.get(columns::message::KEY)?;
+    let src_id = MessageSourceId(hash_to_id(&key));
+    msg_key_to_source_id.insert(key, src_id);
+
+    // Deleted message has a different key ID. This is important when users are replying to the message
+    // that was later deleted. To fix this, we're linking a deleted key to existing placeholder deleted message.
+    if msg_tpe == MessageType::Deleted {
+        let revoked_key: MessageKey = row.get(columns::message_revoked::REVOKED_KEY)?;
+        msg_key_to_source_id.insert(revoked_key, src_id);
+    }
+
+    let ts = row.get::<_, i64>(columns::message::TIMESTAMP)?;
+
+    Ok(Some((row_id, Message::new(
+        *NO_INTERNAL_ID,
+        Some(*src_id),
+        ts / 1000,
+        from_id,
+        text,
+        typed,
+    ))))
 }
 
 /// Returns `None` for rows that should be skipped.
@@ -674,7 +844,7 @@ fn parse_system_message<'a>(
                             height: 0,
                             mime_type_option: None,
                             is_one_time: false,
-                        }
+                        },
                     })
                 }
                 SystemActionType::GroupCreate => {
@@ -708,9 +878,17 @@ fn parse_system_message<'a>(
                         is_blocked: row.get::<_, i8>("is_blocked")? == 1
                     })
                 }
-                SystemActionType::PrivacyProvider | SystemActionType::DisappearTimerDisabled |
-                SystemActionType::BecameBusinessAccount | SystemActionType::BusinessState |
-                SystemActionType::IsAContact => {
+                SystemActionType::AllowOnlyAdminsToAddUsers => {
+                    text_state = TextParsingState::Parsed(vec![
+                        RichText::make_plain("Only admins can add users to this group now".to_owned())
+                    ]);
+                    Notice(MessageServiceNotice {})
+                }
+                SystemActionType::PrivacyProvider
+                | SystemActionType::DisappearTimerDisabled
+                | SystemActionType::BecameBusinessAccount
+                | SystemActionType::BusinessState
+                | SystemActionType::IsAContact => {
                     return Ok(None);
                 }
             }
@@ -731,7 +909,7 @@ fn parse_system_message<'a>(
 fn parse_regular_message(
     row: &Row,
     msg_tpe: MessageType,
-    msg_key_to_source_id: &HashMap<MessageKey, i64, Hasher>,
+    msg_key_to_source_id: &HashMap<MessageKey, MessageSourceId, Hasher>,
 ) -> Result<Option<(message::Typed, TextParsingState)>> {
     let mut text_state = TextParsingState::Column(columns::message::TEXT);
 
@@ -753,6 +931,23 @@ fn parse_regular_message(
         row.get::<_, Option<String>>(columns::message_media::MIME_TYPE)?
             .and_then(|s| if s.is_empty() { None } else { Some(s) });
 
+    let get_optional_photo = {
+        let mime_type_option = mime_type_option.clone();
+        || -> Result<Option<Content>> {
+            Ok(if let Some(path) = row.get(columns::message_media::FILE_PATH)? {
+                Some(content!(Photo {
+                path_option: Some(path),
+                width: row.get(columns::message_media::WIDTH)?,
+                height: row.get(columns::message_media::HEIGHT)?,
+                mime_type_option,
+                is_one_time: false,
+            }))
+            } else {
+                None
+            })
+        }
+    };
+
     // TODO: Extract thumbnails from message_thumbnails (not message_thumbnail!) and media_hash_thumbnail
     let contents = match msg_tpe {
         MessageType::Text => vec![],
@@ -764,6 +959,40 @@ fn parse_regular_message(
                 mime_type_option,
                 is_one_time: false,
             })],
+        MessageType::Album => {
+            // This is a parent message of an album, so far it has always been an empty placeholder.
+            // The album will be composed via a separate pass later.
+            vec![]
+        }
+        MessageType::SentCart => {
+            let order_title: Option<String> = row.get(columns::message_order::ORDER_TITLE)?;
+            let item_count: u32 = row.get(columns::message_order::ITEM_COUNT)?;
+            let mut text = vec![RichText::make_italic("(Shared catalog)\n".to_owned())];
+            if let Some(order_title) = order_title {
+                text.push(RichText::make_bold(format!("{order_title}, ")));
+            }
+            text.push(RichText::make_plain(format!("{item_count} item(s)")));
+            text_state = TextParsingState::Parsed(text);
+
+            let mut content = vec![];
+            if let Some(photo) = get_optional_photo()? {
+                content.push(photo);
+            }
+            content
+        }
+        MessageType::SentBusinessItem => {
+            text_state = TextParsingState::Parsed(vec![
+                RichText::make_bold(row.get(columns::message_product::TITLE)?),
+                RichText::make_bold("\n".to_owned()),
+                RichText::make_plain(row.get(columns::message_product::DESCRIPTION)?),
+            ]);
+
+            let mut content = vec![];
+            if let Some(photo) = get_optional_photo()? {
+                content.push(photo);
+            }
+            content
+        }
         MessageType::OneTimePhoto => {
             text_state = TextParsingState::None;
             vec![content!(Photo {
@@ -865,8 +1094,8 @@ fn parse_regular_message(
 
             let parsed = simd_json::to_owned_value(&mut content)
                 .with_context(|| "Failed to parse UI message element content as JSON")?;
-            let title = get_field_string_option!(parsed, "", "title");
-            let sub_title = get_field_string_option!(parsed, "", "sub_title");
+            let title = get_field_string_missing!(parsed, "", "title");
+            let sub_title = get_field_string_missing!(parsed, "", "sub_title");
             let description = get_field_string_option!(parsed, "", "description");
 
             let mut text = Vec::new();
@@ -888,9 +1117,13 @@ fn parse_regular_message(
             [parse_optional_location(row)?].into_iter().flatten().collect()
         }
         // We're not interested in these
-        MessageType::WaitingForMessage | MessageType::BusinessItem | MessageType::BusinessItemTemplated |
-        MessageType::OneTimePassword | MessageType::WhatsAppMessage | MessageType::DisappearTimerSet =>
-            return Ok(None),
+        MessageType::WaitingForMessage
+        | MessageType::BusinessItemTemplated
+        | MessageType::OneTimePassword
+        | MessageType::WhatsAppMessage
+        | MessageType::DisappearTimerSet => {
+            return Ok(None)
+        }
         MessageType::System => unreachable!(),
         MessageType::MissedCall => unreachable!(),
         MessageType::VideoCall => unreachable!(),
@@ -907,7 +1140,7 @@ fn parse_regular_message(
     let reply_to_message_id_option =
         row.get::<_, Option<MessageKey>>(columns::PARENT_KEY_ID)?
             .and_then(|key_id| msg_key_to_source_id.get(&key_id))
-            .copied();
+            .map(|id| id.0);
 
     let is_deleted = msg_tpe == MessageType::Deleted;
     // For deleted messages, edit time is deletion time.
@@ -948,20 +1181,29 @@ fn parse_optional_location(row: &Row) -> Result<Option<Content>> {
     }
 }
 
-fn parse_vcard(vcard: &str) -> Result<ContentSharedContact> {
-    let mut vcard = VcardParser::new(BufReader::new(vcard.as_bytes()));
-    let vcard = vcard.next().unwrap()?;
+fn parse_vcard(vcard_str: &str) -> Result<ContentSharedContact> {
+    let vcard = calcard::vcard::VCard::parse(vcard_str)
+        .map_err(|_| anyhow!("Parsed something else instead of vcard from: {vcard_str}"))?;
 
-    let full_name = vcard.properties.iter()
-        .find(|p| p.name == "FN")
-        .and_then(|p| p.value.clone())
-        .expect("Name not found for vcard!");
+    let Some(full_name_entry) = vcard.property(&VCardProperty::Fn) else {
+        bail!("No full name in vcard: {vcard_str}");
+    };
+    let Some(full_name) = full_name_entry.values
+        .first()
+        .and_then(|v| v.as_text())
+        .map(|v| v.to_owned())
+    else {
+        bail!("Full name is not a text value in vcard: {vcard_str}");
+    };
 
-    let phone_number = vcard.properties.iter()
-        .filter(|p| p.name.split('.').contains(&"TEL"))
-        .find(|p| p.params.as_ref().is_some_and(|params| params.iter().any(|(k, _)| k == "WAID")))
-        .and_then(|p| p.value.clone())
-        .expect("Phone number not found for vcard!");
+    let Some(phone_number) = vcard.entries.into_iter()
+        .filter(|e| e.name.as_str().split('.').contains(&"TEL"))
+        .flat_map(|e| e.params)
+        .find(|p| p.name.as_str().to_uppercase().as_str() == "WAID")
+        .and_then(|p| p.value.as_text().map(|s| s.to_owned()))
+    else {
+        bail!("WAID phone number not found in vcard: {vcard_str}");
+    };
 
     let phone_number = PhoneNumber::from_raw(&phone_number).0;
 
