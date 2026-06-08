@@ -676,7 +676,7 @@ fn parse_message_associations(conn: &Connection) -> Result<MessageAssocMap> {
     const TABLE_NAME: &str = "message_association";
 
     let mut result: MessageAssocMap = MessageAssocMap::new();
-    if !table_exists(conn, TABLE_NAME) {
+    if !sqlite_utils::table_exists(conn, TABLE_NAME) {
         // Probably an older version of WhatsApp, associations are not a thing
         return Ok(result);
     }

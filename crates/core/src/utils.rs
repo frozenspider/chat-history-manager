@@ -1,4 +1,5 @@
 pub mod entity_utils;
+pub mod sqlite_utils;
 pub mod test_utils;
 
 use std::collections::{Bound, HashSet};
