@@ -1,6 +1,7 @@
 use super::android::AndroidDataLoader;
 use super::*;
 use calcard::vcard::VCardProperty;
+use chat_history_manager_core::utils::sqlite_utils::{JoinTable, JoinType, SelectExpr};
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
@@ -445,86 +446,120 @@ fn parse_chats(
      * - For source_id, we're using hash of `message.key_id` and `call_log.call_id`.
      */
     let mut msgs_stmt = {
-        use columns::{chat::*, message::*, message_revoked::*, message_product::*, message_ui_elements::*, *};
-        fn join_by_message_id(table_name: &str) -> String {
-            format!("LEFT JOIN {table_name} ON {table_name}.message_row_id = message._id")
-        }
-        conn.prepare(&format!(
-            r"SELECT
-                  CASE
-                    WHEN {RECIPIENT_COUNT} == 0 THEN chat_jid.raw_string
-                    ELSE sender_jid.raw_string
-                  END AS {SENDER_JID},
-                  chat.{SUBJECT},
-                  message.*,
-                  message_edit_info.edited_timestamp,
-                  message_quoted.key_id AS {PARENT_KEY_ID},
-                  message_forwarded.forward_score,
-                  {},
-                  {},
-                  message_order.order_title,
-                  message_order.item_count,
-                  message_product.title AS {TITLE},
-                  message_product.description AS {DESCRIPTION},
-                  message_vcard.vcard,
-                  message_revoked.{REVOKED_KEY},
-                  message_revoked.{REVOKE_TIMESTAMP},
-                  message_system.action_type,
-                  message_system_group.is_me_joined,
-                  message_ui_elements.{ELEMENT_TYPE},
-                  message_ui_elements.{ELEMENT_CONTENT},
-                  group_user_jid.raw_string AS {GROUP_USER_JID},
-                  migrate_user_jid.raw_string AS {MIGRATE_USER_JID},
-                  message_system_block_contact.is_blocked
-              FROM message
-              INNER JOIN chat                  ON chat._id             = message.chat_row_id
-              INNER JOIN jid  chat_jid         ON chat_jid._id         = chat.jid_row_id
-              LEFT  JOIN jid  sender_jid       ON sender_jid._id       = message.{SENDER_JID_ROW_ID}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              {}
-              LEFT  JOIN jid  group_user_jid   ON group_user_jid._id   = message_system_chat_participant.user_jid_row_id
-              LEFT  JOIN jid  migrate_user_jid ON migrate_user_jid._id = message_system_number_change.old_jid_row_id
-              WHERE chat_jid.raw_string = ?1
-              ORDER BY message.sort_id ASC",
-            {
-                use columns::message_media::*;
-                [FILE_PATH, NAME, WIDTH, HEIGHT, MIME_TYPE, DURATION, CAPTION].iter()
-                    .map(|c| format!("message_media.{c}")).join(", ")
-            },
-            {
-                use columns::message_location::*;
-                let rest = [NAME, ADDR, DURATION].iter()
-                    .map(|c| format!("message_location.{c}")).join(", ");
-                format!("CAST(message_location.{LAT} AS text) AS {LAT}, CAST(message_location.{LON} AS text) AS {LON}, {rest}")
-            },
-            join_by_message_id("message_edit_info"),
-            join_by_message_id("message_quoted"),
-            join_by_message_id("message_forwarded"),
-            join_by_message_id("message_media"),
-            join_by_message_id("message_location"),
-            join_by_message_id("message_order"),
-            join_by_message_id("message_product"),
-            join_by_message_id("message_vcard"),
-            join_by_message_id("message_revoked"),
-            join_by_message_id("message_system"),
-            join_by_message_id("message_system_group"),
-            join_by_message_id("message_system_chat_participant"),
-            join_by_message_id("message_system_number_change"),
-            join_by_message_id("message_system_block_contact"),
-            join_by_message_id("message_ui_elements"),
+        use columns::{chat::*, message::*, *};
+
+        const JOIN_BY_MESSAGE_ID: &str = "message_row_id = message._id";
+
+        let make_join = |table_name: &str, selects: Vec<String>| {
+            JoinTable {
+                table_name: table_name.to_owned(),
+                table_alias: None,
+                selects: selects.into_iter().map(|s| SelectExpr::Trivial(s)).collect_vec(),
+                join_expr_suffix: JOIN_BY_MESSAGE_ID.to_owned(),
+                join_type: JoinType::Left,
+            }
+        };
+
+        conn.prepare(&sqlite_utils::make_join_sql(
+            &format!(
+                r"SELECT
+                      CASE
+                        WHEN {RECIPIENT_COUNT} == 0 THEN chat_jid.raw_string
+                        ELSE sender_jid.raw_string
+                      END AS {SENDER_JID},
+                      chat.{SUBJECT},
+                      message.*"
+            ),
+            &format!(r"FROM message
+                  INNER JOIN chat                  ON chat._id             = message.chat_row_id
+                  INNER JOIN jid  chat_jid         ON chat_jid._id         = chat.jid_row_id
+                  LEFT  JOIN jid  sender_jid       ON sender_jid._id       = message.{SENDER_JID_ROW_ID}"),
+            &r"WHERE chat_jid.raw_string = ?1
+                  ORDER BY message.sort_id ASC",
+            &[
+                make_join("message_edit_info", vec![
+                    "edited_timestamp".to_owned()
+                ]),
+                make_join("message_quoted", vec![
+                    format!("key_id AS {}", PARENT_KEY_ID)
+                ]),
+                make_join("message_forwarded", vec![
+                    "forward_score".to_owned()
+                ]),
+                make_join("message_media", [
+                    message_media::FILE_PATH,
+                    message_media::NAME,
+                    message_media::WIDTH,
+                    message_media::HEIGHT,
+                    message_media::MIME_TYPE,
+                    message_media::DURATION,
+                    message_media::CAPTION
+                ].into_iter().map(|s| s.to_owned()).collect_vec()),
+                JoinTable {
+                    table_name: "message_location".to_owned(),
+                    selects: vec![
+                        SelectExpr::Custom(format!("CAST(message_location.{} AS text) AS {}", message_location::LAT, message_location::LAT)),
+                        SelectExpr::Custom(format!("CAST(message_location.{} AS text) AS {}", message_location::LON, message_location::LON)),
+                        SelectExpr::Trivial(message_location::NAME.to_owned()),
+                        SelectExpr::Trivial(message_location::ADDR.to_owned()),
+                        SelectExpr::Trivial(message_location::DURATION.to_owned()),
+                    ],
+                    join_expr_suffix: JOIN_BY_MESSAGE_ID.to_owned(),
+                    ..Default::default()
+                },
+                make_join("message_order", vec![
+                    message_order::ORDER_TITLE.to_owned(),
+                    message_order::ITEM_COUNT.to_owned(),
+                ]),
+                make_join("message_product", vec![
+                    format!("title AS {}", message_product::TITLE),
+                    format!("description AS {}", message_product::DESCRIPTION),
+                ]),
+                make_join("message_vcard", vec![
+                    "vcard".to_owned()
+                ]),
+                make_join("message_revoked", vec![
+                    message_revoked::REVOKED_KEY.to_owned(),
+                    message_revoked::REVOKE_TIMESTAMP.to_owned(),
+                ]),
+                make_join("message_system", vec![
+                    "action_type".to_owned()
+                ]),
+                make_join("message_system_group", vec![
+                    "is_me_joined".to_owned()
+                ]),
+                JoinTable {
+                    table_name: "message_system_chat_participant".to_owned(),
+                    join_expr_suffix: JOIN_BY_MESSAGE_ID.to_owned(),
+                    ..Default::default()
+                },
+                JoinTable {
+                    table_name: "message_system_number_change".to_owned(),
+                    join_expr_suffix: JOIN_BY_MESSAGE_ID.to_owned(),
+                    ..Default::default()
+                },
+                make_join("message_system_block_contact", vec![
+                    "is_blocked".to_owned(),
+                ]),
+                make_join("message_ui_elements", vec![
+                    message_ui_elements::ELEMENT_TYPE.to_owned(),
+                    message_ui_elements::ELEMENT_CONTENT.to_owned(),
+                ]),
+                JoinTable {
+                    table_name: "jid".to_owned(),
+                    table_alias: Some("group_user_jid".to_owned()),
+                    selects: vec![SelectExpr::Trivial(format!("raw_string AS {GROUP_USER_JID}"))],
+                    join_expr_suffix: "_id = message_system_chat_participant.user_jid_row_id".to_owned(),
+                    join_type: JoinType::Left,
+                },
+                JoinTable {
+                    table_name: "jid".to_owned(),
+                    table_alias: Some("migrate_user_jid".to_owned()),
+                    selects: vec![SelectExpr::Trivial(format!("raw_string AS {MIGRATE_USER_JID}"))],
+                    join_expr_suffix: "_id = message_system_number_change.old_jid_row_id".to_owned(),
+                    join_type: JoinType::Left,
+                },
+            ],
         ))?
     };
     let mut calls_stmt = {
