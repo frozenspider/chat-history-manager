@@ -1104,6 +1104,10 @@ fn parse_service_message(message_json: &mut MessageJson,
             // Not interesting either way.
             return Ok(ShouldProceed::SkipMessage);
         }
+        "set_chat_wallpaper" => {
+            (ServiceSvo::Notice(MessageServiceNotice {}),
+             Some(format!("Chat wallpaper changed")))
+        }
         etc =>
             bail!("Don't know how to parse service message for action '{etc}'"),
     };
