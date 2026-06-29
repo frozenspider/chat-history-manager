@@ -1,6 +1,5 @@
 import React from "react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import DiffSection from "@/app/diff/diff_section";
 import { Assert } from "@/app/utils/utils";
 import { Button } from "@/components/ui/button";
@@ -42,13 +41,16 @@ export class AbbreviatedArray<T> {
   }
 }
 
+/**
+ * "dont-add" rows are HIDDEN from the diff view
+ */
 export default function Diff<T>(args: {
   description: string,
   labels: [string, string],
   diffsData: Array<DiffData<T>>,
-  isToggleable: (row: DiffData<T>) => boolean
-  renderOne: (entry: T) => React.JSX.Element
-  setToggleableSelection: (selectableIndexes: Set<number>) => void
+  isToggleable: (row: DiffData<T>) => boolean,
+  renderOne: (entry: T) => React.JSX.Element,
+  setToggleableSelection: (selectableIndexes: Set<number>) => void,
 }): React.JSX.Element {
 
   // Selected sections should only include toggleable sections
@@ -109,18 +111,20 @@ export default function Diff<T>(args: {
         <div className="w-[calc(50%-60px)] font-semibold">{args.labels[1]}</div>
       </div>
       <div className="flex-1 overflow-y-scroll">
-        {args.diffsData.map((diffData, index) => {
-          const toggleable = args.isToggleable(diffData);
-          return <DiffSection
-            key={index}
-            index={index}
-            data={diffData}
-            isSelected={!toggleable || selectedSections.has(index)}
-            isToggleable={toggleable}
-            renderOne={args.renderOne}
-            onToggle={() => toggleable ? toggleSection(index) : null}
-          />
-        })}
+        {args.diffsData
+          .filter(diffData => diffData.tpe !== "dont-add")
+          .map((diffData, index) => {
+            const toggleable = args.isToggleable(diffData);
+            return <DiffSection
+              key={index}
+              index={index}
+              data={diffData}
+              isSelected={!toggleable || selectedSections.has(index)}
+              isToggleable={toggleable}
+              renderOne={args.renderOne}
+              onToggle={() => toggleable ? toggleSection(index) : null}
+            />
+          })}
       </div>
     </div>
   </>
