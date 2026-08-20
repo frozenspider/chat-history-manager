@@ -6,7 +6,7 @@ import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import { AppEvent, Asc, Noop } from "@/app/utils/utils";
 import { GetUserPrettyName, IdToReadable } from "@/app/utils/entity_utils";
 
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 
 import ListEntities from "@/app/general/list_entities";
 import { ScrollArea } from "@/components/ui/scroll-area";

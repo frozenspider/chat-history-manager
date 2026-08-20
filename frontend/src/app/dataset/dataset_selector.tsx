@@ -4,7 +4,7 @@ import React from "react"
 
 import { DatasetState, LoadedFileState } from "@/app/utils/state";
 import { EnsureDefined, SerializeJson } from "@/app/utils/utils";
-import { PbUuid } from "@/generated/protobuf/core/protobuf/entities";
+import { PbUuid } from "@/generated/protobuf/entities";
 import { FileKey } from "@/app/utils/entity_utils";
 
 import { Button } from "@/components/ui/button"

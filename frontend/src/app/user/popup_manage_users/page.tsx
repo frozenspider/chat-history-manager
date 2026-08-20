@@ -14,7 +14,7 @@ import {
 import { DatasetState, LoadedFileState, } from "@/app/utils/state";
 import LoadSpinner from "@/app/general/load_spinner";
 import ManageUsers, { UserUpdatedEvent } from "@/app/user/manage_users";
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 
 
 export default function Home() {

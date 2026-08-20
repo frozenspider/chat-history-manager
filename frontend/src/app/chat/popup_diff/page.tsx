@@ -8,7 +8,7 @@ import { ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
 import { AppEvents, Assert, EmitToSelf, EnsureDefined, Listen, Noop, PromiseCatchReportError } from "@/app/utils/utils";
 
 import { Loader2 } from "lucide-react";
-import { ChatAnalysis, } from "@/generated/protobuf/backend/protobuf/services";
+import { ChatAnalysis, } from "@/generated/protobuf/services";
 import { MessageComponent } from "@/app/message/message";
 import { MakeMessagesDiffModel, MessagesDiffModel } from "@/app/diff/diff_model_messages";
 

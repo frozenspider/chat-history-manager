@@ -1,7 +1,7 @@
 'use client'
 
-import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/generated/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
+import { Chat, ChatType, Dataset, Message, SourceType, User } from "@/generated/protobuf/entities";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
 import { CombinedChat, GetUserPrettyName } from "@/app/utils/entity_utils";
 import { LoadedFileState } from "@/app/utils/state";
 import { ChatState } from "@/app/utils/chat_state";

@@ -13,8 +13,8 @@ import {
 } from "@/app/utils/utils";
 import { ChatMatchesString, CombinedChat } from "@/app/utils/entity_utils";
 
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
-import { ChatType } from "@/generated/protobuf/core/protobuf/entities";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
+import { ChatType } from "@/generated/protobuf/entities";
 
 import { DatasetState } from "@/app/utils/state";
 import LoadSpinner from "@/app/general/load_spinner";

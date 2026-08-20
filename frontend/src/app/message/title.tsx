@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { Message, User } from "@/generated/protobuf/core/protobuf/entities";
+import { Message, User } from "@/generated/protobuf/entities";
 import MessageTimestamp from "@/app/message/timestamp";
 import { GetUserPrettyName } from "@/app/utils/entity_utils";
 import ColoredName from "@/app/message/colored_name";

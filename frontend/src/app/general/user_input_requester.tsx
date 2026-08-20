@@ -1,6 +1,6 @@
 import React from "react";
 
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 import { AssertUnreachable, PromiseCatchReportError } from "@/app/utils/utils";
 import { GetUserPrettyName } from "@/app/utils/entity_utils";
 

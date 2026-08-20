@@ -1,6 +1,6 @@
 import React from "react";
 
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import { FindExistingPathAsync } from "@/app/utils/utils";
 import { Avatar } from "@/app/general/avatar";

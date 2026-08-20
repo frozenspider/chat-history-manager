@@ -1,6 +1,6 @@
 import React from "react";
 
-import { ChatType } from "@/generated/protobuf/core/protobuf/entities";
+import { ChatType } from "@/generated/protobuf/entities";
 import { DatasetState } from "@/app/utils/state";
 import { FindExistingPathAsync, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { Avatar } from "@/app/general/avatar";

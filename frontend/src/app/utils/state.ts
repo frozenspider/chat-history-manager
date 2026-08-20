@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { Dataset, User } from "@/generated/protobuf/core/protobuf/entities";
+import { Dataset, User } from "@/generated/protobuf/entities";
 import {
   ChatWithDetailsPB,
   HistoryDaoServiceClient,
@@ -11,7 +11,7 @@ import {
   HistoryLoaderServiceDefinition,
   MergeServiceClient,
   MergeServiceDefinition
-} from "@/generated/protobuf/backend/protobuf/services";
+} from "@/generated/protobuf/services";
 import { FileKey } from "@/app/utils/entity_utils";
 import { createChannel, createClientFactory } from "nice-grpc-web";
 import { EnsureDefined } from "@/app/utils/utils";

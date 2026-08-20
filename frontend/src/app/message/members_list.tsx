@@ -5,7 +5,7 @@ import React from "react";
 import { NameColorClassFromPrettyName } from "@/app/utils/entity_utils";
 import ColoredName from "@/app/message/colored_name";
 
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 
 export default function ColoredMembersList(args: {
   memberNames: string[],

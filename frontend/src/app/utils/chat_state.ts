@@ -10,7 +10,7 @@ import {
   MsgSourceId,
   UuidString
 } from "@/app/utils/entity_utils";
-import { Chat, Message } from "@/generated/protobuf/core/protobuf/entities";
+import { Chat, Message } from "@/generated/protobuf/entities";
 import { DatasetState, GrpcServices } from "@/app/utils/state";
 import { Assert, CreateMapFromKeys, ForAll, GetOrInsertDefault, PromiseCatchReportError } from "@/app/utils/utils";
 

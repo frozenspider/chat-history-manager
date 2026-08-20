@@ -1,6 +1,6 @@
 import { DatasetState, GrpcServices } from "@/app/utils/state";
 import { DiffData } from "@/app/diff/diff";
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 
 
 export type UsersDiffModelRow = [User, DatasetState]

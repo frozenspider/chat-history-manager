@@ -4,7 +4,7 @@ import { EnsureDefined, PromiseCatchReportError, SerializeJson, SpawnPopup } fro
 import { CombinedChat, GetChatPrettyName, GetChatQualifiedName } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
-import { ChatType } from "@/generated/protobuf/core/protobuf/entities";
+import { ChatType } from "@/generated/protobuf/entities";
 import {
   ContextMenu,
   ContextMenuContent,

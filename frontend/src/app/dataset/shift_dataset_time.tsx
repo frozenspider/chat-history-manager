@@ -4,7 +4,7 @@ import { GetServices } from "@/app/utils/state";
 import { ChatStateCacheContext } from "@/app/utils/chat_state";
 import { EmitBusy, EmitNotBusy } from "@/app/utils/utils";
 import { InputOverlay } from "@/app/general/input_overlay";
-import { PbUuid } from "@/generated/protobuf/core/protobuf/entities";
+import { PbUuid } from "@/generated/protobuf/entities";
 
 
 export interface ShiftDatasetTimeState {

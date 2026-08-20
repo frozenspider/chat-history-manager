@@ -3,7 +3,7 @@ import React from "react";
 import { InView } from "react-intersection-observer";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
-import { Chat } from "@/generated/protobuf/core/protobuf/entities";
+import { Chat } from "@/generated/protobuf/entities";
 
 import { MessageComponent } from "@/app/message/message";
 

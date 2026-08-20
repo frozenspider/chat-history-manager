@@ -3,7 +3,7 @@
 import React from "react";
 import { cn } from "@/lib/utils"
 
-import { RichTextElement } from "@/generated/protobuf/core/protobuf/entities";
+import { RichTextElement } from "@/generated/protobuf/entities";
 import { AssertDefined, AssertUnreachable, Deduplicate } from "@/app/utils/utils";
 import ColoredBlockquote from "@/app/message/colored_blockquote";
 

@@ -1,6 +1,6 @@
 import { DatasetState, GrpcServices } from "@/app/utils/state";
 import { DiffData } from "@/app/diff/diff";
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
 
 
 export type ChatsDiffModelRow = [ChatWithDetailsPB, DatasetState]

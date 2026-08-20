@@ -2,12 +2,12 @@ import {
   AnalysisSectionType,
   ChatAnalysis,
   MessagesAbbreviatedSliceResponse
-} from "@/generated/protobuf/backend/protobuf/services";
+} from "@/generated/protobuf/services";
 import { AssertUnreachable, EnsureDefined } from "@/app/utils/utils";
 import { CombinedChat } from "@/app/utils/entity_utils";
 import { DatasetState, GrpcServices } from "@/app/utils/state";
 import { AbbreviatedArray, DiffData, DiffUnits } from "@/app/diff/diff";
-import { Chat, Message } from "@/generated/protobuf/core/protobuf/entities";
+import { Chat, Message } from "@/generated/protobuf/entities";
 import { ChatState } from "@/app/utils/chat_state";
 
 

@@ -27,7 +27,7 @@ import {
   MessageMergeType,
   UserMerge,
   UserMergeType
-} from "@/generated/protobuf/backend/protobuf/services";
+} from "@/generated/protobuf/services";
 import ChatEntryShort from "@/app/chat/chat_entry_short";
 import UserEntryTechncal from "@/app/user/user_entry_technical";
 import { Button } from "@/components/ui/button";

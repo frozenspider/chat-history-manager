@@ -17,7 +17,7 @@ import {
   ContentVoiceMsg,
   Selected,
   User
-} from "@/generated/protobuf/core/protobuf/entities";
+} from "@/generated/protobuf/entities";
 
 import { AssertUnreachable, GetNonDefaultOrNull } from "@/app/utils/utils";
 import { ChatState } from "@/app/utils/chat_state";

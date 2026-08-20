@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/context-menu";
 import { ChatMatchesString, CombinedChat } from "@/app/utils/entity_utils";
 import { ChatState, ChatStateCache, ChatStateCacheContext } from "@/app/utils/chat_state";
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
 import { ask } from "@tauri-apps/plugin-dialog";
 
 

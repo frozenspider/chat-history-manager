@@ -34,13 +34,13 @@ import { CombinedChat } from "@/app/utils/entity_utils";
 import { TestChatState, TestLoadedFiles } from "@/app/utils/test_entities";
 import { cn } from "@/lib/utils";
 
-import { PbUuid, User } from "@/generated/protobuf/core/protobuf/entities";
+import { PbUuid, User } from "@/generated/protobuf/entities";
 import {
   ChatWithDetailsPB,
   EnsureSameRequest,
   EnsureSameResponse,
   MergeRequest
-} from "@/generated/protobuf/backend/protobuf/services";
+} from "@/generated/protobuf/services";
 import camelcaseKeysDeep from "camelcase-keys-deep";
 
 import NavigationBar from "@/app/navigation_bar";

@@ -2,7 +2,7 @@ syntax = "proto2";
 
 package history;
 
-import "crates/core/protobuf/entities.proto";
+import "entities.proto";
 
 message Empty {}
 

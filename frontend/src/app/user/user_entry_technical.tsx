@@ -5,7 +5,7 @@ import React from "react";
 import { GetPrettyPhoneNumber, IdToReadable, NameColorClassFromNumber } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
-import { User } from "@/generated/protobuf/core/protobuf/entities";
+import { User } from "@/generated/protobuf/entities";
 import { UserAvatar } from "@/app/user/user_avatar";
 import ColoredName from "@/app/message/colored_name";
 

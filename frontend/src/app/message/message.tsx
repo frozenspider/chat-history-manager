@@ -5,7 +5,7 @@ import React from "react";
 import MessageTitle from "@/app/message/title";
 import MessageTyped from "@/app/message/typed";
 import MessageRichText from "@/app/message/rich_text";
-import { Chat, Message } from "@/generated/protobuf/core/protobuf/entities";
+import { Chat, Message } from "@/generated/protobuf/entities";
 import { GetNonDefaultOrNull } from "@/app/utils/utils";
 import { NameColorClassFromMembers } from "@/app/utils/entity_utils";
 import { ChatState } from "@/app/utils/chat_state";

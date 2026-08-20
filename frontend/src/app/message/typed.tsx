@@ -28,7 +28,7 @@ import {
   MessageService,
   MessageServicePhoneCall,
   User
-} from "@/generated/protobuf/core/protobuf/entities";
+} from "@/generated/protobuf/entities";
 import { MessageComponent } from "@/app/message/message";
 import ColoredName from "@/app/message/colored_name";
 import SystemMessage from "@/app/message/system_message";

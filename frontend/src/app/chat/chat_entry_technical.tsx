@@ -12,12 +12,12 @@ import {
 } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
-import { ChatType } from "@/generated/protobuf/core/protobuf/entities";
+import { ChatType } from "@/generated/protobuf/entities";
 
 import { ChatAvatar } from "@/app/chat/chat_avatar";
 import ColoredName from "@/app/message/colored_name";
 import { Badge } from "@/components/ui/badge";
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
 
 export default function ChatEntryTechnical(args: {
   cwd: ChatWithDetailsPB,

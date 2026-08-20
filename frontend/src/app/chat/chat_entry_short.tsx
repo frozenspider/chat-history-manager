@@ -17,7 +17,7 @@ import {
 } from "@/app/utils/entity_utils";
 import { DatasetState } from "@/app/utils/state";
 
-import { Chat, ChatType, Message, User } from "@/generated/protobuf/core/protobuf/entities";
+import { Chat, ChatType, Message, User } from "@/generated/protobuf/entities";
 
 import ColoredName from "@/app/message/colored_name";
 import { ChatAvatar } from "@/app/chat/chat_avatar";

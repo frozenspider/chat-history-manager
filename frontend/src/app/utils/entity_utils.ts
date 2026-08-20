@@ -16,8 +16,8 @@ import {
   SourceType,
   sourceTypeToJSON,
   User
-} from "@/generated/protobuf/core/protobuf/entities";
-import { ChatWithDetailsPB } from "@/generated/protobuf/backend/protobuf/services";
+} from "@/generated/protobuf/entities";
+import { ChatWithDetailsPB } from "@/generated/protobuf/services";
 import {
   AssertDefined,
   AssertUnreachable,
