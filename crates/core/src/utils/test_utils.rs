@@ -51,9 +51,12 @@ macro_rules! assert_matches {
     }};
 }
 
+fn manifest_dir() -> PathBuf {
+    std::env::var("CARGO_MANIFEST_DIR").unwrap().replace("//", "/").as_str().into()
+}
+
 pub fn resource(relative_path: &str) -> PathBuf {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap().replace("//", "/");
-    Path::new(manifest_dir.as_str()).join("resources/test").join(relative_path)
+    manifest_dir().join("resources/test").join(relative_path)
 }
 
 pub fn rng() -> &'static mut SmallRng {

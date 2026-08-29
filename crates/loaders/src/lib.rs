@@ -88,7 +88,7 @@ impl FeedbackClientSync for NoFeedbackClient {
 
 #[derive(Debug, Clone)]
 pub struct PredefinedInputFeedbackClient {
-    pub myself_id: Option<i64>,
+    pub myself_id: Option<UserId>,
     pub text: Option<String>,
 }
 
@@ -100,12 +100,12 @@ impl FeedbackClientSync for PredefinedInputFeedbackClient {
         users
             .iter()
             .enumerate()
-            .find(|(_, u)| u.id == myself_id)
+            .find(|(_, u)| u.id() == myself_id)
             .map(|(idx, _)| idx)
             .ok_or_else(|| {
                 anyhow!(
                     "User with ID {} not found! User IDs: {}",
-                    myself_id,
+                    *myself_id,
                     users.iter().map(|u| u.id).join(", ")
                 )
             })
