@@ -1,0 +1,43 @@
+name: Build and test code
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build-without-feaures:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+    - name: Build
+      run: cargo build --no-default-features --verbose
+    - name: Run tests
+      run: cargo test --no-default-features --verbose
+
+  build-all-feaures:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libglib2.0-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libatomic1
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@c9883cc79df532ad1a7b81bf9ab944ceb090d65c # v2.0.0
+        with:
+          runtime: node@24
+          version: ^12.0.0
+      - name: Build
+        run: cargo build --workspace --all-features --verbose
+      - name: Run tests
+        run: cargo test --workspace --all-features --verbose
