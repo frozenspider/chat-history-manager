@@ -1,4 +1,5 @@
 use crate::in_memory_dao::InMemoryDao;
+use crate::sqlite_dao::SqliteDao;
 use crate::*;
 use chat_history_manager_core::protobuf::history::*;
 use chat_history_manager_core::utils::*;
@@ -26,12 +27,37 @@ lazy_static! {
     };
 }
 
+/// Source (in-memory) and destination (SQLite) single-UUID DAOs
+pub struct SrcDstDaos {
+    pub src_dao: Box<InMemoryDao>,
+    #[allow(unused)]
+    pub src_dir: PathBuf,
+    pub dst_dao: SqliteDao,
+    // Temp dirs are held to prevent destruction
+    #[allow(unused)]
+    pub src_dao_tmpdir: Option<TmpDir>,
+    #[allow(unused)]
+    pub dst_dao_tmpdir: TmpDir,
+    pub ds_uuid: PbUuid,
+    pub src_ds_root: DatasetRoot,
+    pub dst_ds_root: DatasetRoot,
+}
+
+pub fn create_empty_sqlite_database() -> (SqliteDao, TmpDir) {
+    let tmp_dir = TmpDir::new();
+    log::info!("Using temp dir {} for Sqlite DAO", tmp_dir.path.display());
+    let dao = SqliteDao::create(&tmp_dir.path.join(SqliteDao::FILENAME)).unwrap();
+    (dao, tmp_dir)
+}
+
 /// Creates a SQLite database from SQL files in the given directory.
 /// For convenience, binary column values can be stored in separate binary files.
 /// For binary files, the name should be in the format `"{db_name}__{table_name}__{condition}__{column_name}.bin"`.
-pub fn create_sqlite_database(root_path: &Path,
-                              databases_rel_path: &str,
-                              target_db_ext_suffix: &str) -> TmpDir {
+fn create_initialized_sqlite_database(
+    root_path: &Path,
+    databases_rel_path: &str,
+    target_db_ext_suffix: &str,
+) -> TmpDir {
     let databases = root_path.join(databases_rel_path);
     if databases.exists() { fs::remove_dir_all(databases.clone()).unwrap(); }
     let db_tmp_dir = TmpDir::new_at(databases);
@@ -87,7 +113,7 @@ pub fn create_databases(resource_name: &str,
     assert!(folder.exists());
 
     let tmp_dir =
-        create_sqlite_database(&folder, databases_rel_path, target_db_ext_suffix);
+        create_initialized_sqlite_database(&folder, databases_rel_path, target_db_ext_suffix);
 
     (tmp_dir.path.join(main_db_filename), tmp_dir)
 }

@@ -83,7 +83,7 @@ async fn execute_command(command: Option<Command>, port: Option<u16>) -> EmptyRe
                 let feedback_client: Box<dyn FeedbackClientSync> =
                     if let Some(myself_id) = myself_id {
                         Box::new(PredefinedInputFeedbackClient {
-                            myself_id: Some(myself_id),
+                            myself_id: Some(UserId(myself_id)),
                             text: None,
                         })
                     } else {

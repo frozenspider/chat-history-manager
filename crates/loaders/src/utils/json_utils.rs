@@ -3,13 +3,13 @@ use simd_json::prelude::*;
 
 use crate::prelude::*;
 
-pub struct ParseCallback<'a> {
+pub struct ParseCallback<'k, 'b, 'b2, 'c> {
     /// Key being processed
-    pub key: &'a str,
+    pub key: &'k str,
     /// Value corresponding to tha key
-    pub value: &'a BorrowedValue<'a>,
+    pub value: &'b BorrowedValue<'b2>,
     /// Action to take when key is not expected
-    pub wrong_key_action: &'a dyn Fn() -> EmptyRes,
+    pub wrong_key_action: &'c dyn Fn() -> EmptyRes,
 }
 
 //
@@ -144,6 +144,11 @@ macro_rules! get_field_object_option {
 }
 
 #[macro_export]
+macro_rules! get_field_i32 {
+    ($v:expr, $path:expr, $txt:expr) => {as_i32!(get_field!($v, $path, $txt), $path, $txt)};
+}
+
+#[macro_export]
 macro_rules! get_field_i64 {
     ($v:expr, $path:expr, $txt:expr) => {as_i64!(get_field!($v, $path, $txt), $path, $txt)};
 }
@@ -193,17 +198,21 @@ macro_rules! get_field_string_missing {
 //
 
 /// Parses a JSON object from a borrowed value. See [parse_object] for details.
-pub fn parse_bw_as_object(bw: &BorrowedValue,
-                          path: &str,
-                          process: impl FnMut(ParseCallback) -> EmptyRes) -> EmptyRes {
+pub fn parse_bw_as_object<'b, 'b2>(
+    bw: &'b BorrowedValue<'b2>,
+    path: &str,
+    process: impl FnMut(ParseCallback<'_, 'b, 'b2, '_>) -> EmptyRes,
+) -> EmptyRes {
     parse_object(as_object!(bw, path), path, process)
 }
 
 /// Parses JSON object by iterating over its keys and values and calling `process` for each of them.
 /// As such, all keys in the object must be handled in `process` (either by processing or by calling `consume()`).
-pub fn parse_object(obj: &simd_json::borrowed::Object,
-                    path: &str,
-                    mut process: impl FnMut(ParseCallback) -> EmptyRes) -> EmptyRes {
+pub fn parse_object<'b, 'b2>(
+    obj: &'b simd_json::borrowed::Object<'b2>,
+    path: &str,
+    mut process: impl FnMut(ParseCallback<'_, 'b, 'b2, '_>) -> EmptyRes,
+) -> EmptyRes {
     for (k, v) in obj.iter() {
         process(ParseCallback {
             key: k,

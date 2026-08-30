@@ -1,4 +1,5 @@
 use crate::protobuf::history::*;
+use crate::utils::LOCAL_TZ;
 use crate::utils::entity_utils::*;
 
 use std::cell::UnsafeCell;
@@ -50,9 +51,12 @@ macro_rules! assert_matches {
     }};
 }
 
+fn manifest_dir() -> PathBuf {
+    std::env::var("CARGO_MANIFEST_DIR").unwrap().replace("//", "/").as_str().into()
+}
+
 pub fn resource(relative_path: &str) -> PathBuf {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap().replace("//", "/");
-    Path::new(manifest_dir.as_str()).join("resources/test").join(relative_path)
+    manifest_dir().join("resources/test").join(relative_path)
 }
 
 pub fn rng() -> &'static mut SmallRng {
@@ -60,10 +64,16 @@ pub fn rng() -> &'static mut SmallRng {
     unsafe { &mut *ptr }
 }
 
+/// Parses a timezone-less datetime string at the given UTC offset, defaulting to the local
+/// timezone - the same way loaders interpret timezone-less datetimes found in source data.
 pub fn dt(s: &str, offset: Option<&FixedOffset>) -> DateTime<FixedOffset> {
-    let local = Local::now();
-    let offset = offset.unwrap_or(local.offset());
-    offset.from_local_datetime(&NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()).unwrap()
+    let naive = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap();
+    match offset {
+        Some(offset) => offset.from_local_datetime(&naive).unwrap(),
+        None => LOCAL_TZ.from_local_datetime(&naive).single()
+            .unwrap_or_else(|| panic!("Datetime {s} is ambiguous or non-existent in the local timezone!"))
+            .fixed_offset(),
+    }
 }
 
 pub fn random_alphanumeric(length: usize, seed: u64) -> String {

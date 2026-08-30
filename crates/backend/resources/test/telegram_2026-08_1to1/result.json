@@ -1,0 +1,37 @@
+{
+ "name": "Someone",
+ "type": "personal_chat",
+ "id": 5222222222,
+ "messages": [
+  {
+   "id": 4281,
+   "type": "message",
+   "date": "2026-08-25T13:43:57",
+   "date_unixtime": "1787647437",
+   "from": "Someone",
+   "from_id": "user5222222222",
+   "text": "Hey there",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Hey there"
+    }
+   ]
+  },
+  {
+   "id": 4282,
+   "type": "message",
+   "date": "2026-08-25T13:44:18",
+   "date_unixtime": "1787647458",
+   "from": "Me",
+   "from_id": "user5333333333",
+   "text": "Howdy!",
+   "text_entities": [
+    {
+     "type": "plain",
+     "text": "Howdy!"
+    }
+   ]
+  }
+ ]
+}

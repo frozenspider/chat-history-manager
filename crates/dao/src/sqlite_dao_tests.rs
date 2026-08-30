@@ -367,7 +367,7 @@ fn inserts() -> EmptyRes {
     let ds_uuid = &src_dao.ds_uuid();
     let src_ds_root = src_dao.dataset_root(ds_uuid)?;
 
-    let (mut dst_dao, _dst_dao_tmpdir) = create_sqlite_dao();
+    let (mut dst_dao, _dst_dao_tmpdir) = create_empty_sqlite_database();
     let dst_ds_root = dst_dao.dataset_root(ds_uuid)?;
     assert_eq!(dst_dao.datasets()?, vec![]);
 
@@ -418,7 +418,7 @@ fn inserts() -> EmptyRes {
 
 #[test]
 fn update_dataset_same_uuid() -> EmptyRes {
-    let (mut dao, _tmp_dir) = create_sqlite_dao();
+    let (mut dao, _tmp_dir) = create_empty_sqlite_database();
 
     let ds = dao.insert_dataset(Dataset { uuid: ZERO_PB_UUID.clone(), alias: "My Dataset".to_owned() })?;
     dao.insert_user(create_user(&ds.uuid, 1), true)?;
@@ -470,7 +470,7 @@ fn delete_dataset() -> EmptyRes {
 fn update_user() -> EmptyRes {
     use message_service::SealedValueOptional::*;
 
-    let (mut dao, _tmp_dir) = create_sqlite_dao();
+    let (mut dao, _tmp_dir) = create_empty_sqlite_database();
 
     let ds = dao.insert_dataset(Dataset { uuid: ZERO_PB_UUID.clone(), alias: "My Dataset".to_owned() })?;
 
@@ -894,7 +894,7 @@ fn backups() -> EmptyRes {
     let ds_uuid = &src_dao.ds_uuid();
     let src_ds_root = src_dao.dataset_root(ds_uuid)?;
 
-    let (mut dst_dao, dst_dao_tmpdir) = create_sqlite_dao();
+    let (mut dst_dao, dst_dao_tmpdir) = create_empty_sqlite_database();
     assert_eq!(dst_dao.datasets()?, vec![]);
 
     let backups_dir = dst_dao_tmpdir.path.join(BACKUPS_DIR_NAME);
@@ -979,22 +979,7 @@ fn backups() -> EmptyRes {
 // Helpers
 //
 
-struct TestDaos {
-    src_dao: Box<InMemoryDao>,
-    #[allow(unused)]
-    src_dir: PathBuf,
-    dst_dao: SqliteDao,
-    // Temp dirs are held to prevent destruction
-    #[allow(unused)]
-    src_dao_tmpdir: Option<TmpDir>,
-    #[allow(unused)]
-    dst_dao_tmpdir: TmpDir,
-    ds_uuid: PbUuid,
-    src_ds_root: DatasetRoot,
-    dst_ds_root: DatasetRoot,
-}
-
-fn init() -> TestDaos {
+fn init() -> SrcDstDaos {
     let src_dir = resource(TEST_DATASET_ROOT_DIR);
     let ds_uuid = PbUuid::random();
 
@@ -1886,19 +1871,12 @@ fn init() -> TestDaos {
     init_from(src_dao, src_dir, None)
 }
 
-fn init_from(src_dao: Box<InMemoryDao>, src_dir: PathBuf, src_dao_tmpdir: Option<TmpDir>) -> TestDaos {
-    let (dst_dao, dst_dao_tmpdir) = create_sqlite_dao();
+fn init_from(src_dao: Box<InMemoryDao>, src_dir: PathBuf, src_dao_tmpdir: Option<TmpDir>) -> SrcDstDaos {
+    let (dst_dao, dst_dao_tmpdir) = create_empty_sqlite_database();
     let src_dataset_uuids = src_dao.datasets().unwrap().into_iter().map(|ds| ds.uuid).collect_vec();
     dst_dao.copy_datasets_from(src_dao.as_ref(), &src_dataset_uuids).unwrap();
     let ds_uuid = src_dao.datasets().unwrap()[0].uuid.clone();
     let src_ds_root = src_dao.dataset_root(&ds_uuid).unwrap();
     let dst_ds_root = dst_dao.dataset_root(&ds_uuid).unwrap();
-    TestDaos { src_dao, src_dir, src_dao_tmpdir, dst_dao, dst_dao_tmpdir, ds_uuid, src_ds_root, dst_ds_root }
-}
-
-fn create_sqlite_dao() -> (SqliteDao, TmpDir) {
-    let tmp_dir = TmpDir::new();
-    log::info!("Using temp dir {} for Sqlite DAO", tmp_dir.path.display());
-    let dao = SqliteDao::create(&tmp_dir.path.join(SqliteDao::FILENAME)).unwrap();
-    (dao, tmp_dir)
+    SrcDstDaos { src_dao, src_dir, src_dao_tmpdir, dst_dao, dst_dao_tmpdir, ds_uuid, src_ds_root, dst_ds_root }
 }

@@ -23,7 +23,7 @@ impl Loader {
                 Box::new(InstagramDataLoader),
                 Box::new(SignalDataLoader),
                 Box::new(TinderAndroidDataLoader { http_client }),
-                Box::new(BadooAndroidDataLoader),
+                Box::new(BadooAndroidDataLoader { http_client }),
                 Box::new(MailRuAgentDataLoader),
             ],
         }

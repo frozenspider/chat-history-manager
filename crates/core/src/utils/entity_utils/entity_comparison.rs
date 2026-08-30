@@ -293,8 +293,8 @@ impl EntityCmp for Tup<'_, RichTextElement> {
                 None => None
             }
         }
-        let v1 = to_comparable(&self.v);
-        let v2 = to_comparable(&other.v);
+        let v1 = to_comparable(self.v);
+        let v2 = to_comparable(other.v);
         Ok((v1 == v2).into())
     }
 }

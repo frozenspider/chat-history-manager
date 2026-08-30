@@ -55,7 +55,7 @@ impl DataLoader for TelegramDataLoader {
     }
 }
 
-type CB<'a> = ParseCallback<'a>;
+type CB<'k, 'b, 'b2, 'c> = ParseCallback<'k, 'b, 'b2, 'c>;
 
 #[derive(Default, Debug)]
 struct Users {
@@ -154,6 +154,13 @@ enum ParsedMessage {
 /// Users whose ID has been normalized according to this parser's rules (see [USER_ID_SHIFT])
 #[derive(Debug, Clone, PartialEq)]
 pub struct NormalizedShortUser(ShortUser);
+
+impl NormalizedShortUser {
+    pub fn new(raw_id: UserId, full_name_option: Option<String>) -> Self {
+        let id = normalize_user_id(*raw_id);
+        NormalizedShortUser(ShortUser { id, full_name_option })
+    }
+}
 
 #[derive(Clone)]
 struct ExpectedMessageField<'lt> {
@@ -277,6 +284,67 @@ fn parse_contact(json_path: &str, bw: &BorrowedValue) -> Result<User> {
     Ok(user)
 }
 
+fn preparse_chat_users(
+    json_path: &str,
+    chat_json: &Object,
+    ds_uuid: &PbUuid,
+    users: &mut Users,
+) -> Result<()> {
+    parse_object(chat_json, &json_path, |CB { key, value, wrong_key_action }| match key {
+        "name" => consume(),
+        "type" => consume(),
+        "id" => consume(),
+        "messages" => {
+            let path = format!("{json_path}.messages");
+            let messages_json = as_array!(value, path);
+            for v in messages_json {
+                preparse_message_users(&path, v, ds_uuid, users)?;
+            }
+            Ok(())
+        }
+        _ => wrong_key_action()
+    })?;
+
+    Ok(())
+}
+
+fn preparse_message_users(
+    json_path: &str,
+    bw: &BorrowedValue,
+    ds_uuid: &PbUuid,
+    users: &mut Users,
+) -> Result<()> {
+    // This runs for every single message, so it deliberately avoids allocating anything
+    // (error message paths included) unless a new user is actually discovered.
+    let val = as_object!(bw, "message");
+
+    let tpe = get_field!(val, json_path, "type")
+        .try_as_str().with_context(|| format!("'{json_path}.type' field conversion error"))?;
+    let (id_field, name_field) = match tpe {
+        // If a sender is the channel, "author" contains string alias of an admin who sent a message
+        "message" => ("from_id", "from"),
+        "service" => ("actor_id", "actor"),
+        etc => bail!("Unknown message type: {}", etc),
+    };
+
+    let id = normalize_user_id(*parse_user_id(get_field!(val, json_path, id_field))?);
+
+    // Users are never updated after being appended.
+    if users.id_to_user.contains_key(&id) {
+        return Ok(());
+    }
+
+    let short_user = NormalizedShortUser(ShortUser {
+        id,
+        full_name_option: get_field_string_missing!(val, json_path, name_field),
+    });
+
+    // Associate it with a real user, or create one if none found.
+    append_user(short_user, users, ds_uuid)?;
+
+    Ok(())
+}
+
 /// `json_path` includes the chat itself.
 ///
 /// Returns None if the chat is skipped (e.g. is saved_messages).
@@ -284,9 +352,8 @@ fn parse_chat(
     feedback_client: &dyn FeedbackClientSync,
     json_path: &str,
     chat_json: &Object,
-    ds_uuid: &PbUuid,
-    myself_id_option: Option<&UserId>,
-    users: &mut Users
+    myself_id: UserId,
+    users: &Users
 ) -> Result<Option<ChatWithMessages>> {
     let mut chat: Chat = Chat {
         source_type: SourceType::Telegram as i32,
@@ -331,7 +398,7 @@ fn parse_chat(
             let path = format!("{json_path}.messages");
             let messages_json = as_array!(value, path);
             for v in messages_json {
-                let parsed = parse_message(&path, v, ds_uuid, users, &mut member_ids)?;
+                let parsed = parse_message(&path, v, users, &mut member_ids)?;
                 match parsed {
                     ParsedMessage::Ok(msg) =>
                         messages.push(*msg),
@@ -365,7 +432,7 @@ fn parse_chat(
     chat.msg_count = messages.len() as i32;
 
     // Undo the shifts introduced by Telegram 2021-05.
-    match ChatType::resolve(chat.tpe)? {
+    match chat.tpe() {
         ChatType::Personal if chat.id < PERSONAL_CHAT_ID_SHIFT =>
             chat.id += PERSONAL_CHAT_ID_SHIFT,
         ChatType::PrivateGroup if chat.id < GROUP_CHAT_ID_SHIFT =>
@@ -374,15 +441,11 @@ fn parse_chat(
             { /* Don't change anything. */ }
     }
 
-    if let Some(myself_id) = myself_id_option {
-        // Add myself as a first member (not required by convention but to match existing behaviour).
-        member_ids.remove(myself_id);
-    }
+    // Add myself as a first member
+    member_ids.remove(&myself_id);
     let mut member_ids = member_ids.into_iter().collect_vec();
     member_ids.sort_by_key(|id| **id);
-    if let Some(myself_id) = myself_id_option {
-        member_ids.insert(0, *myself_id);
-    }
+    member_ids.insert(0, myself_id);
     chat.member_ids = member_ids.into_iter().map(|s| *s).collect();
 
     Ok(Some(ChatWithMessages { chat, messages }))
@@ -488,11 +551,12 @@ impl<'lt> MessageJson<'lt> {
     }
 }
 
-fn parse_message(json_path: &str,
-                 bw: &BorrowedValue,
-                 ds_uuid: &PbUuid,
-                 users: &mut Users,
-                 member_ids: &mut HashSet<UserId, Hasher>) -> Result<ParsedMessage> {
+fn parse_message(
+    json_path: &str,
+    bw: &BorrowedValue,
+    users: &Users,
+    member_ids: &mut HashSet<UserId, Hasher>,
+) -> Result<ParsedMessage> {
     use message::Typed;
 
     fn hash_set<const N: usize>(arr: [&str; N]) -> HashSet<&str, Hasher> {
@@ -523,8 +587,8 @@ fn parse_message(json_path: &str,
         expected_fields: None,
     };
 
-    // Determine message type and parse short user from it.
-    let mut short_user: ShortUser = ShortUser::default();
+    // Determine message type
+    let sender_abnormal_id: i64;
     let mut text: Vec<RichTextElement> = vec![];
     let tpe = message_json.field_str("type")?;
     let typed: Typed;
@@ -536,9 +600,7 @@ fn parse_message(json_path: &str,
             parse_regular_message(&mut message_json, &mut regular, users)?;
             typed = Typed::Regular(regular);
 
-            short_user.id = parse_user_id(message_json.field("from_id")?)?;
-            short_user.full_name_option = message_json.field_opt_str("from")?;
-            // If a sender is the channel, "author" contains string alias of an admin who sent a message
+            sender_abnormal_id = *parse_user_id(message_json.field("from_id")?)?;
         }
         "service" => {
             message_json.expected_fields = Some(SERVICE_MSG_FIELDS.clone());
@@ -558,20 +620,14 @@ fn parse_message(json_path: &str,
             };
             typed = Typed::Service(service);
 
-            short_user.id = parse_user_id(message_json.field("actor_id")?)?;
-            short_user.full_name_option = message_json.field_opt_str("actor")?;
+            sender_abnormal_id = *parse_user_id(message_json.field("actor_id")?)?;
         }
         etc => bail!("Unknown message type: {}", etc),
     }
 
-    let short_user = normalize_short_user(short_user)?;
+    let from_id = normalize_user_id(sender_abnormal_id);
 
-    let from_id = short_user.0.id;
-
-    member_ids.insert(short_user.0.id);
-
-    // Associate it with a real user, or create one if none found.
-    append_user(short_user, users, ds_uuid)?;
+    member_ids.insert(from_id);
 
     let has_unixtime = message_json.val.get("date_unixtime").is_some();
     let has_text_entities = message_json.val.get("text_entities").is_some();
@@ -936,7 +992,6 @@ fn parse_regular_message(message_json: &mut MessageJson,
 
 fn parse_service_message(message_json: &mut MessageJson,
                          service_msg: &mut MessageService) -> Result<ShouldProceed> {
-    use message_service::SealedValueOptional;
 
     // Null members are added as unknown
     fn parse_members(message_json: &mut MessageJson) -> Result<Vec<String>> {
@@ -954,26 +1009,26 @@ fn parse_service_message(message_json: &mut MessageJson,
             .collect::<Result<Vec<String>>>()
     }
 
-    let (val, text_prefix): (SealedValueOptional, Option<String>) = match message_json.field_str("action")?.as_str() {
+    let (val, text_prefix): (ServiceSvo, Option<String>) = match message_json.field_str("action")?.as_str() {
         "phone_call" =>
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: message_json.field_opt_i32("duration_seconds")?,
                 discard_reason_option: message_json.field_opt_str("discard_reason")?,
                 members: vec![],
             }), None),
         "group_call" => // Treated the same as phone_call
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: message_json.field_opt_i32("duration")?,
                 discard_reason_option: None,
                 members: vec![],
             }), None),
         "pin_message" =>
-            (SealedValueOptional::PinMessage(MessageServicePinMessage {
+            (ServiceSvo::PinMessage(MessageServicePinMessage {
                 message_source_id: message_json.field_i64("message_id")?
             }), None),
         "suggest_profile_photo" => {
             message_json.add_optional("photo_file_size");
-            (SealedValueOptional::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
+            (ServiceSvo::SuggestProfilePhoto(MessageServiceSuggestProfilePhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
                     height: message_json.field_i32("height")?,
@@ -984,20 +1039,20 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None)
         }
         "clear_history" =>
-            (SealedValueOptional::ClearHistory(MessageServiceClearHistory {}), None),
+            (ServiceSvo::ClearHistory(MessageServiceClearHistory {}), None),
         "create_group" =>
-            (SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+            (ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                 title: message_json.field_str("title")?,
                 members: parse_members(message_json)?,
             }), None),
         "create_channel" =>
-            (SealedValueOptional::GroupCreate(MessageServiceGroupCreate {
+            (ServiceSvo::GroupCreate(MessageServiceGroupCreate {
                 title: message_json.field_str("title")?,
                 members: vec![],
             }), None),
         "edit_group_photo" => {
             message_json.add_optional("photo_file_size");
-            (SealedValueOptional::GroupEditPhoto(MessageServiceGroupEditPhoto {
+            (ServiceSvo::GroupEditPhoto(MessageServiceGroupEditPhoto {
                 photo: ContentPhoto {
                     path_option: message_json.field_opt_path("photo")?,
                     height: message_json.field_i32("height")?,
@@ -1008,41 +1063,41 @@ fn parse_service_message(message_json: &mut MessageJson,
             }), None)
         }
         "delete_group_photo" =>
-            (SealedValueOptional::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}), None),
+            (ServiceSvo::GroupDeletePhoto(MessageServiceGroupDeletePhoto {}), None),
         "edit_group_title" =>
-            (SealedValueOptional::GroupEditTitle(MessageServiceGroupEditTitle {
+            (ServiceSvo::GroupEditTitle(MessageServiceGroupEditTitle {
                 title: message_json.field_str("title")?
             }), None),
         "invite_members" =>
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: parse_members(message_json)?
             }), None),
         "remove_members" =>
-            (SealedValueOptional::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
+            (ServiceSvo::GroupRemoveMembers(MessageServiceGroupRemoveMembers {
                 members: parse_members(message_json)?
             }), None),
         "join_group_by_link" => {
             // "UserName joined the group via invite link"
             message_json.add_required("inviter");
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
             }), None)
         }
         "join_group_by_request" => {
             // "UserName was accepted to the group"
-            (SealedValueOptional::GroupInviteMembers(MessageServiceGroupInviteMembers {
+            (ServiceSvo::GroupInviteMembers(MessageServiceGroupInviteMembers {
                 members: vec![name_or_unnamed(&message_json.field_opt_str("actor")?)]
             }), None)
         }
         "migrate_from_group" =>
-            (SealedValueOptional::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
+            (ServiceSvo::GroupMigrateFrom(MessageServiceGroupMigrateFrom {
                 title: message_json.field_str("title")?
             }), None),
         "migrate_to_supergroup" =>
-            (SealedValueOptional::GroupMigrateTo(MessageServiceGroupMigrateTo {}), None),
+            (ServiceSvo::GroupMigrateTo(MessageServiceGroupMigrateTo {}), None),
         "invite_to_group_call" => {
             // TODO: This should probably modify a previous group call if one is in progress
-            (SealedValueOptional::PhoneCall(MessageServicePhoneCall {
+            (ServiceSvo::PhoneCall(MessageServicePhoneCall {
                 duration_sec_option: None,
                 discard_reason_option: None,
                 members: parse_members(message_json)?,
@@ -1062,17 +1117,17 @@ fn parse_service_message(message_json: &mut MessageJson,
                 period_str = new_period_str;
             }
 
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(format!("Messages will be auto-deleted in {period} {period_str}")))
         }
         "boost_apply" => {
             let boosts = message_json.field_i32("boosts")?;
 
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(format!("Group boosted by {boosts}")))
         }
         "joined_telegram" => {
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some("Joined Telegram".to_owned()))
         }
         "edit_chat_theme" => {
@@ -1093,7 +1148,7 @@ fn parse_service_message(message_json: &mut MessageJson,
             } else {
                 bail!("Don't know how to phrase DM price {price} and broadcast_allowed={broadcast_allowed:?}");
             };
-            (SealedValueOptional::Notice(MessageServiceNotice {}),
+            (ServiceSvo::Notice(MessageServiceNotice {}),
              Some(text))
         }
         "todo_completions" => {
@@ -1104,6 +1159,10 @@ fn parse_service_message(message_json: &mut MessageJson,
             // No official documentation, has a "new_creator" field with a (pretty) name.
             // Not interesting either way.
             return Ok(ShouldProceed::SkipMessage);
+        }
+        "set_chat_wallpaper" => {
+            (ServiceSvo::Notice(MessageServiceNotice {}),
+             Some(format!("Chat wallpaper changed")))
         }
         etc =>
             bail!("Don't know how to parse service message for action '{etc}'"),
@@ -1334,12 +1393,13 @@ fn deduplicate(messages: &mut Vec<Message>) -> EmptyRes {
     Ok(())
 }
 
-fn normalize_short_user(mut short_user: ShortUser) -> Result<NormalizedShortUser> {
-    // Normalize user ID.
-    if *short_user.id >= USER_ID_SHIFT {
-        short_user.id = UserId(*short_user.id - USER_ID_SHIFT);
-    }
-    Ok(NormalizedShortUser(short_user))
+fn normalize_user_id(abnormal_id: i64) -> UserId {
+    let id = if abnormal_id >= USER_ID_SHIFT {
+        abnormal_id - USER_ID_SHIFT
+    } else {
+        abnormal_id
+    };
+    UserId(id)
 }
 
 /// Appends a user to the users map if it doesn't exist yet.
@@ -1359,19 +1419,20 @@ fn append_user(short_user: NormalizedShortUser,
 }
 
 fn parse_user_id(bw: &BorrowedValue) -> Result<UserId> {
-    let err_msg = format!("Don't know how to get user ID from '{}'", bw);
+    // Called for every message, so the error message is only formatted when it's actually needed.
+    let err_msg = || format!("Don't know how to get user ID from '{}'", bw);
     let parse_str = |s: &str| -> Result<UserId> {
         match s {
             s if s.starts_with("user") => Ok(UserId(s[4..].parse()?)),
             s if s.starts_with("channel") => Ok(UserId(s[7..].parse()?)),
-            _ => bail!(err_msg.clone())
+            _ => bail!("{}", err_msg())
         }
     };
     match bw {
         BorrowedValue::Static(StaticNode::I64(i)) => Ok(UserId(*i)),
         BorrowedValue::Static(StaticNode::U64(u)) => Ok(UserId(*u as i64)),
         BorrowedValue::String(s) => parse_str(s),
-        _ => bail!(err_msg)
+        _ => bail!("{}", err_msg())
     }
 }
 

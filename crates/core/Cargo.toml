@@ -24,6 +24,9 @@ regex = { workspace = true }
 unicode-segmentation = { workspace = true }
 phonenumber = { workspace = true }
 
+# Database
+rusqlite = { workspace = true }
+
 # Protobuf
 prost = { workspace = true }
 

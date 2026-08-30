@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use std::{env, fs, path::PathBuf};
+use std::{env, path::PathBuf};
 use anyhow::Context;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -7,29 +7,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(None, log::LevelFilter::Debug)
         .init();
 
-    let curr_dir = env::current_dir().context("current directory is inaccessible")?;
+    // tonic emits the `cargo:rerun-if-changed`, but only does the right thing given
+    // absolute paths and narrow include directories
+    let proto_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("protobuf");
+    let proto_files = vec![proto_dir.join("entities.proto")];
+    let proto_includes = vec![proto_dir];
 
-    let proto_files = vec!["crates/core/protobuf/entities.proto"];
-    let proto_includes = vec!["../.."];
-    let fd_out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let pb_out_dir = curr_dir.join("src/protobuf");
-    let descriptor_path = fd_out_dir.join("grpc_reflection_descriptor.bin");
+    let descriptor_path =
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("grpc_reflection_descriptor.bin");
 
-    if !pb_out_dir.exists() {
-        fs::create_dir(&pb_out_dir).with_context(|| format!("cannot create directory {}", pb_out_dir.display()))?;
-    }
-
+    // Generated code lands in OUT_DIR and is pulled into the crate by `src/protobuf.rs`.
+    // Emitting it into `src/` instead would make this build script dirty its own crate's
+    // sources on every run, forcing a spurious recompile of everything downstream.
     tonic_build::configure()
         .build_server(true)
         .file_descriptor_set_path(descriptor_path)
-        .out_dir(pb_out_dir)
         .type_attribute(".", "#[derive(deepsize::DeepSizeOf, serde::Serialize, serde::Deserialize)]")
         .enum_attribute(".", r#"#[serde(rename_all = "snake_case")]"#)
         // All oneof fields should be marked with #[serde(flatten)]
         .field_attribute("Message.typed", r#"#[serde(flatten)]"#)
         .field_attribute("RichTextElement.val", r#"#[serde(flatten)]"#)
         .field_attribute("sealed_value_optional", r#"#[serde(flatten)]"#)
-        .emit_rerun_if_changed(false)
         .compile(&proto_files, &proto_includes)
         .context("protobuf compile error")?;
 
