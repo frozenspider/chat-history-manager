@@ -1306,6 +1306,85 @@ fn inline_bot_buttons() -> EmptyRes {
     Ok(())
 }
 
+/// A forward references its original sender by the raw, still-shifted ID, so that ID has to be
+/// normalized before looking the user up - otherwise the forward is attributed to "[unknown]".
+#[test]
+fn forwarded_from_shifted_id() -> EmptyRes {
+    let res = resource("telegram_2026-08_forwarded-from-shifted-id");
+    LOADER.looks_about_right(&res)?;
+
+    let dao = LOADER.load(&NoFeedbackClient, &res)?;
+
+    let ds_uuid = &dao.ds_uuid();
+    let myself = dao.myself_single_ds();
+    assert_eq!(myself, expected_myself(ds_uuid));
+
+    let forwarding_user = User {
+        ds_uuid: ds_uuid.clone(),
+        id: 5555555555 - USER_ID_SHIFT,
+        first_name_option: Some("Bbbbb Bbbbbbbb".to_owned()),
+        last_name_option: None,
+        username_option: None,
+        phone_number_option: None,
+        profile_pictures: vec![],
+    };
+    assert_eq!(dao.users_single_ds().iter().collect_vec(), vec![&myself, &forwarding_user]);
+
+    let msgs = &dao.cwms_single_ds()[0].messages;
+    assert_eq!(msgs.len(), 3);
+
+    assert_eq!(msgs[0], Message {
+        internal_id: 0,
+        source_id_option: Some(11111),
+        timestamp: 1665499755,
+        from_id: forwarding_user.id,
+        text: vec![RichText::make_plain("Original message".to_owned())],
+        searchable_string: "Original message".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: None,
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    // Name comes from the users map, not from the (null) "forwarded_from" field.
+    assert_eq!(msgs[1], Message {
+        internal_id: 1,
+        source_id_option: Some(11112),
+        timestamp: 1665499756,
+        from_id: myself.id,
+        text: vec![RichText::make_plain("Forwarded from a shifted ID".to_owned())],
+        searchable_string: "Forwarded from a shifted ID".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: Some("Bbbbb Bbbbbbbb".to_owned()),
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    assert_eq!(msgs[2], Message {
+        internal_id: 2,
+        source_id_option: Some(11113),
+        timestamp: 1665499757,
+        from_id: myself.id,
+        text: vec![RichText::make_plain("Forwarded from an unshifted ID".to_owned())],
+        searchable_string: "Forwarded from an unshifted ID".to_owned(),
+        typed: Some(message_regular! {
+            edit_timestamp_option: None,
+            is_deleted: false,
+            forward_from_name_option: Some("Aaaaa Aaaaaaaaaaa".to_owned()),
+            reply_to_message_id_option: None,
+            contents: vec![],
+        }),
+    });
+
+    Ok(())
+}
+
 //
 // Helpers
 //

@@ -151,17 +151,6 @@ enum ParsedMessage {
     SkipChat,
 }
 
-/// Users whose ID has been normalized according to this parser's rules (see [USER_ID_SHIFT])
-#[derive(Debug, Clone, PartialEq)]
-pub struct NormalizedShortUser(ShortUser);
-
-impl NormalizedShortUser {
-    pub fn new(raw_id: UserId, full_name_option: Option<String>) -> Self {
-        let id = normalize_user_id(*raw_id);
-        NormalizedShortUser(ShortUser { id, full_name_option })
-    }
-}
-
 #[derive(Clone)]
 struct ExpectedMessageField<'lt> {
     required_fields: HashSet<&'lt str, Hasher>,
@@ -327,17 +316,14 @@ fn preparse_message_users(
         etc => bail!("Unknown message type: {}", etc),
     };
 
-    let id = normalize_user_id(*parse_user_id(get_field!(val, json_path, id_field))?);
+    let id = parse_normalized_user_id(get_field!(val, json_path, id_field))?;
 
     // Users are never updated after being appended.
     if users.id_to_user.contains_key(&id) {
         return Ok(());
     }
 
-    let short_user = NormalizedShortUser(ShortUser {
-        id,
-        full_name_option: get_field_string_missing!(val, json_path, name_field),
-    });
+    let short_user = ShortUser::new(id, get_field_string_missing!(val, json_path, name_field));
 
     // Associate it with a real user, or create one if none found.
     append_user(short_user, users, ds_uuid)?;
@@ -588,7 +574,7 @@ fn parse_message(
     };
 
     // Determine message type
-    let sender_abnormal_id: i64;
+    let from_id: UserId;
     let mut text: Vec<RichTextElement> = vec![];
     let tpe = message_json.field_str("type")?;
     let typed: Typed;
@@ -600,7 +586,7 @@ fn parse_message(
             parse_regular_message(&mut message_json, &mut regular, users)?;
             typed = Typed::Regular(regular);
 
-            sender_abnormal_id = *parse_user_id(message_json.field("from_id")?)?;
+            from_id = parse_normalized_user_id(message_json.field("from_id")?)?;
         }
         "service" => {
             message_json.expected_fields = Some(SERVICE_MSG_FIELDS.clone());
@@ -620,12 +606,10 @@ fn parse_message(
             };
             typed = Typed::Service(service);
 
-            sender_abnormal_id = *parse_user_id(message_json.field("actor_id")?)?;
+            from_id = parse_normalized_user_id(message_json.field("actor_id")?)?;
         }
         etc => bail!("Unknown message type: {}", etc),
     }
-
-    let from_id = normalize_user_id(sender_abnormal_id);
 
     member_ids.insert(from_id);
 
@@ -719,7 +703,8 @@ fn parse_regular_message(message_json: &mut MessageJson,
     }
 
     let forwarding_user = if let Some(id) = message_json.field_opt("forwarded_from_id")? {
-        users.id_to_user.get(&parse_user_id(id)?)
+        let id = parse_normalized_user_id(id)?;
+        users.id_to_user.get(&id)
     } else {
         None
     };
@@ -1393,47 +1378,49 @@ fn deduplicate(messages: &mut Vec<Message>) -> EmptyRes {
     Ok(())
 }
 
-fn normalize_user_id(abnormal_id: i64) -> UserId {
-    let id = if abnormal_id >= USER_ID_SHIFT {
-        abnormal_id - USER_ID_SHIFT
-    } else {
-        abnormal_id
-    };
-    UserId(id)
-}
-
 /// Appends a user to the users map if it doesn't exist yet.
-fn append_user(short_user: NormalizedShortUser,
+fn append_user(short_user: ShortUser,
                users: &mut Users,
                ds_uuid: &PbUuid) -> Result<UserId> {
-    if !short_user.0.id.is_valid() {
+    if !short_user.id.is_valid() {
         err!("Incorrect ID for a user!")
-    } else if let Some(user) = users.id_to_user.get(&short_user.0.id) {
+    } else if let Some(user) = users.id_to_user.get(&short_user.id) {
         Ok(user.id())
     } else {
-        let user = short_user.0.to_user(ds_uuid);
+        let user = short_user.to_user(ds_uuid);
         let id = user.id();
         users.insert(user);
         Ok(id)
     }
 }
 
-fn parse_user_id(bw: &BorrowedValue) -> Result<UserId> {
+/// Parse user ID and normalize it (see [`USER_ID_SHIFT`])
+fn parse_normalized_user_id(bw: &BorrowedValue) -> Result<UserId> {
     // Called for every message, so the error message is only formatted when it's actually needed.
     let err_msg = || format!("Don't know how to get user ID from '{}'", bw);
-    let parse_str = |s: &str| -> Result<UserId> {
+    let parse_str = |s: &str| -> Result<i64> {
         match s {
-            s if s.starts_with("user") => Ok(UserId(s[4..].parse()?)),
-            s if s.starts_with("channel") => Ok(UserId(s[7..].parse()?)),
+            s if s.starts_with("user") => Ok(s[4..].parse()?),
+            s if s.starts_with("channel") => Ok(s[7..].parse()?),
             _ => bail!("{}", err_msg())
         }
     };
-    match bw {
-        BorrowedValue::Static(StaticNode::I64(i)) => Ok(UserId(*i)),
-        BorrowedValue::Static(StaticNode::U64(u)) => Ok(UserId(*u as i64)),
-        BorrowedValue::String(s) => parse_str(s),
+    let raw_id = match bw {
+        BorrowedValue::Static(StaticNode::I64(i)) => *i,
+        BorrowedValue::Static(StaticNode::U64(u)) => *u as i64,
+        BorrowedValue::String(s) => parse_str(s)?,
         _ => bail!("{}", err_msg())
+    };
+
+    fn normalize_user_id(abnormal_id: i64) -> UserId {
+        let id = if abnormal_id >= USER_ID_SHIFT {
+            abnormal_id - USER_ID_SHIFT
+        } else {
+            abnormal_id
+        };
+        UserId(id)
     }
+    Ok(normalize_user_id(raw_id))
 }
 
 fn parse_timestamp(s: &str) -> Result<i64> {

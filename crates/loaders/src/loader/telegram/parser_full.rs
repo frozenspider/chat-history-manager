@@ -110,12 +110,12 @@ pub(super) fn parse<'a, 'b>(
             if !chat_json.contains_key("name") {
                 continue;
             }
-            let short_user = NormalizedShortUser::new(
-                parse_user_id(get_field!(chat_json, json_path, "id"))?,
+            let short_user = ShortUser::new(
+                parse_normalized_user_id(get_field!(chat_json, json_path, "id"))?,
                 get_field_string_option!(chat_json, json_path, "name"),
             );
             // Doesn't really make sense to pre-populate users without names.
-            if short_user.0.full_name_option.is_none() {
+            if short_user.full_name_option.is_none() {
                 continue;
             }
             append_user(short_user, &mut users, ds_uuid)?;
